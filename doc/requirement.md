@@ -1,125 +1,125 @@
-# Iridium Remote - MVP 需求说明（V1）
+# Iridium Remote - MVP Requirements (V1)
 
-## 一、项目目标
+## 1. Project Goal
 
-开发一个运行在 Windows（未来支持跨平台）的轻量级 SSH 客户端工具，满足以下核心需求：
+Develop a lightweight SSH client for Windows (with future cross-platform support) that satisfies the following core needs:
 
-* 快速连接远程 Linux 服务器
-* 管理多个连接配置
-* 提供稳定、可用的终端体验
-* 安全保存连接凭据（无需重复输入密码）
+* Quickly connect to remote Linux servers
+* Manage multiple connection configurations
+* Provide a stable and usable terminal experience
+* Securely store credentials (no need to re-enter passwords)
 
-**目标原则：**
+**Guiding Principles:**
 
-* 优先“能用”，而不是“功能齐全”
-* 优先“稳定”，而不是“复杂设计”
+* Prioritize “usable” over “feature-rich”
+* Prioritize “stability” over “complex design”
 
 ---
 
-## 二、技术选型（确定版）
+## 2. Technology Stack (Finalized)
 
-### 前端
+### Frontend
 
 * React
 * Tailwind CSS
-* xterm.js（终端显示）
+* xterm.js (terminal rendering)
 
-### 后端
+### Backend
 
-* Tauri（Rust）
-* SQLite（rusqlite）
+* Tauri (Rust)
+* SQLite (rusqlite)
 
-### 系统能力
+### System Capabilities
 
-* SSH：调用系统 ssh（OpenSSH）
-* 凭据管理：keyring（系统安全存储）
-
----
-
-## 三、功能范围（MVP）
-
-## 3.1 连接管理
-
-### 功能
-
-* 新建连接
-* 编辑连接
-* 删除连接
-* 显示连接列表
-
-### 数据字段
-
-* 名称（Name）
-* 主机地址（Host）
-* 端口（Port，默认 22）
-* 用户名（Username）
-
-### 非目标（暂不做）
-
-* 分组
-* 标签
-* 搜索
+* SSH: use system ssh (OpenSSH)
+* Credential management: keyring (system secure storage)
 
 ---
 
-## 3.2 SSH 连接
+## 3. Scope (MVP)
 
-### 功能
+## 3.1 Connection Management
 
-* 点击连接 → 打开终端
-* 自动执行 ssh 命令连接远程主机
-* 支持密码登录（第一版）
+### Features
 
-### 实现方式
+* Create connection
+* Edit connection
+* Delete connection
+* Display connection list
 
-* Tauri 后端启动 ssh 子进程
-* 将 stdout / stderr 输出传递到前端
-* 前端通过 xterm.js 渲染终端
+### Data Fields
 
----
+* Name
+* Host
+* Port (default: 22)
+* Username
 
-## 3.3 终端功能
+### Out of Scope (for now)
 
-### 功能
-
-* 显示 SSH 输出
-* 支持用户输入命令
-* 支持基本交互（回车、删除等）
-
-### 非目标
-
-* 多标签页
-* 分屏
-* 终端主题定制
-* 高级快捷键
+* Grouping
+* Tags
+* Search
 
 ---
 
-## 3.4 凭据管理（关键）
+## 3.2 SSH Connection
 
-### 功能
+### Features
 
-* 第一次连接时输入密码
-* 成功后保存凭据
-* 下次连接自动使用
+* Click a connection → open terminal
+* Execute ssh command to connect to remote host
+* Support password-based login (V1)
 
-### 实现方式
+### Implementation
 
-* 使用 keyring 存储密码
-* 不在 SQLite 中保存密码
+* Tauri backend spawns ssh subprocess
+* stdout / stderr streamed to frontend
+* Frontend renders via xterm.js
 
-### 存储规则
+---
+
+## 3.3 Terminal
+
+### Features
+
+* Display SSH output
+* Accept user input
+* Basic interaction (Enter, Backspace, etc.)
+
+### Out of Scope
+
+* Multi-tab
+* Split panes
+* Theme customization
+* Advanced shortcuts
+
+---
+
+## 3.4 Credential Management (Critical)
+
+### Features
+
+* Prompt for password on first connection
+* Save credentials after successful login
+* Auto-login on subsequent connections
+
+### Implementation
+
+* Use keyring to store credentials
+* Do NOT store passwords in SQLite
+
+### Storage Rule
 
 * service: iridium-remote
 * account: username@host
 
 ---
 
-## 3.5 本地数据存储
+## 3.5 Local Storage
 
-### SQLite 表设计（简化版）
+### SQLite Schema (Simplified)
 
-#### connections 表
+#### connections table
 
 * id (primary key)
 * name
@@ -131,108 +131,108 @@
 
 ---
 
-## 四、用户流程（核心）
+## 4. Core User Flows
 
-### 场景1：首次使用
+### Scenario 1: First-time Use
 
-1. 用户打开应用
-2. 添加一个连接
-3. 点击连接
-4. 输入密码
-5. 成功登录
-
----
-
-### 场景2：再次连接
-
-1. 用户点击已有连接
-2. 自动读取凭据
-3. 直接登录成功
+1. User opens the app
+2. Creates a connection
+3. Clicks the connection
+4. Enters password
+5. Login succeeds
 
 ---
 
-## 五、界面结构（简化）
+### Scenario 2: Reconnect
 
-### 左侧
-
-* 连接列表
-
-### 右侧
-
-* 终端区域（xterm.js）
-
-### 顶部（可选）
-
-* 新建连接按钮
+1. User clicks an existing connection
+2. Credentials are retrieved automatically
+3. Login succeeds without prompting
 
 ---
 
-## 六、非功能性要求
+## 5. UI Layout (Simplified)
 
-### 性能
+### Left Panel
 
-* 启动时间 < 2 秒
-* SSH连接响应快速
+* Connection list
 
-### 安全
+### Right Panel
 
-* 不明文存储密码
-* 使用系统凭据管理
+* Terminal area (xterm.js)
 
-### 稳定性
+### Top Bar (optional)
 
-* SSH断开不崩溃
-* 错误有提示
+* “New Connection” button
 
 ---
 
-## 七、明确不做（防止范围膨胀）
+## 6. Non-functional Requirements
 
-以下功能**明确不在 MVP 中实现**：
+### Performance
 
-* ❌ 指令仓库
-* ❌ 批量执行
-* ❌ 多用户切换
-* ❌ 文件传输（SFTP）
-* ❌ 云同步
-* ❌ 插件系统
-* ❌ 团队功能
+* Startup time < 2 seconds
+* Fast SSH connection response
 
----
+### Security
 
-## 八、完成标准（Definition of Done）
+* No plaintext password storage
+* Use system credential manager
 
-满足以下条件即视为 MVP 完成：
+### Stability
 
-* 可以创建连接
-* 可以点击连接并成功 SSH 登录
-* 可以正常输入命令并看到输出
-* 密码可以保存并自动复用
-* 应用运行稳定，无明显崩溃
+* No crashes on SSH disconnect
+* Proper error handling and feedback
 
 ---
 
-## 九、开发优先级
+## 7. Explicitly Out of Scope (to avoid scope creep)
 
-1. 项目初始化（Tauri + React）
-2. 集成 xterm.js（静态终端）
-3. 实现 ssh 子进程调用
-4. 打通终端输入输出
-5. 实现连接列表（SQLite）
-6. 集成 keyring（凭据存储）
+The following features are **NOT included in MVP**:
 
----
-
-## 十、版本目标
-
-### V1（当前目标）
-
-👉 一个“你自己愿意每天用”的 SSH 工具
+* ❌ Command library
+* ❌ Batch execution
+* ❌ Multi-user switching
+* ❌ File transfer (SFTP)
+* ❌ Cloud sync
+* ❌ Plugin system
+* ❌ Team collaboration
 
 ---
 
-## 十一、成功标准（现实标准）
+## 8. Definition of Done
 
-* 你停止使用其他 SSH 工具
-* 你每天使用这个工具
-* 没有“明显影响使用”的 bug
+MVP is complete when:
+
+* Connections can be created
+* SSH connection can be established successfully
+* Terminal input/output works correctly
+* Credentials are saved and reused automatically
+* App runs stably without major crashes
+
+---
+
+## 9. Development Priority
+
+1. Initialize Tauri + React project
+2. Integrate xterm.js (static terminal)
+3. Implement ssh subprocess execution
+4. Wire terminal input/output
+5. Implement connection list (SQLite)
+6. Integrate keyring (credential storage)
+
+---
+
+## 10. Version Goal
+
+### V1 (Current Target)
+
+👉 A tool that you personally want to use every day
+
+---
+
+## 11. Success Criteria (Realistic)
+
+* You stop using other SSH tools
+* You use this tool daily
+* No major usability-blocking bugs
