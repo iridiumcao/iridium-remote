@@ -39,3 +39,9 @@ Recent debug build artifacts are produced under:
 - `src-tauri\target\debug\iridium-remote.exe`
 - `src-tauri\target\debug\bundle\msi\Iridium Remote_0.1.0_x64_en-US.msi`
 - `src-tauri\target\debug\bundle\nsis\Iridium Remote_0.1.0_x64-setup.exe`
+
+## Learning the codebase
+
+If you are new to JavaScript, TypeScript, React, Rust, or Tauri, start with:
+
+- `doc\tutorial.md`
