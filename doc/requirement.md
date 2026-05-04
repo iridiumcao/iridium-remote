@@ -1,167 +1,132 @@
-# Iridium Remote - Product Requirements
+# Iridium Remote Requirements
 
-## 1. Product goal
+## Product goal
 
-Build a daily-driver desktop SSH client for Windows that keeps terminal work fast, dependable, and easy to manage.
+Iridium Remote is a desktop SSH client for users who want a lightweight Windows-first remote terminal with saved connections, terminal tabs, and essential file transfer support.
 
-Core outcomes:
+## Target platform
 
-- connect to Linux hosts quickly
-- manage many saved hosts without clutter
-- keep multiple live sessions open in tabs
-- reuse securely stored credentials when the user chooses to save them
-- support basic file transfer without leaving the app
+- Primary target: Windows desktop
+- Future goal: cross-platform support without redesigning the product model
 
-## 2. Technology stack
+## Core user flows
 
-### Frontend
+1. Create, edit, duplicate, group, search, export, and import saved SSH connections.
+2. Open one or more SSH sessions from saved connections and switch between them using tabs.
+3. Interact with remote hosts directly inside the terminal, including password prompts and `sudo` prompts.
+4. Upload and download files with SFTP from the active session context.
+5. Adjust preferences such as theme, language, and connection list display mode and keep them across restarts.
 
-- React
-- Tailwind CSS
-- xterm.js
+## Functional requirements
 
-### Backend
+### Connection management
 
-- Tauri
-- Rust
-- SQLite via `rusqlite`
+- Users can create, edit, delete, and duplicate connections.
+- A connection includes:
+  - display name
+  - host
+  - port
+  - username
+  - optional group name
+  - optional notes
+  - optional password saved to the system keyring
+- The sidebar must support:
+  - collapsible groups
+  - a real-time search box that matches connection name, host, and username
+  - normal display mode
+  - compact display mode
+- In compact mode, edit/copy/delete actions are grouped behind a more menu.
+- Users can import and export JSON backup files containing app settings and connection metadata.
+- Duplicate imports should be skipped instead of creating obvious duplicates.
 
-### System integrations
+### Authentication and credentials
 
-- OpenSSH `ssh`
-- OpenSSH `sftp`
-- system keyring
+- The application uses the system `ssh` client.
+- Password entry through terminal prompts must work without any custom password dialog.
+- Passwords may be entered in the connection form and stored in the system keyring.
+- Passwords must never be stored in SQLite.
+- Passwords must never be included in export files.
+- Keyring entries use:
+  - `service = iridium-remote`
+  - `account = username@host`
 
-## 3. In-scope product features
+### Terminal sessions
 
-### 3.1 Connection management
+- The application supports multiple active sessions at the same time.
+- Each active session is represented by a terminal tab.
+- Session output and input must remain isolated per tab.
+- Disconnects and session exits should be surfaced clearly without crashing the app.
+- The terminal area should be the only vertically scrolling area on the right side of the window.
 
-- create, edit, delete, and duplicate connections
-- organize connections with an optional group name
-- display grouped connections in the sidebar
+### File transfer
 
-### 3.2 Connection fields
+- Users can upload files to the remote host with SFTP.
+- Users can download files from the remote host with SFTP.
+- File transfer should reuse saved connection metadata and credentials when available.
 
-- name
-- group name (optional)
-- host
-- port (default `22`)
-- username
-- password (optional, saved only in keyring)
+### Menus and dialogs
 
-### 3.3 Session management
+#### File menu
 
-- start a new SSH session from any saved connection
-- keep multiple active sessions open at the same time
-- switch sessions through terminal tabs
-- close or disconnect individual tabs without affecting others
+- The File menu must contain:
+  - `New Connection`
+  - `Import`
+  - `Export`
 
-### 3.4 Terminal behavior
+#### Help menu
 
-- stream SSH output into xterm.js
-- send user input directly to the active tab
-- resize the backend PTY with the visible terminal
-- show connection, disconnect, and error state clearly
+- The Help menu must contain:
+  - `❤️ Star on GitHub`
+  - `Report Issue`
+  - `About`
+- `❤️ Star on GitHub` opens `https://github.com/iridiumcao/iridium-remote`
+- `Report Issue` opens `https://github.com/iridiumcao/iridium-remote/issues`
+- The About entry appears only in the Help menu.
+- The About dialog includes:
+  - author
+  - project URL
+  - license
+  - current application version
 
-### 3.5 Credential management
+### Internationalization and theming
 
-- store passwords only in the system keyring
-- allow the user to save a password when creating or editing a connection
-- continue to support manual password entry directly in the terminal
-- reuse saved credentials automatically on later connects
+- The UI supports English and Simplified Chinese.
+- The UI supports light and dark themes.
+- Theme and language selections persist between app launches.
 
-### 3.6 File transfer
+### Preferences and settings
 
-- support upload and download flows from the app
-- use the system `sftp` client
-- require explicit local and remote paths
+- User preferences must be stored locally and restored on startup.
+- Persisted settings currently include:
+  - locale
+  - theme
+  - connection list display mode
+  - collapsed connection groups
 
-### 3.7 Desktop shell features
+### Logging
 
-- About menu entry
-- theme switching
-- UI localization
+- The desktop app writes application logs to the app log directory.
+- Logging should cover important lifecycle events such as connection CRUD, session startup, and import/export operations.
 
-## 4. Primary user flows
+## Non-functional requirements
 
-### 4.1 Create and connect
+- Prefer stable, simple behavior over advanced customization.
+- Preserve fast startup and fast connect behavior.
+- Avoid separate console windows in release builds on Windows.
+- Browser-only development mode should keep working through the mock frontend client.
 
-1. User opens the app.
-2. User creates a connection, optionally saving a password.
-3. User selects the connection and clicks `Connect`.
-4. A new terminal tab opens and moves through `connecting` to `connected`.
+## Storage boundaries
 
-### 4.2 Reuse a connection
+- SQLite stores connection records and application settings.
+- The system keyring stores passwords.
+- Export files contain app settings and connection metadata only.
 
-1. User chooses an existing connection.
-2. User clicks `Connect`.
-3. Saved credentials are loaded from keyring when available.
-4. A new session tab opens without changing other active tabs.
+## TODO
 
-### 4.3 Duplicate a connection
-
-1. User picks `Copy` on an existing connection.
-2. The form opens with the old values prefilled.
-3. User edits only the fields that need to change.
-4. A new connection is saved.
-
-### 4.4 Transfer a file
-
-1. User activates a session tab for a saved connection.
-2. User opens the transfer dialog.
-3. User selects upload or download and enters local and remote paths.
-4. Backend runs the system `sftp` client and reports success or failure.
-
-## 5. Security requirements
-
-- never store plaintext passwords in SQLite
-- use keyring entries with:
-  - `service`: `iridium-remote`
-  - `account`: `username@host`
-- do not log passwords or echo saved credentials intentionally
-- validate connection metadata before launching system commands
-
-## 6. Non-functional requirements
-
-### Performance
-
-- fast startup
-- responsive terminal typing
-- quick session creation without blocking the full UI
-
-### Stability
-
-- no crash on disconnect or subprocess exit
-- clear per-session error reporting
-- safe cleanup when a tab or connection is removed
-
-### UX
-
-- keep the terminal central
-- keep secondary features lightweight
-- make advanced state visible without overwhelming the user
-
-## 7. Release expectation
-
-The application is ready for distribution when:
-
-- grouped connections work reliably
-- multiple active terminal tabs work reliably
-- optional keyring password save works from the connection form
-- basic upload and download flows succeed
-- language/theme settings are usable
-- the app builds cleanly in release mode
-
-## 8. TODO backlog
-
-These items are intentionally deferred:
-
-- connection search and tags
-- command library
-- batch execution
-- multi-user switching per host
-- advanced terminal shortcuts and preferences
-- graphical remote file browser and queued transfer manager
-- cloud sync
-- plugin system
-- collaboration features
+- richer SFTP browser experience
+- advanced terminal preferences and keyboard shortcuts
+- connection tags and smarter filtering
+- host health indicators
+- command snippets and batch execution
+- sync across devices
+- plugins and collaboration features

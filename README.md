@@ -1,52 +1,53 @@
 # Iridium Remote
 
-Iridium Remote is a Windows-first desktop SSH client built with **Tauri**, **React**, **Tailwind CSS**, and **xterm.js**.
+Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, and Rust. It combines a saved-connection sidebar, tabbed terminal sessions, optional keyring-backed passwords, and basic SFTP file transfer in a single desktop app.
 
-## Current feature set
+## Current capabilities
 
-- grouped connection management
-- duplicate-from-existing connection creation
-- optional password save to the system keyring from the connection form
-- multiple active SSH sessions with terminal tabs
-- basic file transfer through the system `sftp` client
-- light and dark themes
-- English and Simplified Chinese UI
-- About menu entry in the desktop app
+- Save SSH connections in SQLite
+- Store optional passwords in the system keyring
+- Browse connections by collapsible groups
+- Search saved connections quickly
+- Switch the connection list between normal and compact display modes
+- Open multiple active SSH sessions in terminal tabs
+- Upload and download files with SFTP
+- Switch between light and dark themes
+- Switch between English and Simplified Chinese
+- Export and import JSON backups containing app settings and connections
+- Persist user settings in the local application database
+- Write application logs to the app log directory
 
 ## Architecture
 
-- **Frontend (`src\`)**: React UI for grouped connections, dialogs, preferences, terminal tabs, and transfer flows
-- **Backend (`src-tauri\src\`)**: Tauri commands plus Rust services for SQLite, keyring access, multi-session PTY-backed SSH, and SFTP execution
-- **Docs (`doc\`)**: requirements, UI design, technical design, data model, contracts, and the beginner tutorial
+- **Frontend:** React + TypeScript + Tailwind CSS + xterm.js
+- **Desktop shell:** Tauri
+- **Backend:** Rust
+- **Connection storage:** SQLite
+- **Credential storage:** OS keyring
+- **SSH/SFTP transport:** system OpenSSH tools (`ssh`, `sftp`)
 
-## Prerequisites
+## Repository guide
 
-- Node.js 24+
-- Rust toolchain
-- Windows OpenSSH client available on the system path
+- `doc\requirement.md` - product requirements and backlog
+- `doc\ui-design.md` - UI structure and interaction design
+- `doc\technical-design.md` - implementation architecture and runtime behavior
+- `doc\data-model.md` - persistent models and backup format
+- `doc\frontend-backend-contracts.md` - Tauri command and event contracts
+- `doc\tutorial.md` - beginner-friendly walkthrough for the codebase
 
 ## Development commands
 
 - Install dependencies: `npm install`
-- Start the desktop app in dev mode: `npm run tauri -- dev`
-- Run the frontend only: `npm run dev`
+- Run the frontend in browser mode: `npm run dev`
+- Run the desktop app in development: `npm run tauri -- dev`
 - Lint: `npm run lint`
 - Test: `npm run test`
-- Run a single test file: `npm run test -- src/App.test.tsx`
 - Build frontend assets: `npm run build`
-- Build the desktop application in release mode: `npm run tauri -- build`
-- Build debug installers: `npm run tauri -- build --debug`
-- Check the Rust backend directly: `cargo check --manifest-path src-tauri\Cargo.toml`
+- Check the Rust backend: `cargo check --manifest-path src-tauri\Cargo.toml`
+- Build the desktop app: `npm run tauri -- build`
 
-## Build output
+## Notes
 
-- Debug bundles: `src-tauri\target\debug\bundle\`
-- Release bundles: `src-tauri\target\release\bundle\`
-
-Use the release build for end users; it hides the extra Windows console window.
-
-## Learning the codebase
-
-If you are new to JavaScript, TypeScript, React, Rust, or Tauri, start with:
-
-- `doc\tutorial.md`
+- Passwords are never stored in SQLite or exported in backup files.
+- Debug builds may show a console window on Windows. Release builds hide it.
+- Release installers are produced by `npm run tauri -- build`.

@@ -1,161 +1,119 @@
-# Data Model Document
+# Data Model
 
-## 1. Purpose
+## SQLite database
 
-This document defines the persistent, secure, and runtime data structures used by the current implementation of **Iridium Remote**.
+The desktop app stores local data in SQLite.
 
-## 2. Data domains
+## `connections` table
 
-The app uses three distinct domains:
+Connection metadata is stored in SQLite.
 
-1. **SQLite connection metadata**
-2. **keyring-stored credentials**
-3. **in-memory session state**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | integer | Primary key |
+| `name` | text | User-facing display name |
+| `host` | text | SSH host |
+| `port` | integer | SSH port |
+| `username` | text | Login username |
+| `group_name` | text nullable | Optional folder/group |
+| `notes` | text nullable | Optional notes |
+| `has_password` | integer | Cached indicator that keyring credentials exist |
+| `created_at` | text | ISO timestamp |
+| `updated_at` | text | ISO timestamp |
 
-## 3. SQLite model
+## `app_settings` table
 
-### 3.1 `connections` table
+App preferences are stored as key/value rows.
 
-| Column | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `id` | text | yes | primary key, UUID |
-| `name` | text | yes | user-facing label |
-| `group_name` | text | no | optional sidebar grouping |
-| `host` | text | yes | hostname or IP |
-| `port` | integer | yes | defaults to `22` |
-| `username` | text | yes | SSH username |
-| `created_at` | text | yes | ISO 8601 UTC |
-| `updated_at` | text | yes | ISO 8601 UTC |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `key` | text | Primary key |
+| `value` | text | Serialized setting value |
 
-### 3.2 Suggested SQL
+Current keys:
 
-```sql
-CREATE TABLE IF NOT EXISTS connections (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  group_name TEXT,
-  host TEXT NOT NULL,
-  port INTEGER NOT NULL DEFAULT 22,
-  username TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-```
+- `locale`
+- `theme`
+- `connection_list_display_mode`
+- `collapsed_connection_groups`
 
-### 3.3 Validation rules
+## Keyring model
 
-- `name`, `host`, and `username` must be non-empty after trimming
-- `group_name` may be empty, which is treated as `NULL`
-- `port` must be a valid TCP port
+Passwords are stored only in the system keyring.
 
-## 4. Keyring model
+- **service:** `iridium-remote`
+- **account:** `username@host`
 
-### 4.1 Key structure
+SQLite stores `has_password` only as a convenience flag for the UI.
 
-- `service`: `iridium-remote`
-- `account`: `username@host`
+## Runtime models
 
-### 4.2 Value
+### Connection
 
-- password only
+Frontend and backend share a connection model with:
 
-### 4.3 Rules
+- id
+- name
+- host
+- port
+- username
+- groupName
+- notes
+- hasPassword
+- createdAt
+- updatedAt
 
-- save only when the user enters a password in the connection form
-- never mirror the password into SQLite or serialized UI state
-- move or delete the keyring entry when connection identity changes
+### AppSettings
 
-## 5. Frontend runtime state
+`AppSettings` contains:
 
-```ts
-type ConnectionRecord = {
-  id: string
-  name: string
-  groupName: string | null
-  host: string
-  port: number
-  username: string
-  hasPassword: boolean
-  createdAt: string
-  updatedAt: string
-}
+- `locale`
+- `theme`
+- `connectionListDisplayMode`
+- `collapsedConnectionGroups`
 
-type SessionState = {
-  sessionId: string
-  connectionId: string
-  connectionName: string
-  status: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
-  message?: string
-}
-```
+### Session
 
-The frontend also stores:
+An active session contains:
 
-- selected connection id
-- active session id
-- theme
-- locale
+- `sessionId`
+- `connectionId`
+- `title`
+- `status`
 
-## 6. Backend runtime state
+Session output is event-driven and buffered on the frontend per session.
 
-```rust
-struct SessionResources {
-    child: Box<dyn Child + Send>,
-    master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
-    queued_password: Option<String>,
-    connected: bool,
-}
+## Export file model
 
-struct ManagedSession {
-    snapshot: SessionStatePayload,
-    resources: Option<SessionResources>,
+Connection export/import uses JSON.
+
+```json
+{
+  "version": 1,
+  "exportedAt": "2026-01-01T00:00:00Z",
+  "settings": {
+    "locale": "en",
+    "theme": "dark",
+    "connectionListDisplayMode": "compact",
+    "collapsedGroups": ["Servers"]
+  },
+  "connections": [
+    {
+      "name": "Production",
+      "host": "prod.example.com",
+      "port": 22,
+      "username": "admin",
+      "groupName": "Servers",
+      "notes": "Primary production host"
+    }
+  ]
 }
 ```
 
-The session manager stores:
+Rules:
 
-- `HashMap<String, ManagedSession>`
-- ordered session id list for tab ordering
-
-## 7. Derived values
-
-These do not need separate storage:
-
-- sidebar subtitle: `username@host[:port]`
-- keyring lookup account: `username@host`
-- active connection count per connection id
-
-## 8. Lifecycle rules
-
-### 8.1 Create
-
-- insert SQLite row
-- optionally save password to keyring
-
-### 8.2 Edit
-
-- update row and `updated_at`
-- keep the old keyring value if identity changes and no replacement password was provided
-- allow explicit keyring deletion
-
-### 8.3 Delete
-
-- remove SQLite row
-- delete the matching keyring entry
-- close and remove tabs for that connection
-
-### 8.4 Session close
-
-- keep disconnected/error tab metadata in memory
-- drop PTY/process handles
-- remove the tab only when the user closes it
-
-## 9. TODO section
-
-Deferred model work:
-
-- tags/search metadata
-- transfer history records
-- remote file browser cache
-- preference sync across devices
+- app settings are included when exporting from the current app
+- passwords are never included
+- imports skip duplicates
+- imports may restore settings when the backup contains them
+- unknown future fields should be ignored when practical

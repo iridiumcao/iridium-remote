@@ -11,7 +11,7 @@ This repository now contains a working Windows-first Tauri desktop app. `doc/req
 - Build frontend assets: `npm run build`
 - Run Rust backend checks directly: `cargo check --manifest-path src-tauri\\Cargo.toml`
 - Run the desktop app in development: `npm run tauri -- dev`
-- Build the desktop app: `npm run tauri -- build --debug`
+- Build the desktop app: `npm run tauri -- build`
 
 ## High-level architecture
 
@@ -19,14 +19,14 @@ The app is a desktop SSH client with a split frontend/backend architecture:
 
 - **Frontend:** React UI with Tailwind CSS for layout/styling and xterm.js for terminal rendering
 - **Backend:** Tauri (Rust) application shell with a PTY-backed multi-session SSH manager plus SFTP execution
-- **Persistence:** SQLite via `rusqlite` for connection metadata
+- **Persistence:** SQLite via `rusqlite` for connection metadata and app settings
 - **System integrations:** system `ssh` (OpenSSH) for remote sessions and OS keyring for credential storage
 
 Expected responsibilities by layer:
 
 - **React frontend** owns connection management screens, dialog state, terminal container UI, and user interaction flow
 - **Tauri backend** owns spawning the `ssh` subprocess inside a PTY, streaming terminal output to the frontend, receiving terminal input from the frontend, and coordinating storage/integration work
-- **SQLite** stores connection records only
+- **SQLite** stores connection records and app settings
 - **Keyring** stores credentials only
 
 The intended primary flow is:
@@ -46,6 +46,7 @@ The intended primary flow is:
 - The current target is **Windows-first**, with future cross-platform support
 - Keep the main UI simple: grouped connection list on the left, tabbed terminal workspace on the right, and lightweight top-bar controls
 - The current implementation supports multiple active sessions through terminal tabs
+- The left sidebar supports real-time search, collapsible groups, and compact/normal display modes
 
 ### SSH and terminal behavior
 
@@ -62,12 +63,13 @@ The intended primary flow is:
   - `service`: `iridium-remote`
   - `account`: `username@host`
 - Passwords may be saved explicitly from the connection form, but never in SQLite
+- Exported backup files contain app settings plus connection metadata, but never passwords
 
 ### Deferred boundaries
 
 Unless requirements are updated, keep the following out of scope:
 
-- Connection tags or search
+- Connection tags
 - Split panes, advanced terminal preferences, or custom shortcut editors
 - Command libraries, batch execution, multi-user switching, cloud sync, plugins, or collaboration features
 

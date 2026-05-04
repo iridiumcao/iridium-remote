@@ -1,208 +1,147 @@
 # Technical Design Document
 
-## 1. Purpose
+## Overview
 
-This document translates the current product requirements into a concrete implementation design for **Iridium Remote**.
+Iridium Remote is a split frontend/backend desktop application:
 
-## 2. Goals
+- **React frontend** renders the connection manager, dialogs, menus, and terminal host surface.
+- **Tauri backend** exposes commands, manages persistence, launches SSH/SFTP processes, and emits session events.
+- **SQLite** stores connection metadata and app settings.
+- **System keyring** stores passwords.
+- **System OpenSSH tools** provide SSH and SFTP transport.
 
-- keep the desktop app responsive while several sessions are active
-- manage saved connection metadata locally with simple schema evolution
-- launch system `ssh` and `sftp` instead of embedding protocol implementations
-- keep password storage explicit and secure through the system keyring
-- support theme and language preferences in the frontend shell
+## Frontend architecture
 
-## 3. System overview
+### Main shell
 
-The app has three major layers:
+`src\App.tsx` owns:
 
-1. **React frontend** for layout, tabs, dialogs, preferences, and terminal rendering
-2. **Tauri + Rust backend** for SQLite, keyring, PTY-backed SSH, and SFTP execution
-3. **OS services** for OpenSSH, secure storage, and native menu plumbing
+- loading connections and app settings
+- menu registration
+- dialog visibility
+- active session selection
+- import/export flow
+- notice/error banners
 
-## 4. Frontend design
+### Sidebar
 
-### 4.1 Main responsibilities
+`src\components\ConnectionList.tsx` renders:
 
-- load connections and active session state on startup
-- render grouped connection cards
-- manage the active tab selection
-- maintain theme and locale preferences in local storage
-- render xterm.js and route input to the active session only
-- create the native desktop menu through Tauri's frontend menu API
+- search query state from the parent
+- display mode switch
+- collapsible grouped connections
+- per-connection actions
 
-### 4.2 Main modules
+Collapsed groups are persisted through app settings rather than local-only UI state.
+Filtering is done in the frontend in real time against connection name, host, and username. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons.
 
-- `App.tsx`: app shell, preferences, dialogs, and command orchestration
-- `ConnectionList`: grouped host browsing and actions
-- `ConnectionFormDialog`: create/edit/copy flow plus explicit password save
-- `TerminalWorkspace`: tab strip, xterm.js lifecycle, per-tab switching
-- `TransferDialog`: upload/download flow
-- `AboutDialog`: app metadata
-- `api/client.ts`: typed bridge for commands, events, and browser mock behavior
+### Terminal workspace
 
-## 5. Backend design
+`src\components\TerminalWorkspace.tsx` manages:
 
-### 5.1 Main responsibilities
+- tab rendering for active sessions
+- xterm host container
+- transfer action access
+- empty-state rendering
 
-- initialize and migrate SQLite
-- enrich connection records with `hasPassword`
-- read/write/delete keyring entries
-- create and manage many PTY-backed SSH sessions at once
-- emit per-session terminal output events
-- run `sftp` transfer jobs on demand
+The layout uses `min-h-0` and overflow boundaries so the main window does not become the scroll container.
 
-### 5.2 Modules
+### Frontend bridge
 
-- `database.rs`: connection CRUD plus schema migration for `group_name`
-- `credentials.rs`: keyring helpers
-- `session.rs`: multi-session SSH manager
-- `transfer.rs`: SFTP transfer runner
-- `models.rs`: serialized command/event payloads
-- `lib.rs`: Tauri commands and app-state wiring
+`src\api\client.ts` abstracts runtime access:
 
-## 6. Session architecture
+- Tauri mode calls backend commands
+- browser mode uses a mock implementation for UI-only development
 
-### 6.1 Session identity
+The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development.
+In packaged Tauri builds, import and export are exposed through the File menu rather than sidebar buttons.
 
-Each active or recently closed tab is represented by a unique `session_id`.
+## Backend architecture
 
-Each session keeps:
+### Command surface
 
-- `session_id`
-- `connection_id`
-- `connection_name`
-- `status`
-- `message`
+`src-tauri\src\lib.rs` registers commands for:
 
-### 6.2 Runtime storage
+- connection CRUD
+- session lifecycle and terminal I/O
+- file transfer
+- app settings load/update
+- connection export/import
 
-The session manager stores a map of sessions plus an ordered tab list.
+It also configures logging and starts shared application state.
 
-Active sessions also keep:
+### Database layer
 
-- PTY master
-- writer handle
-- child process handle
-- queued saved password
-- connected/not-connected flag
+`src-tauri\src\database.rs` now owns two persistence concerns:
 
-### 6.3 Event routing
+1. `connections`
+2. `app_settings`
 
-- `session-status` carries per-session lifecycle updates
-- `session-removed` tells the frontend to remove a tab
-- `terminal-output` carries `sessionId` so the frontend can buffer output by tab
+Settings are stored as normalized rows and materialized into a typed `AppSettings` payload for the frontend.
 
-### 6.4 Session lifecycle
+### Session manager
 
-1. Frontend calls `connect_session(connection_id)`
-2. Backend reads the saved connection and optional keyring password
-3. Backend creates a PTY and launches `ssh`
-4. Backend emits `connecting`
-5. Output is streamed with `sessionId`
-6. If a password prompt appears and a saved password exists, backend writes it automatically
-7. When the session becomes interactive, backend emits `connected`
-8. On disconnect/error, backend keeps the tab state but drops live resources
+`src-tauri\src\session.rs` manages multiple concurrent PTY-backed SSH sessions keyed by `session_id`.
 
-## 7. Credential handling
+Responsibilities:
 
-### 7.1 Explicit save path
+- launch `ssh`
+- stream output events
+- receive terminal input and resize events
+- detect session exit
+- keep session output isolated by tab
 
-Passwords are saved only when the user provides them in the connection form.
+Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
 
-Rules:
+### File transfer
 
-- never store passwords in SQLite
-- save to keyring under `username@host`
-- when username/host changes, migrate the saved key to the new account if possible
-- allow explicit keyring deletion from the edit form
+`src-tauri\src\transfer.rs` shells out to `sftp` using the selected connection and saved credentials where possible.
 
-### 7.2 Manual terminal entry
+## Settings persistence
 
-When a user types a password directly into the terminal:
+Persisted settings currently include:
 
-- the SSH flow still works
-- the password is not captured from terminal output/input for later saving
-- the user must open the connection form to save a password explicitly
+- locale
+- theme
+- connection list display mode
+- collapsed group keys
 
-## 8. File transfer design
+The frontend treats backend settings as the source of truth so preferences survive restarts in both packaged and local runs.
 
-### 8.1 Command shape
+## Import and export design
 
-Frontend calls `transfer_file` with:
+Exports produce a JSON document containing:
 
-- `connectionId`
-- `direction`
-- `localPath`
-- `remotePath`
+- schema version
+- exported timestamp
+- app settings
+- connection records
 
-### 8.2 Execution path
+Imports merge into the existing library:
 
-1. Backend loads the connection and any saved password
-2. Backend launches system `sftp` in a PTY
-3. Backend waits for the password prompt or `sftp>` prompt
-4. Backend sends the queued password when available
-5. Backend sends `put` or `get` followed by `bye`
-6. Backend returns a concise success message or a structured error
+- settings are restored when present in the backup
+- passwords are ignored
+- duplicates are skipped using a normalized signature
+- the result payload returns counts for imported and skipped entries plus whether settings were restored
 
-### 8.3 Current scope
+## Logging
 
-The transfer UI is path-based, not browser-based. Queueing, retry history, and remote browsing are deferred.
+The desktop runtime uses `tauri-plugin-log`.
 
-## 9. Persistence design
+- Application logs are written to the app log directory.
+- Important operational actions emit structured log lines through the Rust backend.
+- Debug builds can still surface log output in the development console path.
+- External Help-menu links are opened through `tauri-plugin-opener` in Tauri builds.
 
-### 9.1 SQLite
+## Windows behavior
 
-The `connections` table stores:
+`src-tauri\src\main.rs` uses `windows_subsystem = "windows"` only for non-debug builds.
 
-- id
-- name
-- group_name
-- host
-- port
-- username
-- created_at
-- updated_at
+- debug runs may show a console window
+- release builds and release installers hide it
 
-### 9.2 Keyring
+## Error handling
 
-The keyring stores:
-
-- service: `iridium-remote`
-- account: `username@host`
-- value: password only
-
-## 10. Desktop shell features
-
-### 10.1 About menu
-
-The native app menu is created in the frontend with Tauri's menu API.
-
-Current menu structure:
-
-- File
-  - New Connection
-- Help
-  - About
-
-### 10.2 Theme and locale
-
-Theme and locale are frontend preferences stored in local storage and applied immediately across the shell.
-
-## 11. Windows considerations
-
-Release builds use:
-
-`#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`
-
-This keeps the extra console visible in debug mode and hidden in release installers.
-
-## 12. TODO section
-
-Deferred technical work:
-
-- connection search index
-- SSH host-key trust management UX
-- transfer queueing/progress streaming
-- advanced terminal preferences
-- cloud sync and remote profile distribution
+- Backend commands return explicit errors to the frontend.
+- Import failures, transfer failures, and session failures become visible UI notices.
+- The app avoids broad silent fallbacks for persisted data operations.

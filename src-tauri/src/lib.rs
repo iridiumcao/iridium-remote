@@ -10,11 +10,12 @@ use std::{fs, sync::Arc};
 use database::Database;
 use errors::{AppError, AppResult};
 use models::{
-    ConnectionListChangedEvent, ConnectionRecord, CreateConnectionInput, FileTransferInput, FileTransferResult,
-    SessionStatePayload, UpdateConnectionInput,
+    AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput,
+    FileTransferInput, FileTransferResult, ImportConnectionsResult, SessionStatePayload, UpdateConnectionInput,
 };
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 
 struct AppState {
     database: Database,
@@ -25,6 +26,7 @@ struct AppState {
 #[tauri::command]
 fn list_connections(state: State<'_, Arc<AppState>>) -> AppResult<Vec<ConnectionRecord>> {
     let connections = state.database.list_connections()?;
+    log::info!("Loaded {} saved connections.", connections.len());
     enrich_connections(&state, connections)
 }
 
@@ -42,6 +44,7 @@ fn create_connection(
     }
 
     let connection = enrich_connection(&state, connection)?;
+    log::info!("Created connection '{}'.", connection.name);
     emit_connection_list_changed(&app, "created", &connection.id)?;
     Ok(connection)
 }
@@ -60,6 +63,7 @@ fn update_connection(
     handle_updated_credentials(&state, &existing, &updated, password, clear_saved_password)?;
 
     let updated = enrich_connection(&state, updated)?;
+    log::info!("Updated connection '{}'.", updated.name);
     emit_connection_list_changed(&app, "updated", &updated.id)?;
     Ok(updated)
 }
@@ -74,6 +78,7 @@ fn delete_connection(
 
     let deleted = state.database.delete_connection(&id)?;
     state.credentials.delete_for_connection(&deleted)?;
+    log::info!("Deleted connection '{}'.", deleted.name);
     emit_connection_list_changed(&app, "deleted", &deleted.id)?;
     Ok(())
 }
@@ -86,6 +91,7 @@ fn connect_session(
 ) -> AppResult<SessionStatePayload> {
     let connection = state.database.get_connection(&connection_id)?;
     let saved_password = state.credentials.get_for_connection(&connection)?;
+    log::info!("Connecting to '{}'.", connection.name);
     state.sessions.connect(app, &connection, saved_password)
 }
 
@@ -114,6 +120,7 @@ fn disconnect_session(
     state: State<'_, Arc<AppState>>,
     session_id: String,
 ) -> AppResult<SessionStatePayload> {
+    log::info!("Disconnecting session {}.", session_id);
     state.sessions.disconnect(app, &session_id)
 }
 
@@ -131,7 +138,42 @@ fn get_session_states(state: State<'_, Arc<AppState>>) -> AppResult<Vec<SessionS
 fn transfer_file(state: State<'_, Arc<AppState>>, input: FileTransferInput) -> AppResult<FileTransferResult> {
     let connection = state.database.get_connection(&input.connection_id)?;
     let saved_password = state.credentials.get_for_connection(&connection)?;
+    log::info!("Starting {:?} transfer for '{}'.", input.direction, connection.name);
     transfer::transfer_file(&connection, saved_password, input)
+}
+
+#[tauri::command]
+fn get_app_settings(state: State<'_, Arc<AppState>>) -> AppResult<AppSettings> {
+    state.database.get_app_settings()
+}
+
+#[tauri::command]
+fn update_app_settings(state: State<'_, Arc<AppState>>, settings: AppSettings) -> AppResult<AppSettings> {
+    let saved = state.database.set_app_settings(&settings)?;
+    log::info!("Updated app settings.");
+    Ok(saved)
+}
+
+#[tauri::command]
+fn export_connections(state: State<'_, Arc<AppState>>) -> AppResult<ConnectionsExportPayload> {
+    let payload = state.database.export_connections()?;
+    log::info!("Exported {} connections.", payload.connections.len());
+    Ok(payload)
+}
+
+#[tauri::command]
+fn import_connections(
+    state: State<'_, Arc<AppState>>,
+    payload: ConnectionsExportPayload,
+) -> AppResult<ImportConnectionsResult> {
+    let result = state.database.import_connections(payload)?;
+    log::info!(
+        "Imported {} connections, skipped {} duplicates, settings restored: {}.",
+        result.imported,
+        result.skipped,
+        result.settings_applied
+    );
+    Ok(result)
 }
 
 fn emit_connection_list_changed(app: &AppHandle, reason: &str, connection_id: &str) -> AppResult<()> {
@@ -222,16 +264,29 @@ fn normalized_password(password: Option<String>) -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+    let mut log_targets = vec![Target::new(TargetKind::LogDir {
+        file_name: Some("iridium-remote".into()),
+    })];
+    if cfg!(debug_assertions) {
+        log_targets.push(Target::new(TargetKind::Stdout));
+    }
 
+    tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets(log_targets)
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
+                .max_file_size(512_000)
+                .rotation_strategy(RotationStrategy::KeepAll)
+                .timezone_strategy(TimezoneStrategy::UseLocal)
+                .build(),
+        )
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
             let state = build_state(app.handle()).map_err(|error| {
                 tauri::Error::Anyhow(anyhow::anyhow!("{}: {:?}", error.message, error.details))
             })?;
@@ -250,6 +305,10 @@ pub fn run() {
             disconnect_session,
             close_session,
             get_session_states,
+            get_app_settings,
+            update_app_settings,
+            export_connections,
+            import_connections,
             transfer_file,
         ])
         .run(tauri::generate_context!())

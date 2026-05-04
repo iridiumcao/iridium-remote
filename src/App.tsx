@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appClient } from './api/client'
 import { AboutDialog } from './components/AboutDialog'
 import { ConnectionFormDialog } from './components/ConnectionFormDialog'
@@ -9,36 +9,19 @@ import { TransferDialog } from './components/TransferDialog'
 import { getTranslations } from './lib/i18n'
 import type {
   AppError,
-  AppTheme,
+  AppSettings,
   ConnectionFormSeed,
   ConnectionRecord,
+  ConnectionsExportPayload,
   CreateConnectionInput,
   FileTransferInput,
-  Locale,
   SessionState,
   UpdateConnectionInput,
 } from './lib/types'
+import { defaultAppSettings } from './lib/types'
 
-const LOCALE_STORAGE_KEY = 'iridium-remote.locale'
-const THEME_STORAGE_KEY = 'iridium-remote.theme'
-
-const loadLocale = (): Locale => {
-  if (typeof window === 'undefined') {
-    return 'en'
-  }
-
-  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY)
-  return stored === 'zh-CN' ? 'zh-CN' : 'en'
-}
-
-const loadTheme = (): AppTheme => {
-  if (typeof window === 'undefined') {
-    return 'dark'
-  }
-
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
-  return stored === 'light' ? 'light' : 'dark'
-}
+const PROJECT_URL = 'https://github.com/iridiumcao/iridium-remote'
+const REPORT_ISSUE_URL = 'https://github.com/iridiumcao/iridium-remote/issues'
 
 const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
   const existing = sessions.find((session) => session.sessionId === nextState.sessionId)
@@ -52,12 +35,12 @@ const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
 }
 
 function App() {
-  const [locale, setLocale] = useState<Locale>(loadLocale)
-  const [theme, setTheme] = useState<AppTheme>(loadTheme)
+  const [settings, setSettings] = useState<AppSettings>(defaultAppSettings)
   const [connections, setConnections] = useState<ConnectionRecord[]>([])
   const [sessions, setSessions] = useState<SessionState[]>([])
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<AppError | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -70,7 +53,9 @@ function App() {
   const [isAboutDialogOpen, setAboutDialogOpen] = useState(false)
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
 
-  const t = useMemo(() => getTranslations(locale), [locale])
+  const importInputRef = useRef<HTMLInputElement | null>(null)
+  const t = useMemo(() => getTranslations(settings.locale), [settings.locale])
+  const isDark = settings.theme === 'dark'
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.sessionId === activeSessionId) ?? null,
@@ -101,24 +86,16 @@ function App() {
   }, [sessions])
 
   const headerStatus = activeSession?.message ?? notice ?? t.ready
-  const isDark = theme === 'dark'
-
-  useEffect(() => {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-  }, [locale])
-
-  useEffect(() => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
-  }, [theme])
 
   useEffect(() => {
     let active = true
 
     const load = async () => {
       try {
-        const [loadedConnections, loadedSessions] = await Promise.all([
+        const [loadedConnections, loadedSessions, loadedSettings] = await Promise.all([
           appClient.listConnections(),
           appClient.getSessionStates(),
+          appClient.getAppSettings(),
         ])
 
         if (!active) {
@@ -127,6 +104,7 @@ function App() {
 
         setConnections(loadedConnections)
         setSessions(loadedSessions)
+        setSettings(loadedSettings)
         setActiveSessionId(loadedSessions[0]?.sessionId ?? null)
         setSelectedConnectionId(loadedSessions[0]?.connectionId ?? loadedConnections[0]?.id ?? null)
       } catch (cause) {
@@ -173,6 +151,30 @@ function App() {
     }
   }, [])
 
+  const openExternalUrl = useCallback(async (url: string) => {
+    try {
+      setError(null)
+      await appClient.openExternalUrl(url)
+    } catch (cause) {
+      setError(appClient.normalizeError(cause))
+    }
+  }, [])
+
+  const saveSettings = async (nextSettings: AppSettings) => {
+    try {
+      setError(null)
+      const savedSettings = await appClient.updateAppSettings(nextSettings)
+      setSettings(savedSettings)
+    } catch (cause) {
+      setError(appClient.normalizeError(cause))
+    }
+  }
+
+  const updateSettings = (producer: (current: AppSettings) => AppSettings) => {
+    const nextSettings = producer(settings)
+    void saveSettings(nextSettings)
+  }
+
   const refreshConnections = async () => {
     const loadedConnections = await appClient.listConnections()
     setConnections(loadedConnections)
@@ -182,11 +184,11 @@ function App() {
     }
   }
 
-  function openCreateDialog() {
+  const openCreateDialog = useCallback(() => {
     setEditingConnection(null)
     setConnectionSeed(null)
     setConnectionDialogOpen(true)
-  }
+  }, [])
 
   const openDuplicateDialog = (connection: ConnectionRecord) => {
     setEditingConnection(null)
@@ -295,6 +297,51 @@ function App() {
     }
   }
 
+  const handleTransfer = async (input: Omit<FileTransferInput, 'connectionId'>) => {
+    if (!activeConnection) {
+      return
+    }
+
+    try {
+      setError(null)
+      const result = await appClient.transferFile({
+        connectionId: activeConnection.id,
+        ...input,
+      })
+      setNotice(result.message)
+    } catch (cause) {
+      const normalized = appClient.normalizeError(cause)
+      throw new Error(normalized.message, { cause })
+    }
+  }
+
+  const handleExportConnections = useCallback(async () => {
+    try {
+      setError(null)
+      const payload = await appClient.exportConnections()
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(blob)
+      const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `iridium-remote-backup-${timestamp}.json`
+      document.body.append(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setNotice(t.exportConnectionsSuccess)
+    } catch (cause) {
+      setError(appClient.normalizeError(cause))
+      setNotice(t.exportConnectionsFailed)
+    }
+  }, [t.exportConnectionsFailed, t.exportConnectionsSuccess])
+
+  const handleImportConnections = useCallback(() => {
+    importInputRef.current?.click()
+  }, [])
+
   useEffect(() => {
     if (!appClient.isTauriRuntime()) {
       return
@@ -319,11 +366,47 @@ function App() {
                   }
                 },
               },
+              {
+                id: 'import-connections',
+                text: t.importConnections,
+                action: () => {
+                  if (!disposed) {
+                    handleImportConnections()
+                  }
+                },
+              },
+              {
+                id: 'export-connections',
+                text: t.exportConnections,
+                action: () => {
+                  if (!disposed) {
+                    void handleExportConnections()
+                  }
+                },
+              },
             ],
           },
           {
             text: t.menuHelp,
             items: [
+              {
+                id: 'star-github',
+                text: t.menuStarOnGitHub,
+                action: () => {
+                  if (!disposed) {
+                    void openExternalUrl(PROJECT_URL)
+                  }
+                },
+              },
+              {
+                id: 'report-issue',
+                text: t.menuReportIssue,
+                action: () => {
+                  if (!disposed) {
+                    void openExternalUrl(REPORT_ISSUE_URL)
+                  }
+                },
+              },
               {
                 id: 'about',
                 text: t.menuAbout,
@@ -346,29 +429,65 @@ function App() {
     return () => {
       disposed = true
     }
-  }, [t])
+  }, [handleExportConnections, handleImportConnections, openCreateDialog, openExternalUrl, t])
 
-  const handleTransfer = async (input: Omit<FileTransferInput, 'connectionId'>) => {
-    if (!activeConnection) {
+  const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
       return
     }
 
     try {
       setError(null)
-      const result = await appClient.transferFile({
-        connectionId: activeConnection.id,
-        ...input,
+      const text = await file.text()
+      const payload = JSON.parse(text) as ConnectionsExportPayload
+      const result = await appClient.importConnections(payload)
+      await refreshConnections()
+      const nextSettings = await appClient.getAppSettings()
+      setSettings(nextSettings)
+      setNotice(
+        getTranslations(nextSettings.locale).importConnectionsSuccess(
+          result.imported,
+          result.skipped,
+          result.settingsApplied,
+        ),
+      )
+    } catch {
+      setError({
+        code: 'VALIDATION_ERROR',
+        message: t.importConnectionsFailed,
       })
-      setNotice(result.message)
-    } catch (cause) {
-      const normalized = appClient.normalizeError(cause)
-      throw new Error(normalized.message, { cause })
     }
   }
 
+  const handleToggleGroup = (groupKey: string) => {
+    updateSettings((current) => {
+      const collapsedGroups = current.collapsedGroups.includes(groupKey)
+        ? current.collapsedGroups.filter((value) => value !== groupKey)
+        : [...current.collapsedGroups, groupKey]
+
+      return {
+        ...current,
+        collapsedGroups,
+      }
+    })
+  }
+
   return (
-    <main className={`min-h-screen ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
-      <div className="mx-auto flex min-h-screen max-w-[1800px] flex-col">
+    <main className={`h-screen overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
+      <input
+        ref={importInputRef}
+        accept="application/json"
+        className="hidden"
+        onChange={(event) => {
+          void handleImportFileChange(event)
+        }}
+        type="file"
+      />
+
+      <div className="mx-auto flex h-full max-w-[1800px] min-h-0 flex-col overflow-hidden">
         <header
           className={`flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4 sm:px-6 ${
             isDark ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'
@@ -402,8 +521,10 @@ function App() {
                     ? 'border-white/10 bg-slate-900 text-slate-100'
                     : 'border-slate-200 bg-white text-slate-900'
                 }`}
-                onChange={(event) => setLocale(event.target.value as Locale)}
-                value={locale}
+                onChange={(event) =>
+                  updateSettings((current) => ({ ...current, locale: event.target.value as AppSettings['locale'] }))
+                }
+                value={settings.locale}
               >
                 <option value="en">{t.english}</option>
                 <option value="zh-CN">{t.simplifiedChinese}</option>
@@ -418,25 +539,16 @@ function App() {
                     ? 'border-white/10 bg-slate-900 text-slate-100'
                     : 'border-slate-200 bg-white text-slate-900'
                 }`}
-                onChange={(event) => setTheme(event.target.value as AppTheme)}
-                value={theme}
+                onChange={(event) =>
+                  updateSettings((current) => ({ ...current, theme: event.target.value as AppSettings['theme'] }))
+                }
+                value={settings.theme}
               >
                 <option value="dark">{t.darkTheme}</option>
                 <option value="light">{t.lightTheme}</option>
               </select>
             </label>
 
-            <button
-              type="button"
-              className={`rounded-lg border px-4 py-2 text-sm transition ${
-                isDark
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-              onClick={() => setAboutDialogOpen(true)}
-            >
-              {t.menuAbout}
-            </button>
             <button
               type="button"
               className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
@@ -476,20 +588,31 @@ function App() {
           </div>
         ) : null}
 
-        <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <ConnectionList
             activeConnectionCounts={activeConnectionCounts}
+            collapsedGroups={settings.collapsedGroups}
             connections={connections}
+            displayMode={settings.connectionListDisplayMode}
             isLoading={isLoading}
             onConnect={connectToConnection}
             onCreate={openCreateDialog}
             onDelete={setConnectionPendingDelete}
+            onDisplayModeChange={(mode) =>
+              updateSettings((current) => ({
+                ...current,
+                connectionListDisplayMode: mode,
+              }))
+            }
             onDuplicate={openDuplicateDialog}
             onEdit={openEditDialog}
+            onSearchChange={setSearchQuery}
             onSelect={setSelectedConnectionId}
+            onToggleGroup={handleToggleGroup}
+            searchQuery={searchQuery}
             selectedConnectionId={selectedConnectionId}
             t={t}
-            theme={theme}
+            theme={settings.theme}
           />
 
           <TerminalWorkspace
@@ -503,7 +626,7 @@ function App() {
             selectedConnection={selectedConnection}
             sessions={sessions}
             t={t}
-            theme={theme}
+            theme={settings.theme}
           />
         </div>
       </div>
@@ -515,7 +638,7 @@ function App() {
           onClose={closeConnectionDialog}
           onSave={saveConnection}
           t={t}
-          theme={theme}
+          theme={settings.theme}
         />
       ) : null}
 
@@ -526,11 +649,20 @@ function App() {
           onConfirm={confirmDeleteConnection}
           open
           t={t}
-          theme={theme}
+          theme={settings.theme}
         />
       ) : null}
 
-      <AboutDialog open={isAboutDialogOpen} onClose={() => setAboutDialogOpen(false)} t={t} theme={theme} />
+      <AboutDialog
+        onClose={() => setAboutDialogOpen(false)}
+        onOpenProjectUrl={() => {
+          void openExternalUrl(PROJECT_URL)
+        }}
+        open={isAboutDialogOpen}
+        projectUrl={PROJECT_URL}
+        t={t}
+        theme={settings.theme}
+      />
 
       {isTransferDialogOpen && activeConnection ? (
         <TransferDialog
@@ -539,7 +671,7 @@ function App() {
           onTransfer={handleTransfer}
           open
           t={t}
-          theme={theme}
+          theme={settings.theme}
         />
       ) : null}
     </main>

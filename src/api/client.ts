@@ -1,11 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { defaultAppSettings } from '../lib/types'
 import type {
+  AppSettings,
   AppError,
   ConnectionRecord,
+  ConnectionsExportPayload,
   CreateConnectionInput,
   FileTransferInput,
   FileTransferResult,
+  ImportConnectionsResult,
   SessionRemovedEvent,
   SessionState,
   TerminalOutputEvent,
@@ -20,6 +24,7 @@ const isTauriRuntime = () =>
     'undefined'
 
 type MockStore = {
+  settings: AppSettings
   connections: ConnectionRecord[]
   sessions: SessionState[]
   sessionListeners: Set<(state: SessionState) => void>
@@ -27,7 +32,38 @@ type MockStore = {
   terminalListeners: Set<(event: TerminalOutputEvent) => void>
 }
 
+const MOCK_SETTINGS_STORAGE_KEY = 'iridium-remote.mock-settings'
+
+const loadMockSettings = (): AppSettings => {
+  if (typeof window === 'undefined') {
+    return defaultAppSettings
+  }
+
+  try {
+    const raw = window.localStorage.getItem(MOCK_SETTINGS_STORAGE_KEY)
+    if (!raw) {
+      return defaultAppSettings
+    }
+
+    return {
+      ...defaultAppSettings,
+      ...(JSON.parse(raw) as Partial<AppSettings>),
+    }
+  } catch {
+    return defaultAppSettings
+  }
+}
+
+const persistMockSettings = (settings: AppSettings) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(MOCK_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+}
+
 const mockStore: MockStore = {
+  settings: loadMockSettings(),
   connections: [],
   sessions: [],
   sessionListeners: new Set(),
@@ -78,6 +114,16 @@ const randomId = () => crypto.randomUUID()
 export const appClient = {
   isTauriRuntime,
 
+  async openExternalUrl(url: string) {
+    if (!isTauriRuntime()) {
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    const { openUrl } = await import('@tauri-apps/plugin-opener')
+    await openUrl(url)
+  },
+
   normalizeError(cause: unknown): AppError {
     if (
       typeof cause === 'object' &&
@@ -107,6 +153,24 @@ export const appClient = {
     }
 
     return invoke<ConnectionRecord[]>('list_connections')
+  },
+
+  async getAppSettings() {
+    if (!isTauriRuntime()) {
+      return mockStore.settings
+    }
+
+    return invoke<AppSettings>('get_app_settings')
+  },
+
+  async updateAppSettings(settings: AppSettings) {
+    if (!isTauriRuntime()) {
+      mockStore.settings = settings
+      persistMockSettings(settings)
+      return settings
+    }
+
+    return invoke<AppSettings>('update_app_settings', { settings })
   },
 
   async createConnection(input: CreateConnectionInput) {
@@ -267,6 +331,83 @@ export const appClient = {
     }
 
     return invoke<SessionState[]>('get_session_states')
+  },
+
+  async exportConnections() {
+    if (!isTauriRuntime()) {
+      return {
+        version: 1,
+        exportedAt: now(),
+        settings: mockStore.settings,
+        connections: mockStore.connections.map((connection) => ({
+          name: connection.name,
+          groupName: connection.groupName,
+          host: connection.host,
+          port: connection.port,
+          username: connection.username,
+        })),
+      } satisfies ConnectionsExportPayload
+    }
+
+    return invoke<ConnectionsExportPayload>('export_connections')
+  },
+
+  async importConnections(payload: ConnectionsExportPayload) {
+    if (!isTauriRuntime()) {
+      let settingsApplied = false
+
+      if (payload.settings) {
+        mockStore.settings = {
+          ...defaultAppSettings,
+          ...payload.settings,
+        }
+        persistMockSettings(mockStore.settings)
+        settingsApplied = true
+      }
+
+      const existing = new Set(
+        mockStore.connections.map(
+          (connection) =>
+            `${connection.groupName ?? ''}|${connection.name.toLowerCase()}|${connection.host.toLowerCase()}|${connection.port}|${connection.username.toLowerCase()}`,
+        ),
+      )
+
+      let imported = 0
+      let skipped = 0
+
+      for (const entry of payload.connections) {
+        const signature = `${entry.groupName ?? ''}|${entry.name.toLowerCase()}|${entry.host.toLowerCase()}|${entry.port}|${entry.username.toLowerCase()}`
+        if (existing.has(signature)) {
+          skipped += 1
+          continue
+        }
+
+        existing.add(signature)
+        imported += 1
+        mockStore.connections = [
+          ...mockStore.connections,
+          {
+            id: randomId(),
+            name: entry.name,
+            groupName: normalizeGroup(entry.groupName),
+            host: entry.host,
+            port: entry.port,
+            username: entry.username,
+            hasPassword: false,
+            createdAt: now(),
+            updatedAt: now(),
+          },
+        ]
+      }
+
+      return {
+        imported,
+        skipped,
+        settingsApplied,
+      } satisfies ImportConnectionsResult
+    }
+
+    return invoke<ImportConnectionsResult>('import_connections', { payload })
   },
 
   async transferFile(input: FileTransferInput) {

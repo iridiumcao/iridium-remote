@@ -1,5 +1,32 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionListDisplayMode {
+    Normal,
+    Compact,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    pub locale: String,
+    pub theme: String,
+    pub connection_list_display_mode: ConnectionListDisplayMode,
+    pub collapsed_groups: Vec<String>,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            locale: "en".into(),
+            theme: "dark".into(),
+            connection_list_display_mode: ConnectionListDisplayMode::Normal,
+            collapsed_groups: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionRecord {
@@ -99,4 +126,31 @@ pub struct FileTransferInput {
 #[serde(rename_all = "camelCase")]
 pub struct FileTransferResult {
     pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionExportRecord {
+    pub name: String,
+    pub group_name: Option<String>,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionsExportPayload {
+    pub version: u32,
+    pub exported_at: String,
+    pub settings: Option<AppSettings>,
+    pub connections: Vec<ConnectionExportRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportConnectionsResult {
+    pub imported: usize,
+    pub skipped: usize,
+    pub settings_applied: bool,
 }

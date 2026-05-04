@@ -234,7 +234,11 @@ export const TerminalWorkspace = ({
   const showOverlay = showIdleState || activeSession?.status === 'connecting' || showSelectionState
 
   return (
-    <section className={`flex min-h-[520px] flex-1 flex-col ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+    <section
+      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+        isDark ? 'bg-slate-950' : 'bg-slate-100'
+      }`}
+    >
       <div
         className={`border-b px-5 py-3 sm:px-6 ${
           isDark ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'
@@ -351,9 +355,9 @@ export const TerminalWorkspace = ({
         </div>
       </div>
 
-      <div className="relative flex-1 p-4 sm:p-6">
+      <div className="relative min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
         <div
-          className={`terminal-shell h-full min-h-[460px] overflow-hidden rounded-2xl border shadow-inner ${
+          className={`terminal-shell h-full min-h-full overflow-hidden rounded-2xl border shadow-inner ${
             isDark
               ? 'border-white/10 bg-slate-950/70 shadow-cyan-950/20'
               : 'border-slate-200 bg-white shadow-slate-200/80'

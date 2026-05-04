@@ -1,179 +1,111 @@
-# Frontend-Backend Contracts
+# Frontend / Backend Contracts
 
-## 1. Purpose
+## Overview
 
-This document defines the current integration contract between the React frontend and the Tauri backend for **Iridium Remote**.
+The React frontend communicates with the Tauri backend through typed commands and runtime events exposed by `src\api\client.ts`.
 
-## 2. Design principles
+## Connection commands
 
-- commands are task-oriented
-- long-lived terminal data flows through events
-- session ids, not connection ids, identify active tabs
-- credential save/delete remains explicit in connection form commands
+### `list_connections() -> Connection[]`
 
-## 3. Shared data types
+Returns all saved connections.
 
-### 3.1 Connection record
+### `create_connection(input) -> Connection`
 
-```ts
-type ConnectionRecord = {
-  id: string
-  name: string
-  groupName: string | null
-  host: string
-  port: number
-  username: string
-  hasPassword: boolean
-  createdAt: string
-  updatedAt: string
-}
-```
+Creates a connection record and optionally stores a password in the keyring.
 
-### 3.2 Session state
+### `update_connection(id, input) -> Connection`
 
-```ts
-type SessionState = {
-  sessionId: string
-  connectionId: string
-  connectionName: string
-  status: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
-  message?: string
-}
-```
+Updates the connection record and synchronizes keyring password state.
 
-### 3.3 Terminal output event
+### `delete_connection(id) -> void`
 
-```ts
-type TerminalOutputEvent = {
-  sessionId: string
-  stream: 'stdout' | 'stderr'
-  data: string
-}
-```
+Deletes the connection record and removes any stored password for that connection identity.
 
-### 3.4 File transfer input
+## Settings commands
 
-```ts
-type FileTransferInput = {
-  connectionId: string
-  direction: 'upload' | 'download'
-  localPath: string
-  remotePath: string
-}
-```
+### `get_app_settings() -> AppSettings`
 
-## 4. Backend commands
+Returns persisted user preferences.
 
-### 4.1 Connection commands
+### `update_app_settings(settings) -> AppSettings`
 
-- `list_connections() -> ConnectionRecord[]`
-- `create_connection(input) -> ConnectionRecord`
-- `update_connection(input) -> ConnectionRecord`
-- `delete_connection(id: string) -> void`
+Stores and returns the normalized settings payload.
 
-Connection form payloads:
+## Import / export commands
 
-```ts
-type CreateConnectionInput = {
-  name: string
-  groupName?: string | null
-  host: string
-  port?: number
-  username: string
-  password?: string
-}
+### `export_connections() -> ConnectionsExportPayload`
 
-type UpdateConnectionInput = {
-  id: string
-  name: string
-  groupName?: string | null
-  host: string
-  port: number
-  username: string
-  password?: string
-  clearSavedPassword: boolean
-}
-```
+Returns the JSON-serializable backup payload for app settings plus all saved connections.
 
-### 4.2 Session commands
+### `import_connections(payload) -> ImportConnectionsResult`
 
-- `connect_session(connectionId: string) -> SessionState`
-- `write_session_input(sessionId: string, data: string) -> void`
-- `resize_session(sessionId: string, cols: number, rows: number) -> void`
-- `disconnect_session(sessionId: string) -> SessionState`
-- `close_session(sessionId: string) -> void`
-- `get_session_states() -> SessionState[]`
+Merges the supplied backup payload into the local database and returns:
 
-### 4.3 Transfer commands
+- `imported`
+- `skipped`
+- `settingsApplied`
 
-- `transfer_file(input: FileTransferInput) -> { message: string }`
+## Session commands
 
-## 5. Emitted events
+### `start_session(connectionId) -> SessionInfo`
 
-### 5.1 `session-status`
+Starts an SSH session for the selected connection.
 
-Payload: `SessionState`
+### `send_session_input(sessionId, data) -> void`
 
-Used for:
+Writes terminal input to the target PTY session.
 
-- connecting
-- connected
-- disconnected
-- error
+### `resize_session(sessionId, cols, rows) -> void`
 
-### 5.2 `session-removed`
+Updates the PTY size to match the xterm viewport.
 
-```ts
-type SessionRemovedEvent = {
-  sessionId: string
-}
-```
+### `close_session(sessionId) -> void`
 
-Used when:
+Stops the target session and releases backend resources.
 
-- user closes a tab
-- deleting a connection removes its tabs
+## File transfer commands
 
-### 5.3 `terminal-output`
+### `upload_file(connectionId, localPath, remotePath) -> TransferResult`
 
-Payload: `TerminalOutputEvent`
+Uploads a file via `sftp`.
 
-Used for:
+### `download_file(connectionId, remotePath, localPath) -> TransferResult`
 
-- per-tab terminal streaming
+Downloads a file via `sftp`.
 
-## 6. Error contract
+## Runtime events
 
-Commands return structured `AppError` values:
+### `session-output`
 
-```ts
-type AppError = {
-  code: string
-  message: string
-  details?: string
-}
-```
+Payload:
 
-Expected codes:
+- `sessionId`
+- `data`
 
-- `VALIDATION_ERROR`
-- `DATABASE_ERROR`
-- `KEYRING_ERROR`
-- `SSH_LAUNCH_ERROR`
-- `NO_ACTIVE_SESSION`
-- `INTERNAL_ERROR`
+### `session-status`
 
-## 7. Concurrency rules
+Payload:
 
-- each `connect_session` call opens a new tab/session
-- terminal input and resize target exactly one `sessionId`
-- background tabs continue running while another tab is active
-- closing one tab must not terminate sibling tabs
+- `sessionId`
+- `status`
+- `message?`
 
-## 8. TODO section
+### `session-removed`
 
-Deferred contract work:
+Payload:
 
-- progress events for file transfers
-- search/filter commands for connections
-- richer preference persistence APIs
+- `sessionId`
+
+Used by the frontend to remove closed tabs and clean up buffered output.
+
+## Browser mock behavior
+
+When the app is not running inside Tauri:
+
+- connections are mocked in memory
+- settings are persisted via browser storage
+- sessions are simulated
+- import/export works against the mock store, including settings when present
+
+This keeps `npm run dev` useful for UI development without the Rust runtime.

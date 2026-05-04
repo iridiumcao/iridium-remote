@@ -9,6 +9,22 @@ export type Locale = 'en' | 'zh-CN'
 
 export type AppTheme = 'dark' | 'light'
 
+export type ConnectionListDisplayMode = 'normal' | 'compact'
+
+export type AppSettings = {
+  locale: Locale
+  theme: AppTheme
+  connectionListDisplayMode: ConnectionListDisplayMode
+  collapsedGroups: string[]
+}
+
+export const defaultAppSettings: AppSettings = {
+  locale: 'en',
+  theme: 'dark',
+  connectionListDisplayMode: 'normal',
+  collapsedGroups: [],
+}
+
 export type ConnectionRecord = {
   id: string
   name: string
@@ -70,6 +86,27 @@ export type FileTransferInput = {
 
 export type FileTransferResult = {
   message: string
+}
+
+export type ConnectionExportRecord = {
+  name: string
+  groupName: string | null
+  host: string
+  port: number
+  username: string
+}
+
+export type ConnectionsExportPayload = {
+  version: number
+  exportedAt: string
+  settings?: AppSettings
+  connections: ConnectionExportRecord[]
+}
+
+export type ImportConnectionsResult = {
+  imported: number
+  skipped: number
+  settingsApplied: boolean
 }
 
 export type ConnectionFormSeed = {

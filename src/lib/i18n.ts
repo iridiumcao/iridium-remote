@@ -1,4 +1,4 @@
-import type { Locale, SessionStatus } from './types'
+import type { ConnectionListDisplayMode, Locale, SessionStatus } from './types'
 
 type Dictionary = {
   appTagline: string
@@ -56,10 +56,16 @@ type Dictionary = {
   lightTheme: string
   menuFile: string
   menuHelp: string
+  menuStarOnGitHub: string
+  menuReportIssue: string
   menuAbout: string
   menuNewConnection: string
   aboutTitle: string
   aboutDescription: string
+  aboutAuthorLabel: string
+  aboutProjectUrlLabel: string
+  aboutLicenseLabel: string
+  openProjectUrl: string
   versionLabel: string
   multiSessionDescription: string
   fileTransfer: string
@@ -72,11 +78,26 @@ type Dictionary = {
   transferSuccess: string
   connectButtonLabel: string
   sessionClosed: string
+  importConnections: string
+  exportConnections: string
+  displayMode: string
+  searchConnections: string
+  moreActions: string
+  noMatchingConnections: string
+  compactMode: string
+  normalMode: string
+  groupCount: (count: number) => string
+  groupToggle: (collapsed: boolean, groupName: string) => string
+  importConnectionsSuccess: (imported: number, skipped: number, settingsApplied: boolean) => string
+  exportConnectionsSuccess: string
+  importConnectionsFailed: string
+  exportConnectionsFailed: string
   validationRequired: string
   validationPort: string
   saveFailed: string
   statusLabel: (status: SessionStatus) => string
   copyOf: (name: string) => string
+  displayModeLabel: (mode: ConnectionListDisplayMode) => string
 }
 
 const dictionaries: Record<Locale, Dictionary> = {
@@ -137,11 +158,17 @@ const dictionaries: Record<Locale, Dictionary> = {
     lightTheme: 'Light',
     menuFile: 'File',
     menuHelp: 'Help',
+    menuStarOnGitHub: '❤️ Star on GitHub',
+    menuReportIssue: 'Report Issue',
     menuAbout: 'About',
     menuNewConnection: 'New Connection',
     aboutTitle: 'About Iridium Remote',
     aboutDescription:
       'Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, and Rust.',
+    aboutAuthorLabel: 'Author',
+    aboutProjectUrlLabel: 'Project URL',
+    aboutLicenseLabel: 'License',
+    openProjectUrl: 'Open Project',
     versionLabel: 'Version',
     multiSessionDescription: 'Open and manage multiple terminal sessions with tabs.',
     fileTransfer: 'File Transfer',
@@ -155,6 +182,24 @@ const dictionaries: Record<Locale, Dictionary> = {
     transferSuccess: 'Transfer completed.',
     connectButtonLabel: 'Connect',
     sessionClosed: 'Session closed.',
+    importConnections: 'Import',
+    exportConnections: 'Export',
+    displayMode: 'Display mode',
+    searchConnections: 'Search connections',
+    moreActions: 'More actions',
+    noMatchingConnections: 'No connections match your search.',
+    compactMode: 'Compact',
+    normalMode: 'Normal',
+    groupCount: (count) => `${count}`,
+    groupToggle: (collapsed, groupName) =>
+      `${collapsed ? 'Expand' : 'Collapse'} ${groupName}`,
+    importConnectionsSuccess: (imported, skipped, settingsApplied) =>
+      `Imported ${imported} connection${imported === 1 ? '' : 's'} and skipped ${skipped} duplicate${
+        skipped === 1 ? '' : 's'
+      }${settingsApplied ? ', and restored app settings.' : '.'}`,
+    exportConnectionsSuccess: 'Exported settings and connections to a backup file.',
+    importConnectionsFailed: 'Unable to import the selected backup file.',
+    exportConnectionsFailed: 'Unable to export the connection backup file.',
     validationRequired: 'Name, host, and username are required.',
     validationPort: 'Port must be a valid TCP port.',
     saveFailed: 'Unable to save the connection.',
@@ -167,6 +212,7 @@ const dictionaries: Record<Locale, Dictionary> = {
         error: 'Error',
       })[status],
     copyOf: (name) => `Copy of ${name}`,
+    displayModeLabel: (mode) => (mode === 'compact' ? 'Compact' : 'Normal'),
   },
   'zh-CN': {
     appTagline: '更顺手的远程工具',
@@ -224,10 +270,16 @@ const dictionaries: Record<Locale, Dictionary> = {
     lightTheme: '浅色',
     menuFile: '文件',
     menuHelp: '帮助',
+    menuStarOnGitHub: '❤️ 在 GitHub 上点赞',
+    menuReportIssue: '反馈问题',
     menuAbout: '关于',
     menuNewConnection: '新建连接',
     aboutTitle: '关于 Iridium Remote',
     aboutDescription: 'Iridium Remote 是一个基于 Tauri、React 和 Rust 的桌面 SSH 客户端。',
+    aboutAuthorLabel: '作者',
+    aboutProjectUrlLabel: '项目地址',
+    aboutLicenseLabel: '许可证',
+    openProjectUrl: '打开项目地址',
     versionLabel: '版本',
     multiSessionDescription: '使用标签页同时打开和管理多个终端会话。',
     fileTransfer: '文件传输',
@@ -240,6 +292,21 @@ const dictionaries: Record<Locale, Dictionary> = {
     transferSuccess: '传输完成。',
     connectButtonLabel: '连接',
     sessionClosed: '会话已关闭。',
+    importConnections: '导入',
+    exportConnections: '导出',
+    displayMode: '显示模式',
+    searchConnections: '搜索连接',
+    moreActions: '更多操作',
+    noMatchingConnections: '没有匹配搜索条件的连接。',
+    compactMode: '紧凑',
+    normalMode: '普通',
+    groupCount: (count) => `${count}`,
+    groupToggle: (collapsed, groupName) => `${collapsed ? '展开' : '折叠'} ${groupName}`,
+    importConnectionsSuccess: (imported, skipped, settingsApplied) =>
+      `已导入 ${imported} 个连接，跳过 ${skipped} 个重复连接${settingsApplied ? '，并恢复应用设置。' : '。'}`,
+    exportConnectionsSuccess: '已导出包含设置和连接的备份文件。',
+    importConnectionsFailed: '无法导入所选备份文件。',
+    exportConnectionsFailed: '无法导出连接备份文件。',
     validationRequired: '名称、主机和用户名为必填项。',
     validationPort: '端口必须是有效的 TCP 端口。',
     saveFailed: '无法保存连接。',
@@ -252,6 +319,7 @@ const dictionaries: Record<Locale, Dictionary> = {
         error: '错误',
       })[status],
     copyOf: (name) => `${name} 副本`,
+    displayModeLabel: (mode) => (mode === 'compact' ? '紧凑' : '普通'),
   },
 }
 

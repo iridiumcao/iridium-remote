@@ -1,203 +1,126 @@
 # UI Design Document
 
-## 1. Purpose
+## Window structure
 
-This document defines the current user interface for **Iridium Remote** as a tabbed desktop SSH client with grouped hosts, file transfer, theme switching, and localization.
+The main window uses a two-column layout:
 
-## 2. Design principles
+- **Left sidebar:** connection search, display controls, grouped connection list
+- **Right workspace:** top toolbar, terminal tabs, terminal surface, session actions
 
-- **Terminal-first:** terminal work stays visually central
-- **Fast repeat actions:** common paths should take one or two clicks
-- **Progressive complexity:** advanced features like transfer, language, and theme should be available without crowding the default layout
-- **Explicit state:** session, transfer, and credential state should be obvious
-- **Low surprise:** saved-password behavior must be explicit in forms, not inferred from terminal input
+The window itself should not scroll. The sidebar scrolls independently, and terminal scroll stays inside the xterm viewport.
 
-## 3. Primary layout
+## Top toolbar
 
-The app uses a three-part main screen:
+The toolbar contains:
 
-1. **Top bar**
-2. **Left sidebar**
-3. **Right workspace**
+- app title / status context
+- language switcher
+- theme switcher
+- new connection action
 
-### 3.1 Top bar
+The About action is not shown here.
 
-Contents:
+## Application menu
 
-- app title
-- lightweight global status text
-- language selector
-- theme selector
-- About entry
-- `New Connection` primary action
+### File
 
-### 3.2 Left sidebar
+- New Connection
+- Import
+- Export
 
-Purpose:
+### Help
 
-- browse saved hosts
-- show group headings
-- select a connection
-- expose connection actions
+- ❤️ Star on GitHub
+- Report Issue
+- About
 
-Per connection card:
+Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog.
+
+## Sidebar design
+
+The sidebar contains four layers in order:
+
+1. **Search field**
+   - filters in real time by connection name, host, and username
+2. **Display mode control**
+   - normal mode
+   - compact mode
+3. **Grouped connection list**
+   - collapsible group headers
+   - ungrouped connections appear in an `Ungrouped` section
+
+### Normal mode
+
+- One card-like row per connection
+- Name is visually dominant
+- Host, user, and metadata remain visible
+- Primary actions are easy to reach
+
+### Compact mode
+
+- One dense row per connection
+- Fewer secondary details
+- Better for large connection libraries
+- `Connect` stays visible while `Edit`, `Copy`, and `Delete` move into a small popup menu opened from a `⋮` button
+
+## Connection interactions
+
+Each connection entry supports:
+
+- connect
+- edit
+- duplicate
+- delete
+- file transfer
+
+Search results should temporarily reveal matching groups even if those groups were collapsed previously.
+
+## Terminal workspace
+
+The right side contains:
+
+- terminal tab strip for active sessions
+- active terminal area
+- empty state when no session is active
+
+Only the terminal viewport scrolls for terminal output. Tab switching should immediately restore the selected session buffer.
+
+## Dialogs
+
+### Connection dialog
+
+Used for create, edit, and duplicate flows.
+
+Fields:
 
 - name
-- endpoint subtitle
-- optional keyring badge
-- active-tab count badge when applicable
-- actions:
-  - `Connect`
-  - `Edit`
-  - `Copy`
-  - `Delete`
+- group
+- host
+- port
+- username
+- password (optional)
+- notes
 
-### 3.3 Right workspace
+Password entry here is for optional keyring storage, not for runtime prompt handling.
 
-Purpose:
+### File transfer dialog
 
-- show open session tabs
-- show the active terminal
-- expose per-session actions
-- expose file transfer for the active connection
+Supports upload and download flows with simple path entry and status feedback.
 
-Regions:
-
-- session tab strip
-- session header
-- terminal canvas
-- overlay/banners for idle, connecting, disconnected, or error states
-
-## 4. Screens and dialogs
-
-### 4.1 Main screen
-
-Supports:
-
-- grouped host browsing
-- multi-tab session management
-- theme/language switching
-- About access
-
-### 4.2 Connection form dialog
-
-Fields:
-
-- Name
-- Group
-- Host
-- Port
-- Username
-- Password (optional)
-
-Behavior:
-
-- password entry saves to keyring when provided
-- editing an existing connection keeps the saved password when the field is left blank
-- existing saved passwords can be explicitly removed
-
-### 4.3 Delete confirmation dialog
-
-Purpose:
-
-- prevent accidental deletion
-- warn that the saved connection metadata will be removed
-
-### 4.4 Transfer dialog
-
-Fields:
-
-- upload/download mode
-- local path
-- remote path
-
-Behavior:
-
-- transfer runs against the selected active connection
-- success/failure is surfaced in the main app status
-
-### 4.5 About dialog
+### About dialog
 
 Shows:
 
-- application description
+- product name
 - version
+- author: Cao Yi
+- project URL
+- license
 
-## 5. Interaction flows
+The project URL is an actionable link or button.
 
-### 5.1 Start a new session tab
+## Visual behavior
 
-1. User selects a connection.
-2. User clicks `Connect`.
-3. App opens a new tab immediately.
-4. Tab transitions through `Connecting` and then `Connected`.
-
-### 5.2 Work across tabs
-
-1. User starts more than one connection.
-2. Each new connect opens another tab.
-3. Clicking a tab swaps the visible terminal.
-4. Closing a tab only affects that session.
-
-### 5.3 Copy an existing host
-
-1. User clicks `Copy`.
-2. App opens the connection form with fields prefilled.
-3. User edits only the necessary values.
-4. App saves a new record instead of changing the old one.
-
-### 5.4 Save a password explicitly
-
-1. User creates or edits a connection.
-2. User enters a password in the form.
-3. App stores it in keyring when the form is saved.
-4. Future connects reuse it automatically.
-
-### 5.5 Manual password entry
-
-1. User connects without a saved password.
-2. SSH prompts directly inside the terminal.
-3. User types the password in the terminal.
-4. That manual terminal input is not auto-saved.
-
-### 5.6 Transfer a file
-
-1. User activates a tab for the desired connection.
-2. User opens `File Transfer`.
-3. User enters upload/download details.
-4. App reports completion or failure without leaving the main screen.
-
-## 6. Session-state presentation
-
-Status badges:
-
-- `Idle`
-- `Connecting`
-- `Connected`
-- `Disconnected`
-- `Error`
-
-Rules:
-
-- the active tab controls the visible terminal
-- non-active tabs keep running in the background
-- disconnected/error tabs remain visible until the user closes them
-
-## 7. Accessibility and keyboard behavior
-
-- all primary actions must be reachable by keyboard
-- dialog actions must remain accessible without a mouse
-- visible focus styles are required
-- the active terminal should take focus after connect
-- switching tabs must not lose terminal history
-
-## 8. TODO section
-
-The UI intentionally leaves these for later work:
-
-- search/filter in the sidebar
-- drag-and-drop tab reordering
-- a remote file browser
-- transfer queue/history UI
-- terminal preference panels
-- custom shortcut editor
+- Light and dark themes apply consistently across sidebar, dialogs, and terminal shell framing.
+- Language switching updates visible labels without changing layout structure.
+- Notices for import/export results, settings changes, and operational errors appear inline near the main workspace header.
