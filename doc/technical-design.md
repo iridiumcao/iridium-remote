@@ -120,16 +120,19 @@ If the user starts another connection while a session is active, the app should 
 6. Backend emits session status updates and terminal output
 7. Frontend marks the workspace connected and forwards terminal keystrokes with `write_session_input`
 
-### 5.4 Connect flow without stored credential
+### 5.4 Connect flow (password entry in terminal)
 
 1. Frontend invokes `connect_session(connection_id)`
-2. Backend determines that no usable credential exists
-3. Backend returns or emits a `password_required` state
-4. Frontend opens the password prompt
-5. User submits password
-6. Frontend invokes `submit_session_password`
-7. Backend continues authentication
-8. On successful login, backend stores the password in keyring if persistence is enabled
+2. Backend loads the connection from SQLite
+3. Backend looks up credential in keyring using `username@host`
+4. Backend launches `ssh` with the system SSH client
+5. If a saved password exists, it is sent automatically before the user sees a prompt
+6. If no saved password exists, the SSH password prompt appears directly in the terminal
+7. User types password directly into the terminal (not in a separate dialog)
+8. Frontend forwards terminal keystrokes via `write_session_input` to the SSH process
+9. Backend emits session status updates and terminal output
+10. Frontend marks the workspace connected
+11. On successful login, backend stores the password in keyring for future automatic login
 
 ### 5.5 Disconnect flow
 
@@ -183,13 +186,14 @@ Design constraints:
 
 - never persist passwords in SQLite
 - do not write credentials to logs
-- if a stored credential fails, surface a controlled retry path instead of looping
+- if a stored credential fails, the user can type a new password directly in the terminal
 
 Implementation detail may vary depending on how the SSH subprocess accepts password input on Windows, but the public app behavior should remain:
 
-- prompt when no credential is available
-- save after successful authentication
+- reuse credentials from keyring when available
+- display SSH password prompts directly in the terminal (no separate dialog)
 - reconnect automatically when credential retrieval succeeds
+- note: when a user types a password manually in the terminal, it is not automatically saved to keyring (since there is no way to detect it without a dialog).
 
 ## 7. Persistence design
 

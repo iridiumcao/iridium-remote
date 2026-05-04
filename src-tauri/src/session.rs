@@ -10,17 +10,15 @@ use tauri::{AppHandle, Emitter};
 use crate::{
     credentials::CredentialStore,
     errors::{AppError, AppResult},
-    models::{ConnectionRecord, SessionStatePayload, SessionStatus, SubmitSessionPasswordInput, TerminalOutputEvent},
+    models::{ConnectionRecord, SessionStatePayload, SessionStatus, TerminalOutputEvent},
 };
 
 struct SessionResources {
     connection_id: String,
-    account: String,
     child: Box<dyn Child + Send>,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     queued_password: Option<String>,
-    pending_password_save: Option<String>,
     connected: bool,
 }
 
@@ -63,9 +61,7 @@ impl SessionManager {
             if inner.resources.is_some()
                 && matches!(
                     inner.snapshot.status,
-                    SessionStatus::Connecting
-                        | SessionStatus::PasswordRequired
-                        | SessionStatus::Connected
+                    SessionStatus::Connecting | SessionStatus::Connected
                 )
             {
                 return Err(AppError::session_conflict(
@@ -119,12 +115,10 @@ impl SessionManager {
             };
             inner.resources = Some(SessionResources {
                 connection_id: connection.id.clone(),
-                account: self.credentials.account_for_connection(connection),
                 child,
                 master: pair.master,
                 writer,
                 queued_password: saved_password,
-                pending_password_save: None,
                 connected: false,
             });
             snapshot = inner.snapshot.clone();
@@ -135,50 +129,6 @@ impl SessionManager {
         let manager = self.clone();
         thread::spawn(move || manager.read_loop(app, generation, reader));
 
-        Ok(snapshot)
-    }
-
-    pub fn submit_password(
-        &self,
-        app: AppHandle,
-        input: SubmitSessionPasswordInput,
-    ) -> AppResult<SessionStatePayload> {
-        let snapshot = {
-            let mut inner = self.inner.lock().expect("session mutex poisoned");
-            let resources = inner
-                .resources
-                .as_mut()
-                .ok_or_else(|| AppError::no_active_session("No active session is waiting for a password."))?;
-
-            if resources.connection_id != input.connection_id {
-                return Err(AppError::no_active_session(
-                    "The active session no longer matches the selected connection.",
-                ));
-            }
-
-            let payload = format!("{}\n", input.password);
-            resources
-                .writer
-                .write_all(payload.as_bytes())
-                .map_err(|error| AppError::authentication(format!("Failed to send the password: {error}")))?;
-            resources
-                .writer
-                .flush()
-                .map_err(|error| AppError::authentication(format!("Failed to flush the password: {error}")))?;
-
-            resources.queued_password = None;
-            resources.pending_password_save = if input.remember_password {
-                Some(input.password)
-            } else {
-                None
-            };
-
-            inner.snapshot.status = SessionStatus::Connecting;
-            inner.snapshot.message = Some("Authenticating...".into());
-            inner.snapshot.clone()
-        };
-
-        self.emit_status(&app, &snapshot)?;
         Ok(snapshot)
     }
 
@@ -278,7 +228,6 @@ impl SessionManager {
         let lower = data.to_ascii_lowercase();
         let mut status_to_emit = None;
         let mut auto_password = None;
-        let mut pending_save = None;
 
         {
             let mut inner = self.inner.lock().expect("session mutex poisoned");
@@ -293,25 +242,9 @@ impl SessionManager {
             if lower.contains("password:") {
                 if let Some(password) = resources.queued_password.take() {
                     auto_password = Some(password);
-                    inner.snapshot.status = SessionStatus::Connecting;
-                    inner.snapshot.message = Some("Authenticating with the saved password...".into());
-                } else {
-                    inner.snapshot.status = SessionStatus::PasswordRequired;
-                    inner.snapshot.message = Some("Enter your password to continue.".into());
                 }
-
-                status_to_emit = Some(inner.snapshot.clone());
-            } else if lower.contains("permission denied") {
-                resources.pending_password_save = None;
-                inner.snapshot.status = SessionStatus::PasswordRequired;
-                inner.snapshot.message = Some("Authentication failed. Enter your password again.".into());
-                status_to_emit = Some(inner.snapshot.clone());
             } else if !resources.connected && !data.trim().is_empty() {
                 resources.connected = true;
-                pending_save = resources
-                    .pending_password_save
-                    .take()
-                    .map(|password| (resources.account.clone(), password));
                 inner.snapshot.status = SessionStatus::Connected;
                 inner.snapshot.message = Some("Connected.".into());
                 status_to_emit = Some(inner.snapshot.clone());
@@ -321,18 +254,6 @@ impl SessionManager {
         if let Some(password) = auto_password {
             if let Err(error) = self.write_input(&format!("{password}\n")) {
                 self.finish_session(app, generation, SessionStatus::Error, &error.message);
-                return;
-            }
-        }
-
-        if let Some((account, password)) = pending_save {
-            if let Err(error) = self.credentials.set_by_account(&account, &password) {
-                self.update_message(
-                    app,
-                    generation,
-                    SessionStatus::Connected,
-                    format!("Connected, but failed to save the password: {}", error.message),
-                );
                 return;
             }
         }

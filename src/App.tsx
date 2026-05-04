@@ -3,7 +3,6 @@ import { appClient } from './api/client'
 import { ConnectionFormDialog } from './components/ConnectionFormDialog'
 import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
-import { PasswordDialog } from './components/PasswordDialog'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import type {
   AppError,
@@ -29,8 +28,6 @@ function App() {
   const [connectionPendingDelete, setConnectionPendingDelete] = useState<ConnectionRecord | null>(
     null,
   )
-  const [rememberPassword, setRememberPassword] = useState(true)
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
 
   const selectedConnection = useMemo(() => {
     const id = sessionState.connectionId ?? selectedConnectionId
@@ -73,7 +70,6 @@ function App() {
     const subscribe = async () => {
       const unlistenSession = await appClient.onSessionState((nextState) => {
         setSessionState(nextState)
-        setPasswordDialogOpen(nextState.status === 'password_required')
 
         if (nextState.connectionId) {
           setSelectedConnectionId(nextState.connectionId)
@@ -164,7 +160,6 @@ function App() {
       setSelectedConnectionId(connection.id)
       const nextState = await appClient.connectSession(connection.id)
       setSessionState(nextState)
-      setPasswordDialogOpen(nextState.status === 'password_required')
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
@@ -175,31 +170,8 @@ function App() {
       setError(null)
       const nextState = await appClient.disconnectSession()
       setSessionState(nextState)
-      setPasswordDialogOpen(false)
     } catch (cause) {
       setError(appClient.normalizeError(cause))
-    }
-  }
-
-  const submitPassword = async (password: string, remember: boolean) => {
-    if (!selectedConnection) {
-      return
-    }
-
-    try {
-      setError(null)
-      setRememberPassword(remember)
-      const nextState = await appClient.submitSessionPassword({
-        connectionId: selectedConnection.id,
-        password,
-        rememberPassword: remember,
-      })
-
-      setSessionState(nextState)
-      setPasswordDialogOpen(false)
-    } catch (cause) {
-      setError(appClient.normalizeError(cause))
-      throw cause
     }
   }
 
@@ -254,9 +226,7 @@ function App() {
             connection={selectedConnection}
             onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
             onDisconnect={
-              sessionState.status === 'connecting' ||
-              sessionState.status === 'connected' ||
-              sessionState.status === 'password_required'
+              sessionState.status === 'connecting' || sessionState.status === 'connected'
                 ? disconnectSession
                 : undefined
             }
@@ -280,18 +250,6 @@ function App() {
           onCancel={() => setConnectionPendingDelete(null)}
           onConfirm={confirmDeleteConnection}
           open
-        />
-      ) : null}
-
-      {passwordDialogOpen ? (
-        <PasswordDialog
-          key={selectedConnection?.id ?? 'password'}
-          connection={selectedConnection}
-          defaultRememberPassword={rememberPassword}
-          onCancel={() => {
-            setPasswordDialogOpen(false)
-          }}
-          onSubmit={submitPassword}
         />
       ) : null}
     </main>

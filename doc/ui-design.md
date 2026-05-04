@@ -77,7 +77,7 @@ Contents:
 
 - terminal header with connection identity
 - terminal canvas area
-- inline overlays for connecting, password prompt, and disconnect/error states
+- inline overlays for connecting and disconnect/error states
 
 ## 4. Screen and state inventory
 
@@ -131,29 +131,7 @@ Actions:
 - `Delete`
 - `Cancel`
 
-### 4.4 Password prompt dialog
-
-Shown only when:
-
-- no saved credential exists, or
-- saved credential fails and the app requires re-entry
-
-Contents:
-
-- message identifying the target account, for example `Enter password for username@host`
-- masked password input
-- optional checkbox: `Remember password after successful login` when credential persistence needs explicit confirmation; if shown, it should default to enabled
-
-Actions:
-
-- `Connect`
-- `Cancel`
-
-Behavior:
-
-- do not save credentials before a successful login
-- default behavior should preserve the requirement to save credentials for successful logins unless product requirements are changed
-- the dialog should block only the current connection attempt, not the whole application state permanently
+### 4.4 Delete confirmation dialog (see 4.3)
 
 ## 5. Main interaction flows
 
@@ -166,16 +144,16 @@ Behavior:
 5. New connection appears in the left panel
 6. User selects the connection
 7. App enters `Connecting` state
-8. If no credential is stored, password dialog appears
-9. User enters password and confirms
-10. Terminal becomes active after successful login
+8. SSH launches; if no saved credential exists, a password prompt appears in the terminal itself
+9. User types password directly into the terminal
+10. Terminal becomes active after successful login and password is saved to keyring
 
 ### 5.2 Reconnect flow
 
 1. User selects a previously saved connection
 2. App enters `Connecting` state immediately
-3. Stored credential is retrieved from keyring
-4. Terminal becomes active without showing the password dialog
+3. Stored credential is retrieved from keyring and sent automatically to SSH
+4. Terminal becomes active without user intervention
 
 ### 5.3 Edit connection flow
 

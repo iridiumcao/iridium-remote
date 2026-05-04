@@ -9,8 +9,6 @@ export const formatStatusLabel = (status: SessionStatus) => {
       return 'Idle'
     case 'connecting':
       return 'Connecting'
-    case 'password_required':
-      return 'Password Required'
     case 'connected':
       return 'Connected'
     case 'disconnected':

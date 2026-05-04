@@ -35,7 +35,6 @@ type ConnectionRecord = {
 type SessionStatus =
   | 'idle'
   | 'connecting'
-  | 'password_required'
   | 'connected'
   | 'disconnected'
   | 'error';
@@ -105,20 +104,8 @@ Starts the connection attempt for a saved connection.
 Expected immediate outcomes:
 
 - `connecting`
-- `password_required`
+- `connected`
 - error response
-
-### `submit_session_password(input) -> { status: SessionStatus }`
-
-Input:
-
-```ts
-type SubmitSessionPasswordInput = {
-  connectionId: string;
-  password: string;
-  rememberPassword: boolean;
-};
-```
 
 ### `write_session_input(data: string) -> void`
 
@@ -149,7 +136,6 @@ type SessionState = {
 Used for:
 
 - connecting transition
-- password required signal
 - connected transition
 - disconnect or error transition
 
@@ -205,10 +191,9 @@ Expected session state progression:
 
 1. `idle`
 2. `connecting`
-3. `password_required` or `connected`
-4. `connected`
-5. `disconnected` or `error`
-6. back to `idle` when cleared or after user acknowledgement if desired
+3. `connected`
+4. `disconnected` or `error`
+5. back to `idle` when cleared or after user acknowledgement if desired
 
 The backend is the source of truth for actual session state.
 
@@ -231,5 +216,5 @@ The contract is ready for implementation when:
 
 - connection CRUD can be built against the defined commands
 - terminal streaming can be built against the defined events
-- password-required flows are representable without exposing secrets in persistent UI state
+- password input flows through the terminal itself without a separate UI dialog
 - error and session transitions are specific enough to keep frontend and backend behavior aligned

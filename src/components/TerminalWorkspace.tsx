@@ -16,7 +16,6 @@ type TerminalWorkspaceProps = {
 const statusClasses: Record<SessionState['status'], string> = {
   idle: 'bg-slate-700/60 text-slate-200',
   connecting: 'bg-amber-500/20 text-amber-200',
-  password_required: 'bg-fuchsia-500/20 text-fuchsia-200',
   connected: 'bg-emerald-500/20 text-emerald-200',
   disconnected: 'bg-slate-600/60 text-slate-200',
   error: 'bg-rose-500/20 text-rose-200',
@@ -143,8 +142,7 @@ export const TerminalWorkspace = ({
   }, [sessionState.connectionId, sessionState.status])
 
   const showIdleState = !connection && !sessionState.connectionId
-  const showOverlay =
-    showIdleState || sessionState.status === 'connecting' || sessionState.status === 'password_required'
+  const showOverlay = showIdleState || sessionState.status === 'connecting'
 
   return (
     <section className="flex min-h-[520px] flex-1 flex-col bg-slate-950">
@@ -213,15 +211,6 @@ export const TerminalWorkspace = ({
                   <p className="text-lg font-semibold text-white">Connecting</p>
                   <p className="mt-2 text-sm text-slate-300">
                     Starting the SSH session and waiting for the remote shell.
-                  </p>
-                </>
-              ) : null}
-
-              {sessionState.status === 'password_required' ? (
-                <>
-                  <p className="text-lg font-semibold text-white">Password Required</p>
-                  <p className="mt-2 text-sm text-slate-300">
-                    Enter your password in the dialog to continue the SSH login.
                   </p>
                 </>
               ) : null}

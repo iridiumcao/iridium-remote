@@ -64,7 +64,6 @@ Example from this project:
 type SessionStatus =
   | 'idle'
   | 'connecting'
-  | 'password_required'
   | 'connected'
   | 'disconnected'
   | 'error'
@@ -225,7 +224,6 @@ The main UI pieces are:
 - `ConnectionList`
 - `ConnectionFormDialog`
 - `DeleteConnectionDialog`
-- `PasswordDialog`
 - `TerminalWorkspace`
 
 These are regular React components that receive data through **props**.
@@ -313,7 +311,6 @@ The Tauri commands are functions React can call, for example:
 - `update_connection`
 - `delete_connection`
 - `connect_session`
-- `submit_session_password`
 - `write_session_input`
 - `resize_session`
 - `disconnect_session`
@@ -360,13 +357,11 @@ The session manager:
 - launches `ssh`
 - reads output
 - writes user input
-- detects password prompts
 - emits session status events
 
 Important methods:
 
 - `connect(...)`
-- `submit_password(...)`
 - `write_input(...)`
 - `resize(...)`
 - `disconnect(...)`
@@ -413,8 +408,10 @@ In `src-tauri\src\session.rs`, `connect(...)`:
 
 1. opens a PTY
 2. builds the `ssh` command
-3. spawns the process
-4. starts a background thread to read output
+3. if a saved password exists, sends it automatically
+4. if no saved password, SSH password prompt will appear in the terminal
+5. spawns the process
+6. starts a background thread to read output and detect successful connection
 
 ### Step 6: Rust emits events
 
@@ -428,6 +425,8 @@ As output arrives, the backend emits:
 `App.tsx` updates visible state from `session-status`.
 
 `TerminalWorkspace` writes terminal text to xterm.js from `terminal-output`.
+
+When a password prompt appears in the terminal, the user types directly into the terminal just like they would in a normal terminal application.
 
 That is the core frontend/backend loop of the app.
 
@@ -722,7 +721,14 @@ SQLite is created in the app data directory, not in the repository.
 
 ### "Where is the password stored?"
 
-In the system keyring, not in SQLite and not in the repository.
+In the system keyring for connections that have been saved.
+
+When you first connect with a new saved connection:
+- If you have a saved password in the keyring, it is sent automatically
+- If you don't have a saved password, you type it into the terminal when SSH prompts for it
+- The password you type is not automatically saved to keyring (to avoid exposing it, there is no way to capture it without a UI dialog)
+
+Passwords are never stored in SQLite or in the repository.
 
 ---
 

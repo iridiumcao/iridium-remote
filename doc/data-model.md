@@ -93,7 +93,6 @@ type ConnectionSummary = {
 type SessionStatus =
   | 'idle'
   | 'connecting'
-  | 'password_required'
   | 'connected'
   | 'disconnected'
   | 'error';
@@ -102,7 +101,6 @@ type ActiveSessionState = {
   connectionId: string | null;
   status: SessionStatus;
   statusMessage: string | null;
-  promptForPassword: boolean;
 };
 ```
 
@@ -129,7 +127,6 @@ struct Connection {
 enum SessionStatus {
     Idle,
     Connecting,
-    PasswordRequired,
     Connected,
     Disconnected,
     Error,
@@ -196,4 +193,4 @@ The data model is complete for MVP when:
 
 - all required connection metadata fits in one SQLite table
 - passwords are stored only in keyring
-- runtime session state can represent idle, connect, prompt, active, disconnect, and error flows
+- runtime session state can represent idle, connect, active, disconnect, and error flows

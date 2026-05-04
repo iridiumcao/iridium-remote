@@ -11,7 +11,7 @@ use database::Database;
 use errors::{AppError, AppResult};
 use models::{
     ConnectionListChangedEvent, ConnectionRecord, CreateConnectionInput, SessionStatePayload,
-    SubmitSessionPasswordInput, UpdateConnectionInput,
+    UpdateConnectionInput,
 };
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -75,15 +75,6 @@ fn connect_session(
     let connection = state.database.get_connection(&connection_id)?;
     let saved_password = state.credentials.get_for_connection(&connection)?;
     state.sessions.connect(app, &connection, saved_password)
-}
-
-#[tauri::command]
-fn submit_session_password(
-    app: AppHandle,
-    state: State<'_, Arc<AppState>>,
-    input: SubmitSessionPasswordInput,
-) -> AppResult<SessionStatePayload> {
-    state.sessions.submit_password(app, input)
 }
 
 #[tauri::command]
@@ -173,7 +164,6 @@ pub fn run() {
             update_connection,
             delete_connection,
             connect_session,
-            submit_session_password,
             write_session_input,
             resize_session,
             disconnect_session,

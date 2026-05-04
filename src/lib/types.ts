@@ -1,7 +1,6 @@
 export type SessionStatus =
   | 'idle'
   | 'connecting'
-  | 'password_required'
   | 'connected'
   | 'disconnected'
   | 'error'
@@ -40,12 +39,6 @@ export type UpdateConnectionInput = {
   host: string
   port: number
   username: string
-}
-
-export type SubmitSessionPasswordInput = {
-  connectionId: string
-  password: string
-  rememberPassword: boolean
 }
 
 export type AppError = {

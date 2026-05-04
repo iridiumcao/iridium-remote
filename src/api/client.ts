@@ -5,7 +5,6 @@ import type {
   ConnectionRecord,
   CreateConnectionInput,
   SessionState,
-  SubmitSessionPasswordInput,
   TerminalOutputEvent,
   UpdateConnectionInput,
 } from '../lib/types'
@@ -173,20 +172,7 @@ export const appClient = {
     return invoke<SessionState>('connect_session', { connectionId })
   },
 
-  async submitSessionPassword(input: SubmitSessionPasswordInput) {
-    if (!isTauriRuntime()) {
-      const state: SessionState = {
-        connectionId: input.connectionId,
-        status: 'connected',
-        message: 'Connected.',
-      }
 
-      emitMockSession(state)
-      return state
-    }
-
-    return invoke<SessionState>('submit_session_password', { input })
-  },
 
   async writeSessionInput(data: string) {
     if (!isTauriRuntime()) {

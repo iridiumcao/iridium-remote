@@ -36,7 +36,6 @@ pub struct UpdateConnectionInput {
 pub enum SessionStatus {
     Idle,
     Connecting,
-    PasswordRequired,
     Connected,
     Disconnected,
     Error,
@@ -60,13 +59,6 @@ impl Default for SessionStatePayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SubmitSessionPasswordInput {
-    pub connection_id: String,
-    pub password: String,
-    pub remember_password: bool,
-}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
