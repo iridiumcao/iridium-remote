@@ -132,13 +132,8 @@ pub fn transfer_file(
         .wait()
         .map_err(|error| AppError::internal("Failed to wait for the SFTP process.", error.to_string()))?;
 
-    let lower = transcript.to_ascii_lowercase();
-    if !exit_status.success()
-        || lower.contains("permission denied")
-        || lower.contains("no such file")
-        || lower.contains("failure")
-        || lower.contains("couldn't")
-    {
+    let error_re = regex::Regex::new(r"(?i)(permission denied|no such file|failure|couldn't|error)").unwrap();
+    if !exit_status.success() || error_re.is_match(&transcript) {
         return Err(AppError::internal(
             "The file transfer did not complete successfully.",
             tail_transcript(&transcript),

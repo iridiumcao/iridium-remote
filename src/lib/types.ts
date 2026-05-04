@@ -5,7 +5,7 @@ export type SessionStatus =
   | 'disconnected'
   | 'error'
 
-export type Locale = 'en' | 'zh-CN'
+export type Locale = 'en' | 'zh-CN' | 'zh-TW'
 
 export type AppTheme = 'dark' | 'light'
 

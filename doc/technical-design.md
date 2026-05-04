@@ -54,7 +54,7 @@ The layout uses `min-h-0` and overflow boundaries so the main window does not be
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development.
-In packaged Tauri builds, import and export are exposed through the File menu rather than sidebar buttons.
+In packaged Tauri builds, the File menu exposes new connection, import, export, and exit actions rather than sidebar buttons.
 
 ## Backend architecture
 
@@ -131,7 +131,7 @@ The desktop runtime uses `tauri-plugin-log`.
 - Application logs are written to the app log directory.
 - Important operational actions emit structured log lines through the Rust backend.
 - Debug builds can still surface log output in the development console path.
-- External Help-menu links are opened through `tauri-plugin-opener` in Tauri builds.
+- External Help-menu links are opened through `tauri-plugin-opener` in Tauri builds, with explicit opener capability permissions.
 
 ## Windows behavior
 

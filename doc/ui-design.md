@@ -13,7 +13,7 @@ The window itself should not scroll. The sidebar scrolls independently, and term
 
 The toolbar contains:
 
-- app title / status context
+- app title
 - language switcher
 - theme switcher
 - new connection action
@@ -27,6 +27,7 @@ The About action is not shown here.
 - New Connection
 - Import
 - Export
+- Exit
 
 ### Help
 

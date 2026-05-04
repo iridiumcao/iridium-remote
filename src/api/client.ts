@@ -114,6 +114,16 @@ const randomId = () => crypto.randomUUID()
 export const appClient = {
   isTauriRuntime,
 
+  async closeCurrentWindow() {
+    if (!isTauriRuntime()) {
+      window.close()
+      return
+    }
+
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().close()
+  },
+
   async openExternalUrl(url: string) {
     if (!isTauriRuntime()) {
       window.open(url, '_blank', 'noopener,noreferrer')

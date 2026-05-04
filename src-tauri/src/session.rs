@@ -267,7 +267,6 @@ impl SessionManager {
             },
         );
 
-        let lower = data.to_ascii_lowercase();
         let mut status_to_emit = None;
         let mut auto_password = None;
 
@@ -280,11 +279,14 @@ impl SessionManager {
                 return;
             };
 
-            if lower.contains("password:") {
+            let password_re = regex::Regex::new(r"(?i)password:\s*").unwrap();
+            let shell_re = regex::Regex::new(r"[\$#>%]\s*").unwrap();
+
+            if password_re.is_match(&data) {
                 if let Some(password) = resources.queued_password.take() {
                     auto_password = Some(password);
                 }
-            } else if !resources.connected && !data.trim().is_empty() {
+            } else if !resources.connected && shell_re.is_match(&data) {
                 resources.connected = true;
                 session.snapshot.status = SessionStatus::Connected;
                 session.snapshot.message = Some("Connected.".into());

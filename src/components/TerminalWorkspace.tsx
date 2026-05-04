@@ -174,9 +174,13 @@ export const TerminalWorkspace = ({
         }
 
         const current = sessionBuffersRef.current.get(payload.sessionId) ?? ''
-        sessionBuffersRef.current.set(payload.sessionId, `${current}${payload.data}`)
+        const nextBuffer = `${current}${payload.data}`
+        const MAX_BUFFER_SIZE = 500000
+        const truncatedBuffer = nextBuffer.length > MAX_BUFFER_SIZE ? nextBuffer.slice(nextBuffer.length - MAX_BUFFER_SIZE) : nextBuffer
 
-        if (payload.sessionId === activeSession?.sessionId) {
+        sessionBuffersRef.current.set(payload.sessionId, truncatedBuffer)
+
+        if (payload.sessionId === activeSessionIdRef.current) {
           terminalInstance.current?.write(payload.data)
         }
       })
@@ -190,7 +194,7 @@ export const TerminalWorkspace = ({
       active = false
       void unsubscribePromise.then((unsubscribe) => unsubscribe())
     }
-  }, [activeSession?.sessionId])
+  }, [])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessions.map((session) => session.sessionId))

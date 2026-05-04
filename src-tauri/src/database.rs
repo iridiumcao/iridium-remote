@@ -416,6 +416,7 @@ fn normalize_app_settings(settings: AppSettings) -> AppResult<AppSettings> {
     let locale = match settings.locale.as_str() {
         "en" => "en",
         "zh-CN" => "zh-CN",
+        "zh-TW" => "zh-TW",
         _ => return Err(AppError::validation("Unsupported locale setting.")),
     };
 

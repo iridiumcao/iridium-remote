@@ -72,6 +72,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - `New Connection`
   - `Import`
   - `Export`
+  - `Exit`
 
 #### Help menu
 

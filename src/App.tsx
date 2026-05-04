@@ -85,8 +85,6 @@ function App() {
     }, {})
   }, [sessions])
 
-  const headerStatus = activeSession?.message ?? notice ?? t.ready
-
   useEffect(() => {
     let active = true
 
@@ -155,6 +153,15 @@ function App() {
     try {
       setError(null)
       await appClient.openExternalUrl(url)
+    } catch (cause) {
+      setError(appClient.normalizeError(cause))
+    }
+  }, [])
+
+  const handleExitApp = useCallback(async () => {
+    try {
+      setError(null)
+      await appClient.closeCurrentWindow()
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
@@ -384,6 +391,15 @@ function App() {
                   }
                 },
               },
+              {
+                id: 'exit',
+                text: t.exit,
+                action: () => {
+                  if (!disposed) {
+                    void handleExitApp()
+                  }
+                },
+              },
             ],
           },
           {
@@ -429,7 +445,7 @@ function App() {
     return () => {
       disposed = true
     }
-  }, [handleExportConnections, handleImportConnections, openCreateDialog, openExternalUrl, t])
+  }, [handleExitApp, handleExportConnections, handleImportConnections, openCreateDialog, openExternalUrl, t])
 
   const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -503,16 +519,6 @@ function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div
-              className={`hidden rounded-full border px-3 py-1 text-sm sm:block ${
-                isDark
-                  ? 'border-white/10 bg-white/5 text-slate-300'
-                  : 'border-slate-200 bg-slate-50 text-slate-700'
-              }`}
-            >
-              {headerStatus}
-            </div>
-
             <label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
               <span className="mr-2">{t.language}</span>
               <select
@@ -528,6 +534,7 @@ function App() {
               >
                 <option value="en">{t.english}</option>
                 <option value="zh-CN">{t.simplifiedChinese}</option>
+                <option value="zh-TW">{t.traditionalChinese}</option>
               </select>
             </label>
 
