@@ -1,238 +1,167 @@
-# Iridium Remote - MVP Requirements (V1)
+# Iridium Remote - Product Requirements
 
-## 1. Project Goal
+## 1. Product goal
 
-Develop a lightweight SSH client for Windows (with future cross-platform support) that satisfies the following core needs:
+Build a daily-driver desktop SSH client for Windows that keeps terminal work fast, dependable, and easy to manage.
 
-* Quickly connect to remote Linux servers
-* Manage multiple connection configurations
-* Provide a stable and usable terminal experience
-* Securely store credentials (no need to re-enter passwords)
+Core outcomes:
 
-**Guiding Principles:**
+- connect to Linux hosts quickly
+- manage many saved hosts without clutter
+- keep multiple live sessions open in tabs
+- reuse securely stored credentials when the user chooses to save them
+- support basic file transfer without leaving the app
 
-* Prioritize “usable” over “feature-rich”
-* Prioritize “stability” over “complex design”
-
----
-
-## 2. Technology Stack (Finalized)
+## 2. Technology stack
 
 ### Frontend
 
-* React
-* Tailwind CSS
-* xterm.js (terminal rendering)
+- React
+- Tailwind CSS
+- xterm.js
 
 ### Backend
 
-* Tauri (Rust)
-* SQLite (rusqlite)
+- Tauri
+- Rust
+- SQLite via `rusqlite`
 
-### System Capabilities
+### System integrations
 
-* SSH: use system ssh (OpenSSH)
-* Credential management: keyring (system secure storage)
+- OpenSSH `ssh`
+- OpenSSH `sftp`
+- system keyring
 
----
+## 3. In-scope product features
 
-## 3. Scope (MVP)
+### 3.1 Connection management
 
-## 3.1 Connection Management
+- create, edit, delete, and duplicate connections
+- organize connections with an optional group name
+- display grouped connections in the sidebar
 
-### Features
+### 3.2 Connection fields
 
-* Create connection
-* Edit connection
-* Delete connection
-* Display connection list
+- name
+- group name (optional)
+- host
+- port (default `22`)
+- username
+- password (optional, saved only in keyring)
 
-### Data Fields
+### 3.3 Session management
 
-* Name
-* Host
-* Port (default: 22)
-* Username
+- start a new SSH session from any saved connection
+- keep multiple active sessions open at the same time
+- switch sessions through terminal tabs
+- close or disconnect individual tabs without affecting others
 
-### Out of Scope (for now)
+### 3.4 Terminal behavior
 
-* Grouping
-* Tags
-* Search
+- stream SSH output into xterm.js
+- send user input directly to the active tab
+- resize the backend PTY with the visible terminal
+- show connection, disconnect, and error state clearly
 
----
+### 3.5 Credential management
 
-## 3.2 SSH Connection
+- store passwords only in the system keyring
+- allow the user to save a password when creating or editing a connection
+- continue to support manual password entry directly in the terminal
+- reuse saved credentials automatically on later connects
 
-### Features
+### 3.6 File transfer
 
-* Click a connection → open terminal
-* Execute ssh command to connect to remote host
-* Support password-based login (V1)
+- support upload and download flows from the app
+- use the system `sftp` client
+- require explicit local and remote paths
 
-### Implementation
+### 3.7 Desktop shell features
 
-* Tauri backend spawns ssh subprocess
-* stdout / stderr streamed to frontend
-* Frontend renders via xterm.js
+- About menu entry
+- theme switching
+- UI localization
 
----
+## 4. Primary user flows
 
-## 3.3 Terminal
+### 4.1 Create and connect
 
-### Features
+1. User opens the app.
+2. User creates a connection, optionally saving a password.
+3. User selects the connection and clicks `Connect`.
+4. A new terminal tab opens and moves through `connecting` to `connected`.
 
-* Display SSH output
-* Accept user input
-* Basic interaction (Enter, Backspace, etc.)
+### 4.2 Reuse a connection
 
-### Out of Scope
+1. User chooses an existing connection.
+2. User clicks `Connect`.
+3. Saved credentials are loaded from keyring when available.
+4. A new session tab opens without changing other active tabs.
 
-* Multi-tab
-* Split panes
-* Theme customization
-* Advanced shortcuts
+### 4.3 Duplicate a connection
 
----
+1. User picks `Copy` on an existing connection.
+2. The form opens with the old values prefilled.
+3. User edits only the fields that need to change.
+4. A new connection is saved.
 
-## 3.4 Credential Management (Critical)
+### 4.4 Transfer a file
 
-### Features
+1. User activates a session tab for a saved connection.
+2. User opens the transfer dialog.
+3. User selects upload or download and enters local and remote paths.
+4. Backend runs the system `sftp` client and reports success or failure.
 
-* Prompt for password on first connection
-* Save credentials after successful login
-* Auto-login on subsequent connections
+## 5. Security requirements
 
-### Implementation
+- never store plaintext passwords in SQLite
+- use keyring entries with:
+  - `service`: `iridium-remote`
+  - `account`: `username@host`
+- do not log passwords or echo saved credentials intentionally
+- validate connection metadata before launching system commands
 
-* Use keyring to store credentials
-* Do NOT store passwords in SQLite
-
-### Storage Rule
-
-* service: iridium-remote
-* account: username@host
-
----
-
-## 3.5 Local Storage
-
-### SQLite Schema (Simplified)
-
-#### connections table
-
-* id (primary key)
-* name
-* host
-* port
-* username
-* created_at
-* updated_at
-
----
-
-## 4. Core User Flows
-
-### Scenario 1: First-time Use
-
-1. User opens the app
-2. Creates a connection
-3. Clicks the connection
-4. Enters password
-5. Login succeeds
-
----
-
-### Scenario 2: Reconnect
-
-1. User clicks an existing connection
-2. Credentials are retrieved automatically
-3. Login succeeds without prompting
-
----
-
-## 5. UI Layout (Simplified)
-
-### Left Panel
-
-* Connection list
-
-### Right Panel
-
-* Terminal area (xterm.js)
-
-### Top Bar (optional)
-
-* “New Connection” button
-
----
-
-## 6. Non-functional Requirements
+## 6. Non-functional requirements
 
 ### Performance
 
-* Startup time < 2 seconds
-* Fast SSH connection response
-
-### Security
-
-* No plaintext password storage
-* Use system credential manager
+- fast startup
+- responsive terminal typing
+- quick session creation without blocking the full UI
 
 ### Stability
 
-* No crashes on SSH disconnect
-* Proper error handling and feedback
+- no crash on disconnect or subprocess exit
+- clear per-session error reporting
+- safe cleanup when a tab or connection is removed
 
----
+### UX
 
-## 7. Explicitly Out of Scope (to avoid scope creep)
+- keep the terminal central
+- keep secondary features lightweight
+- make advanced state visible without overwhelming the user
 
-The following features are **NOT included in MVP**:
+## 7. Release expectation
 
-* ❌ Command library
-* ❌ Batch execution
-* ❌ Multi-user switching
-* ❌ File transfer (SFTP)
-* ❌ Cloud sync
-* ❌ Plugin system
-* ❌ Team collaboration
+The application is ready for distribution when:
 
----
+- grouped connections work reliably
+- multiple active terminal tabs work reliably
+- optional keyring password save works from the connection form
+- basic upload and download flows succeed
+- language/theme settings are usable
+- the app builds cleanly in release mode
 
-## 8. Definition of Done
+## 8. TODO backlog
 
-MVP is complete when:
+These items are intentionally deferred:
 
-* Connections can be created
-* SSH connection can be established successfully
-* Terminal input/output works correctly
-* Credentials are saved and reused automatically
-* App runs stably without major crashes
-
----
-
-## 9. Development Priority
-
-1. Initialize Tauri + React project
-2. Integrate xterm.js (static terminal)
-3. Implement ssh subprocess execution
-4. Wire terminal input/output
-5. Implement connection list (SQLite)
-6. Integrate keyring (credential storage)
-
----
-
-## 10. Version Goal
-
-### V1 (Current Target)
-
-👉 A tool that you personally want to use every day
-
----
-
-## 11. Success Criteria (Realistic)
-
-* You stop using other SSH tools
-* You use this tool daily
-* No major usability-blocking bugs
+- connection search and tags
+- command library
+- batch execution
+- multi-user switching per host
+- advanced terminal shortcuts and preferences
+- graphical remote file browser and queued transfer manager
+- cloud sync
+- plugin system
+- collaboration features

@@ -1,6 +1,6 @@
 # Copilot Instructions for `iridium-remote`
 
-This repository now contains a working Windows-first Tauri desktop app. `doc/requirement.md` remains the product source of truth for MVP scope, while the implementation lives in `src/` and `src-tauri/`.
+This repository now contains a working Windows-first Tauri desktop app. `doc/requirement.md` remains the product source of truth for current scope, while the implementation lives in `src/` and `src-tauri/`.
 
 ## Build, test, and lint commands
 
@@ -15,10 +15,10 @@ This repository now contains a working Windows-first Tauri desktop app. `doc/req
 
 ## High-level architecture
 
-The MVP is a desktop SSH client with a split frontend/backend architecture:
+The app is a desktop SSH client with a split frontend/backend architecture:
 
 - **Frontend:** React UI with Tailwind CSS for layout/styling and xterm.js for terminal rendering
-- **Backend:** Tauri (Rust) application shell with a PTY-backed SSH session manager
+- **Backend:** Tauri (Rust) application shell with a PTY-backed multi-session SSH manager plus SFTP execution
 - **Persistence:** SQLite via `rusqlite` for connection metadata
 - **System integrations:** system `ssh` (OpenSSH) for remote sessions and OS keyring for credential storage
 
@@ -36,16 +36,16 @@ The intended primary flow is:
 3. Backend loads connection metadata from SQLite and credentials from keyring
 4. Backend launches system `ssh` inside a PTY and emits session/output events
 5. Frontend renders the terminal in xterm.js and forwards user keystrokes and resize events back to the backend
-6. Password prompts are surfaced as UI dialog state while the terminal stream remains the source of truth for session output
+6. Password prompts remain in the terminal; explicit password saving happens from the connection form
 
 ## Key conventions and constraints
 
 ### Scope and prioritization
 
-- Build for a **usable, stable MVP** first; prefer simpler implementations over feature-rich designs
+- Build for a usable, stable desktop client first; prefer simpler implementations over feature-rich designs
 - The current target is **Windows-first**, with future cross-platform support
-- Keep the initial UI simple: connection list on the left, terminal on the right, optional top-bar action for creating a connection
-- The current implementation supports **one active session at a time**
+- Keep the main UI simple: grouped connection list on the left, tabbed terminal workspace on the right, and lightweight top-bar controls
+- The current implementation supports multiple active sessions through terminal tabs
 
 ### SSH and terminal behavior
 
@@ -61,15 +61,15 @@ The intended primary flow is:
 - Store credentials in the system keyring with:
   - `service`: `iridium-remote`
   - `account`: `username@host`
-- Only save credentials after a successful login path; do not persist passwords preemptively
+- Passwords may be saved explicitly from the connection form, but never in SQLite
 
-### MVP boundaries
+### Deferred boundaries
 
-Unless requirements are updated, keep the following out of scope for V1:
+Unless requirements are updated, keep the following out of scope:
 
-- Connection grouping, tags, or search
-- Multi-tab terminals, split panes, theming, or advanced shortcuts
-- Command libraries, batch execution, multi-user switching, SFTP, cloud sync, plugins, or collaboration features
+- Connection tags or search
+- Split panes, advanced terminal preferences, or custom shortcut editors
+- Command libraries, batch execution, multi-user switching, cloud sync, plugins, or collaboration features
 
 ### Reliability expectations
 
@@ -79,7 +79,7 @@ Unless requirements are updated, keep the following out of scope for V1:
 
 ## Important repository context
 
-- `doc/requirement.md` contains the finalized MVP requirements and should drive implementation decisions
+- `doc/requirement.md` contains the current product requirements and should drive implementation decisions
 - `doc/ui-design.md`, `doc/technical-design.md`, `doc/data-model.md`, and `doc/frontend-backend-contracts.md` describe the intended implementation and should stay aligned with code changes
 - `src/api/client.ts` contains both the real Tauri bridge and the browser fallback/mock behavior used outside the Tauri runtime
 - `src-tauri/src/session.rs` is the key integration point for PTY lifecycle, SSH I/O, password prompt detection, and session-status events

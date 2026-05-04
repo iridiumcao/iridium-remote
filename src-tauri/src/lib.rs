@@ -3,14 +3,15 @@ mod database;
 mod errors;
 mod models;
 mod session;
+mod transfer;
 
 use std::{fs, sync::Arc};
 
 use database::Database;
 use errors::{AppError, AppResult};
 use models::{
-    ConnectionListChangedEvent, ConnectionRecord, CreateConnectionInput, SessionStatePayload,
-    UpdateConnectionInput,
+    ConnectionListChangedEvent, ConnectionRecord, CreateConnectionInput, FileTransferInput, FileTransferResult,
+    SessionStatePayload, UpdateConnectionInput,
 };
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -23,7 +24,8 @@ struct AppState {
 
 #[tauri::command]
 fn list_connections(state: State<'_, Arc<AppState>>) -> AppResult<Vec<ConnectionRecord>> {
-    state.database.list_connections()
+    let connections = state.database.list_connections()?;
+    enrich_connections(&state, connections)
 }
 
 #[tauri::command]
@@ -32,7 +34,14 @@ fn create_connection(
     state: State<'_, Arc<AppState>>,
     input: CreateConnectionInput,
 ) -> AppResult<ConnectionRecord> {
+    let password = normalized_password(input.password.clone());
     let connection = state.database.create_connection(input)?;
+
+    if let Some(password) = password {
+        state.credentials.set_for_connection(&connection, &password)?;
+    }
+
+    let connection = enrich_connection(&state, connection)?;
     emit_connection_list_changed(&app, "created", &connection.id)?;
     Ok(connection)
 }
@@ -43,9 +52,16 @@ fn update_connection(
     state: State<'_, Arc<AppState>>,
     input: UpdateConnectionInput,
 ) -> AppResult<ConnectionRecord> {
-    let connection = state.database.update_connection(input)?;
-    emit_connection_list_changed(&app, "updated", &connection.id)?;
-    Ok(connection)
+    let existing = state.database.get_connection(&input.id)?;
+    let password = normalized_password(input.password.clone());
+    let clear_saved_password = input.clear_saved_password;
+    let updated = state.database.update_connection(input)?;
+
+    handle_updated_credentials(&state, &existing, &updated, password, clear_saved_password)?;
+
+    let updated = enrich_connection(&state, updated)?;
+    emit_connection_list_changed(&app, "updated", &updated.id)?;
+    Ok(updated)
 }
 
 #[tauri::command]
@@ -54,10 +70,7 @@ fn delete_connection(
     state: State<'_, Arc<AppState>>,
     id: String,
 ) -> AppResult<()> {
-    let session_state = state.sessions.current_state();
-    if session_state.connection_id.as_deref() == Some(id.as_str()) {
-        let _ = state.sessions.disconnect(app.clone());
-    }
+    state.sessions.close_by_connection(app.clone(), &id)?;
 
     let deleted = state.database.delete_connection(&id)?;
     state.credentials.delete_for_connection(&deleted)?;
@@ -79,31 +92,46 @@ fn connect_session(
 #[tauri::command]
 fn write_session_input(
     state: State<'_, Arc<AppState>>,
+    session_id: String,
     data: String,
 ) -> AppResult<()> {
-    state.sessions.write_input(&data)
+    state.sessions.write_input(&session_id, &data)
 }
 
 #[tauri::command]
 fn resize_session(
     state: State<'_, Arc<AppState>>,
+    session_id: String,
     cols: u16,
     rows: u16,
 ) -> AppResult<()> {
-    state.sessions.resize(cols, rows)
+    state.sessions.resize(&session_id, cols, rows)
 }
 
 #[tauri::command]
 fn disconnect_session(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
+    session_id: String,
 ) -> AppResult<SessionStatePayload> {
-    state.sessions.disconnect(app)
+    state.sessions.disconnect(app, &session_id)
 }
 
 #[tauri::command]
-fn get_session_state(state: State<'_, Arc<AppState>>) -> AppResult<SessionStatePayload> {
-    Ok(state.sessions.current_state())
+fn close_session(app: AppHandle, state: State<'_, Arc<AppState>>, session_id: String) -> AppResult<()> {
+    state.sessions.close(app, &session_id)
+}
+
+#[tauri::command]
+fn get_session_states(state: State<'_, Arc<AppState>>) -> AppResult<Vec<SessionStatePayload>> {
+    Ok(state.sessions.current_states())
+}
+
+#[tauri::command]
+fn transfer_file(state: State<'_, Arc<AppState>>, input: FileTransferInput) -> AppResult<FileTransferResult> {
+    let connection = state.database.get_connection(&input.connection_id)?;
+    let saved_password = state.credentials.get_for_connection(&connection)?;
+    transfer::transfer_file(&connection, saved_password, input)
 }
 
 fn emit_connection_list_changed(app: &AppHandle, reason: &str, connection_id: &str) -> AppResult<()> {
@@ -138,6 +166,60 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
     }))
 }
 
+fn enrich_connections(state: &AppState, connections: Vec<ConnectionRecord>) -> AppResult<Vec<ConnectionRecord>> {
+    connections
+        .into_iter()
+        .map(|connection| enrich_connection(state, connection))
+        .collect()
+}
+
+fn enrich_connection(state: &AppState, mut connection: ConnectionRecord) -> AppResult<ConnectionRecord> {
+    connection.has_password = state.credentials.get_for_connection(&connection)?.is_some();
+    Ok(connection)
+}
+
+fn handle_updated_credentials(
+    state: &AppState,
+    existing: &ConnectionRecord,
+    updated: &ConnectionRecord,
+    password: Option<String>,
+    clear_saved_password: bool,
+) -> AppResult<()> {
+    let old_account = state.credentials.account_for_connection(existing);
+    let new_account = state.credentials.account_for_connection(updated);
+
+    if clear_saved_password {
+        if old_account != new_account {
+            state.credentials.delete_for_connection(existing)?;
+        }
+        state.credentials.delete_for_connection(updated)?;
+        return Ok(());
+    }
+
+    if let Some(password) = password {
+        if old_account != new_account {
+            state.credentials.delete_for_connection(existing)?;
+        }
+        state.credentials.set_for_connection(updated, &password)?;
+        return Ok(());
+    }
+
+    if old_account != new_account {
+        if let Some(existing_password) = state.credentials.get_for_connection(existing)? {
+            state.credentials.set_for_connection(updated, &existing_password)?;
+            state.credentials.delete_for_connection(existing)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn normalized_password(password: Option<String>) -> Option<String> {
+    password
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -166,7 +248,9 @@ pub fn run() {
             write_session_input,
             resize_session,
             disconnect_session,
-            get_session_state,
+            close_session,
+            get_session_states,
+            transfer_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

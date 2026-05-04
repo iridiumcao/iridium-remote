@@ -2,16 +2,14 @@
 
 ## 1. Purpose
 
-This document defines the proposed integration contract between the React frontend and the Tauri backend for the MVP of **Iridium Remote**.
+This document defines the current integration contract between the React frontend and the Tauri backend for **Iridium Remote**.
 
-The goal is to make future implementation consistent even before concrete code exists.
+## 2. Design principles
 
-## 2. Contract design principles
-
-- keep command names task-oriented
-- return typed data rather than raw process details where possible
-- use events for streaming output and asynchronous session state changes
-- keep one active session contract for MVP
+- commands are task-oriented
+- long-lived terminal data flows through events
+- session ids, not connection ids, identify active tabs
+- credential save/delete remains explicit in connection form commands
 
 ## 3. Shared data types
 
@@ -19,202 +17,163 @@ The goal is to make future implementation consistent even before concrete code e
 
 ```ts
 type ConnectionRecord = {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  createdAt: string;
-  updatedAt: string;
-};
+  id: string
+  name: string
+  groupName: string | null
+  host: string
+  port: number
+  username: string
+  hasPassword: boolean
+  createdAt: string
+  updatedAt: string
+}
 ```
 
-### 3.2 Session status
-
-```ts
-type SessionStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'disconnected'
-  | 'error';
-```
-
-### 3.3 App error
-
-```ts
-type AppError = {
-  code: string;
-  message: string;
-  details?: string;
-};
-```
-
-## 4. Proposed backend commands
-
-## 4.1 Connection commands
-
-### `list_connections() -> ConnectionRecord[]`
-
-Loads all saved connections ordered by user-friendly display order.
-
-### `create_connection(input) -> ConnectionRecord`
-
-Input:
-
-```ts
-type CreateConnectionInput = {
-  name: string;
-  host: string;
-  port?: number;
-  username: string;
-};
-```
-
-Behavior:
-
-- validates required fields
-- defaults port to `22` when omitted
-- persists the row in SQLite
-
-### `update_connection(input) -> ConnectionRecord`
-
-Input:
-
-```ts
-type UpdateConnectionInput = {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-};
-```
-
-### `delete_connection(id: string) -> void`
-
-Deletes the saved connection metadata. Credential cleanup policy is implementation-defined but must be documented consistently.
-
-## 4.2 Session commands
-
-### `connect_session(connectionId: string) -> { status: SessionStatus }`
-
-Starts the connection attempt for a saved connection.
-
-Expected immediate outcomes:
-
-- `connecting`
-- `connected`
-- error response
-
-### `write_session_input(data: string) -> void`
-
-Forwards user terminal input to the active SSH process.
-
-### `disconnect_session() -> void`
-
-Stops the active SSH session if one exists.
-
-### `get_session_state() -> SessionState`
-
-Useful on startup or renderer refresh to rehydrate the visible UI state.
-
-## 5. Proposed emitted events
-
-## 5.1 `session-status`
-
-Payload:
+### 3.2 Session state
 
 ```ts
 type SessionState = {
-  connectionId: string | null;
-  status: SessionStatus;
-  message?: string;
-};
+  sessionId: string
+  connectionId: string
+  connectionName: string
+  status: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
+  message?: string
+}
 ```
 
-Used for:
-
-- connecting transition
-- connected transition
-- disconnect or error transition
-
-## 5.2 `terminal-output`
-
-Payload:
+### 3.3 Terminal output event
 
 ```ts
 type TerminalOutputEvent = {
-  stream: 'stdout' | 'stderr';
-  data: string;
-};
+  sessionId: string
+  stream: 'stdout' | 'stderr'
+  data: string
+}
 ```
 
-Used for streaming SSH output to xterm.js.
-
-## 5.3 `connection-list-changed`
-
-Payload:
+### 3.4 File transfer input
 
 ```ts
-type ConnectionListChangedEvent = {
-  reason: 'created' | 'updated' | 'deleted';
-  connectionId: string;
-};
+type FileTransferInput = {
+  connectionId: string
+  direction: 'upload' | 'download'
+  localPath: string
+  remotePath: string
+}
 ```
 
-This event is optional if the frontend updates local state directly from command responses, but it can help keep multiple views consistent.
+## 4. Backend commands
+
+### 4.1 Connection commands
+
+- `list_connections() -> ConnectionRecord[]`
+- `create_connection(input) -> ConnectionRecord`
+- `update_connection(input) -> ConnectionRecord`
+- `delete_connection(id: string) -> void`
+
+Connection form payloads:
+
+```ts
+type CreateConnectionInput = {
+  name: string
+  groupName?: string | null
+  host: string
+  port?: number
+  username: string
+  password?: string
+}
+
+type UpdateConnectionInput = {
+  id: string
+  name: string
+  groupName?: string | null
+  host: string
+  port: number
+  username: string
+  password?: string
+  clearSavedPassword: boolean
+}
+```
+
+### 4.2 Session commands
+
+- `connect_session(connectionId: string) -> SessionState`
+- `write_session_input(sessionId: string, data: string) -> void`
+- `resize_session(sessionId: string, cols: number, rows: number) -> void`
+- `disconnect_session(sessionId: string) -> SessionState`
+- `close_session(sessionId: string) -> void`
+- `get_session_states() -> SessionState[]`
+
+### 4.3 Transfer commands
+
+- `transfer_file(input: FileTransferInput) -> { message: string }`
+
+## 5. Emitted events
+
+### 5.1 `session-status`
+
+Payload: `SessionState`
+
+Used for:
+
+- connecting
+- connected
+- disconnected
+- error
+
+### 5.2 `session-removed`
+
+```ts
+type SessionRemovedEvent = {
+  sessionId: string
+}
+```
+
+Used when:
+
+- user closes a tab
+- deleting a connection removes its tabs
+
+### 5.3 `terminal-output`
+
+Payload: `TerminalOutputEvent`
+
+Used for:
+
+- per-tab terminal streaming
 
 ## 6. Error contract
 
-Commands should return or reject with a structured `AppError`.
+Commands return structured `AppError` values:
 
-Suggested codes:
+```ts
+type AppError = {
+  code: string
+  message: string
+  details?: string
+}
+```
+
+Expected codes:
 
 - `VALIDATION_ERROR`
 - `DATABASE_ERROR`
 - `KEYRING_ERROR`
 - `SSH_LAUNCH_ERROR`
-- `AUTHENTICATION_ERROR`
 - `NO_ACTIVE_SESSION`
-- `SESSION_CONFLICT`
 - `INTERNAL_ERROR`
 
-Frontend behavior:
+## 7. Concurrency rules
 
-- use `message` for standard UI
-- use `details` only in secondary diagnostics surfaces
+- each `connect_session` call opens a new tab/session
+- terminal input and resize target exactly one `sessionId`
+- background tabs continue running while another tab is active
+- closing one tab must not terminate sibling tabs
 
-## 7. State transition expectations
+## 8. TODO section
 
-Expected session state progression:
+Deferred contract work:
 
-1. `idle`
-2. `connecting`
-3. `connected`
-4. `disconnected` or `error`
-5. back to `idle` when cleared or after user acknowledgement if desired
-
-The backend is the source of truth for actual session state.
-
-## 8. Concurrency rules
-
-- only one active session at a time
-- `write_session_input` must fail clearly if no active session exists
-- `connect_session` should fail with `SESSION_CONFLICT` or replace the current session using an explicit policy
-- the frontend should disable duplicate connect actions while a connection attempt is already in progress
-
-## 9. Logging and redaction rules
-
-- never include passwords in command parameters returned to UI logs
-- never emit terminal events that deliberately echo saved secrets
-- redact sensitive values from backend diagnostics before surfacing them
-
-## 10. Acceptance criteria
-
-The contract is ready for implementation when:
-
-- connection CRUD can be built against the defined commands
-- terminal streaming can be built against the defined events
-- password input flows through the terminal itself without a separate UI dialog
-- error and session transitions are specific enough to keep frontend and backend behavior aligned
+- progress events for file transfers
+- search/filter commands for connections
+- richer preference persistence APIs

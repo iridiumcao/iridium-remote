@@ -51,14 +51,6 @@ impl AppError {
         }
     }
 
-    pub fn session_conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: "SESSION_CONFLICT".into(),
-            message: message.into(),
-            details: None,
-        }
-    }
-
     pub fn no_active_session(message: impl Into<String>) -> Self {
         Self {
             code: "NO_ACTIVE_SESSION".into(),

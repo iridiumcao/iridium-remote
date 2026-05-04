@@ -4,6 +4,9 @@ import type {
   AppError,
   ConnectionRecord,
   CreateConnectionInput,
+  FileTransferInput,
+  FileTransferResult,
+  SessionRemovedEvent,
   SessionState,
   TerminalOutputEvent,
   UpdateConnectionInput,
@@ -18,31 +21,46 @@ const isTauriRuntime = () =>
 
 type MockStore = {
   connections: ConnectionRecord[]
-  session: SessionState
+  sessions: SessionState[]
   sessionListeners: Set<(state: SessionState) => void>
+  sessionRemovedListeners: Set<(event: SessionRemovedEvent) => void>
   terminalListeners: Set<(event: TerminalOutputEvent) => void>
 }
 
 const mockStore: MockStore = {
   connections: [],
-  session: {
-    connectionId: null,
-    status: 'idle',
-    message: 'Ready',
-  },
+  sessions: [],
   sessionListeners: new Set(),
+  sessionRemovedListeners: new Set(),
   terminalListeners: new Set(),
 }
 
 const emitMockSession = (session: SessionState) => {
-  mockStore.session = session
+  const existingIndex = mockStore.sessions.findIndex((item) => item.sessionId === session.sessionId)
+
+  if (existingIndex >= 0) {
+    mockStore.sessions = mockStore.sessions.map((item) =>
+      item.sessionId === session.sessionId ? session : item,
+    )
+  } else {
+    mockStore.sessions = [...mockStore.sessions, session]
+  }
+
   for (const listener of mockStore.sessionListeners) {
     listener(session)
   }
 }
 
-const emitMockOutput = (data: string) => {
-  const payload: TerminalOutputEvent = { stream: 'stdout', data }
+const emitMockSessionRemoved = (sessionId: string) => {
+  mockStore.sessions = mockStore.sessions.filter((session) => session.sessionId !== sessionId)
+  const payload: SessionRemovedEvent = { sessionId }
+  for (const listener of mockStore.sessionRemovedListeners) {
+    listener(payload)
+  }
+}
+
+const emitMockOutput = (sessionId: string, data: string) => {
+  const payload: TerminalOutputEvent = { sessionId, stream: 'stdout', data }
   for (const listener of mockStore.terminalListeners) {
     listener(payload)
   }
@@ -50,7 +68,16 @@ const emitMockOutput = (data: string) => {
 
 const now = () => new Date().toISOString()
 
+const normalizeGroup = (value?: string | null) => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+const randomId = () => crypto.randomUUID()
+
 export const appClient = {
+  isTauriRuntime,
+
   normalizeError(cause: unknown): AppError {
     if (
       typeof cause === 'object' &&
@@ -86,11 +113,13 @@ export const appClient = {
     if (!isTauriRuntime()) {
       const timestamp = now()
       const created: ConnectionRecord = {
-        id: crypto.randomUUID(),
+        id: randomId(),
         name: input.name.trim(),
+        groupName: normalizeGroup(input.groupName),
         host: input.host.trim(),
         port: input.port ?? 22,
         username: input.username.trim(),
+        hasPassword: Boolean(input.password?.trim()),
         createdAt: timestamp,
         updatedAt: timestamp,
       }
@@ -109,6 +138,12 @@ export const appClient = {
           ? {
               ...connection,
               ...input,
+              groupName: normalizeGroup(input.groupName),
+              hasPassword: input.clearSavedPassword
+                ? false
+                : input.password?.trim()
+                  ? true
+                  : connection.hasPassword,
               updatedAt: now(),
             }
           : connection,
@@ -132,12 +167,12 @@ export const appClient = {
   async deleteConnection(id: string) {
     if (!isTauriRuntime()) {
       mockStore.connections = mockStore.connections.filter((connection) => connection.id !== id)
-      if (mockStore.session.connectionId === id) {
-        emitMockSession({
-          connectionId: id,
-          status: 'disconnected',
-          message: 'Session closed.',
-        })
+      const sessionIds = mockStore.sessions
+        .filter((session) => session.connectionId === id)
+        .map((session) => session.sessionId)
+
+      for (const sessionId of sessionIds) {
+        emitMockSessionRemoved(sessionId)
       }
 
       return
@@ -157,61 +192,94 @@ export const appClient = {
         } satisfies AppError
       }
 
-      const state: SessionState = {
+      const session: SessionState = {
+        sessionId: randomId(),
         connectionId,
+        connectionName: connection.name,
         status: 'connected',
         message: `Connected to ${connection.host} (mock session).`,
       }
 
-      emitMockSession(state)
-      emitMockOutput(`Connected to ${connection.username}@${connection.host}\r\n`)
-      emitMockOutput('This is a browser preview session. Run through Tauri for a real SSH shell.\r\n')
-      return state
+      emitMockSession(session)
+      emitMockOutput(session.sessionId, `Connected to ${connection.username}@${connection.host}\r\n`)
+      emitMockOutput(
+        session.sessionId,
+        'This is a browser preview session. Run through Tauri for a real SSH shell.\r\n',
+      )
+      return session
     }
 
     return invoke<SessionState>('connect_session', { connectionId })
   },
 
-
-
-  async writeSessionInput(data: string) {
+  async writeSessionInput(sessionId: string, data: string) {
     if (!isTauriRuntime()) {
-      emitMockOutput(data)
+      emitMockOutput(sessionId, data)
       return
     }
 
-    await invoke('write_session_input', { data })
+    await invoke('write_session_input', { sessionId, data })
   },
 
-  async resizeSession(cols: number, rows: number) {
+  async resizeSession(sessionId: string, cols: number, rows: number) {
     if (!isTauriRuntime()) {
       return
     }
 
-    await invoke('resize_session', { cols, rows })
+    await invoke('resize_session', { sessionId, cols, rows })
   },
 
-  async disconnectSession() {
+  async disconnectSession(sessionId: string) {
     if (!isTauriRuntime()) {
-      const state: SessionState = {
-        connectionId: mockStore.session.connectionId,
+      const existing = mockStore.sessions.find((session) => session.sessionId === sessionId)
+      if (!existing) {
+        throw {
+          code: 'NO_ACTIVE_SESSION',
+          message: 'Session not found.',
+        } satisfies AppError
+      }
+
+      const nextState: SessionState = {
+        ...existing,
         status: 'disconnected',
         message: 'Session closed.',
       }
 
-      emitMockSession(state)
-      return state
+      emitMockSession(nextState)
+      return nextState
     }
 
-    return invoke<SessionState>('disconnect_session')
+    return invoke<SessionState>('disconnect_session', { sessionId })
   },
 
-  async getSessionState() {
+  async closeSession(sessionId: string) {
     if (!isTauriRuntime()) {
-      return mockStore.session
+      emitMockSessionRemoved(sessionId)
+      return
     }
 
-    return invoke<SessionState>('get_session_state')
+    await invoke('close_session', { sessionId })
+  },
+
+  async getSessionStates() {
+    if (!isTauriRuntime()) {
+      return [...mockStore.sessions]
+    }
+
+    return invoke<SessionState[]>('get_session_states')
+  },
+
+  async transferFile(input: FileTransferInput) {
+    if (!isTauriRuntime()) {
+      return {
+        message:
+          input.direction === 'upload'
+            ? `Uploaded ${input.localPath} to ${input.remotePath}.`
+            : `Downloaded ${input.remotePath} to ${input.localPath}.`,
+      } satisfies FileTransferResult
+    }
+
+    return invoke<FileTransferResult>('transfer_file', { input })
   },
 
   async onSessionState(listener: (state: SessionState) => void): Promise<Unsubscribe> {
@@ -223,6 +291,19 @@ export const appClient = {
     }
 
     return listen<SessionState>('session-status', (event) => {
+      listener(event.payload)
+    })
+  },
+
+  async onSessionRemoved(listener: (payload: SessionRemovedEvent) => void): Promise<Unsubscribe> {
+    if (!isTauriRuntime()) {
+      mockStore.sessionRemovedListeners.add(listener)
+      return () => {
+        mockStore.sessionRemovedListeners.delete(listener)
+      }
+    }
+
+    return listen<SessionRemovedEvent>('session-removed', (event) => {
       listener(event.payload)
     })
   },

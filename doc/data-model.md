@@ -2,40 +2,38 @@
 
 ## 1. Purpose
 
-This document defines the persistent, secure, and runtime data structures required for the MVP implementation of **Iridium Remote**.
+This document defines the persistent, secure, and runtime data structures used by the current implementation of **Iridium Remote**.
 
 ## 2. Data domains
 
-The MVP uses three distinct data domains:
+The app uses three distinct domains:
 
-1. **Persistent connection metadata** in SQLite
-2. **Sensitive credentials** in the system keyring
-3. **Ephemeral runtime session state** in memory
-
-Keeping these domains separate is a core design rule.
+1. **SQLite connection metadata**
+2. **keyring-stored credentials**
+3. **in-memory session state**
 
 ## 3. SQLite model
 
-## 3.1 `connections` table
-
-This is the only required MVP database table.
+### 3.1 `connections` table
 
 | Column | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `id` | text | yes | primary key; UUID recommended |
+| `id` | text | yes | primary key, UUID |
 | `name` | text | yes | user-facing label |
+| `group_name` | text | no | optional sidebar grouping |
 | `host` | text | yes | hostname or IP |
 | `port` | integer | yes | defaults to `22` |
 | `username` | text | yes | SSH username |
-| `created_at` | text | yes | ISO 8601 UTC timestamp recommended |
-| `updated_at` | text | yes | ISO 8601 UTC timestamp recommended |
+| `created_at` | text | yes | ISO 8601 UTC |
+| `updated_at` | text | yes | ISO 8601 UTC |
 
-### Suggested SQL
+### 3.2 Suggested SQL
 
 ```sql
 CREATE TABLE IF NOT EXISTS connections (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  group_name TEXT,
   host TEXT NOT NULL,
   port INTEGER NOT NULL DEFAULT 22,
   username TEXT NOT NULL,
@@ -44,23 +42,15 @@ CREATE TABLE IF NOT EXISTS connections (
 );
 ```
 
-### Suggested indexes
+### 3.3 Validation rules
 
-MVP does not require additional indexes beyond the primary key. Search and grouping are out of scope.
-
-## 3.2 Validation rules
-
-- `name` must be non-empty after trimming
-- `host` must be non-empty after trimming
+- `name`, `host`, and `username` must be non-empty after trimming
+- `group_name` may be empty, which is treated as `NULL`
 - `port` must be a valid TCP port
-- `username` must be non-empty after trimming
-- store normalized values where appropriate, but do not silently alter user intent beyond trimming and defaulting
 
 ## 4. Keyring model
 
-Credentials are stored outside SQLite.
-
-### 4.1 Key
+### 4.1 Key structure
 
 - `service`: `iridium-remote`
 - `account`: `username@host`
@@ -71,126 +61,101 @@ Credentials are stored outside SQLite.
 
 ### 4.3 Rules
 
-- write after successful authentication, not before
-- update when the user provides a newer valid password
-- never expose the credential in logs, UI state snapshots, or database rows
+- save only when the user enters a password in the connection form
+- never mirror the password into SQLite or serialized UI state
+- move or delete the keyring entry when connection identity changes
 
-## 5. Runtime frontend state
-
-Suggested frontend state shape:
+## 5. Frontend runtime state
 
 ```ts
-type ConnectionSummary = {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  createdAt: string;
-  updatedAt: string;
-};
+type ConnectionRecord = {
+  id: string
+  name: string
+  groupName: string | null
+  host: string
+  port: number
+  username: string
+  hasPassword: boolean
+  createdAt: string
+  updatedAt: string
+}
 
-type SessionStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'disconnected'
-  | 'error';
-
-type ActiveSessionState = {
-  connectionId: string | null;
-  status: SessionStatus;
-  statusMessage: string | null;
-};
+type SessionState = {
+  sessionId: string
+  connectionId: string
+  connectionName: string
+  status: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
+  message?: string
+}
 ```
 
-Frontend should avoid storing:
+The frontend also stores:
 
-- raw passwords after submit
-- unbounded terminal history outside the terminal renderer
+- selected connection id
+- active session id
+- theme
+- locale
 
-## 6. Runtime backend state
-
-Suggested backend in-memory structures:
+## 6. Backend runtime state
 
 ```rust
-struct Connection {
-    id: String,
-    name: String,
-    host: String,
-    port: i64,
-    username: String,
-    created_at: String,
-    updated_at: String,
+struct SessionResources {
+    child: Box<dyn Child + Send>,
+    master: Box<dyn MasterPty + Send>,
+    writer: Box<dyn Write + Send>,
+    queued_password: Option<String>,
+    connected: bool,
 }
 
-enum SessionStatus {
-    Idle,
-    Connecting,
-    Connected,
-    Disconnected,
-    Error,
-}
-
-struct ActiveSession {
-    connection_id: String,
-    status: SessionStatus,
-    ssh_pid: Option<u32>,
+struct ManagedSession {
+    snapshot: SessionStatePayload,
+    resources: Option<SessionResources>,
 }
 ```
 
-The exact Rust types may change, but backend state should preserve:
+The session manager stores:
 
-- current connection identity
-- process handle or PID
-- current session lifecycle status
-- any channels or handles needed for stdin/stdout/stderr streaming
+- `HashMap<String, ManagedSession>`
+- ordered session id list for tab ordering
 
-## 7. Derived display values
+## 7. Derived values
 
-These values do not need separate storage:
+These do not need separate storage:
 
-- display subtitle: `username@host[:port]`
-- account key for keyring lookup: `username@host`
-- terminal header label combining connection name and endpoint
+- sidebar subtitle: `username@host[:port]`
+- keyring lookup account: `username@host`
+- active connection count per connection id
 
-## 8. Data lifecycle rules
+## 8. Lifecycle rules
 
-### 8.1 Connection creation
+### 8.1 Create
 
-- insert a SQLite row
-- do not create keyring data yet
+- insert SQLite row
+- optionally save password to keyring
 
-### 8.2 First successful login
+### 8.2 Edit
 
-- keep existing SQLite row
-- write password to keyring
+- update row and `updated_at`
+- keep the old keyring value if identity changes and no replacement password was provided
+- allow explicit keyring deletion
 
-### 8.3 Connection edit
-
-- update SQLite row and `updated_at`
-- re-evaluate future keyring lookups because `username` or `host` may change
-
-### 8.4 Connection delete
+### 8.3 Delete
 
 - remove SQLite row
-- credential deletion policy should be explicit in implementation; if applied, delete the matching keyring entry using the current `username@host`
+- delete the matching keyring entry
+- close and remove tabs for that connection
 
-## 9. Non-goals for the data model
+### 8.4 Session close
 
-The MVP should not introduce data structures for:
+- keep disconnected/error tab metadata in memory
+- drop PTY/process handles
+- remove the tab only when the user closes it
 
-- terminal tabs
-- host grouping
-- tags
-- command snippets
-- transfer jobs
-- cloud accounts
+## 9. TODO section
 
-## 10. Acceptance criteria
+Deferred model work:
 
-The data model is complete for MVP when:
-
-- all required connection metadata fits in one SQLite table
-- passwords are stored only in keyring
-- runtime session state can represent idle, connect, active, disconnect, and error flows
+- tags/search metadata
+- transfer history records
+- remote file browser cache
+- preference sync across devices

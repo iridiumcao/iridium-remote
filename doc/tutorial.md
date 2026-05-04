@@ -1,751 +1,340 @@
 # Iridium Remote Beginner Tutorial
 
-This tutorial is for someone who is new to both **JavaScript/TypeScript** and **Rust**.
+This guide is for someone who is new to both **JavaScript/TypeScript** and **Rust**.
 
-You do **not** need to understand every file before you can work on this project. The goal of this guide is to help you:
-
-1. understand what the project does
-2. understand how the frontend and backend fit together
-3. run the app locally
-4. make small, safe changes without getting lost
-
----
-
-## 1. What this project is
+## 1. What this project does
 
 **Iridium Remote** is a desktop SSH client for Windows.
 
 It lets a user:
 
-- save SSH connections
-- click a saved connection to open a terminal
-- enter a password when needed
-- reuse saved credentials through the system keyring
+- save grouped SSH connections
+- optionally save passwords in the system keyring
+- open multiple terminal sessions at the same time
+- switch between sessions with tabs
+- transfer files with the system `sftp` client
+- switch theme and language from the app UI
 
-At a high level:
+## 2. The big idea
 
-- the **frontend** shows the window and UI
-- the **backend** does system-level work like SQLite, keyring, and launching `ssh`
+The app has two halves:
 
----
+### Frontend (`src\`)
 
-## 2. The main technologies in plain language
+The frontend is written in React and TypeScript.
+
+It is responsible for:
+
+- drawing the window
+- showing the connection list
+- rendering dialogs
+- rendering the terminal tabs
+- calling backend commands
+
+### Backend (`src-tauri\src\`)
+
+The backend is written in Rust and runs through Tauri.
+
+It is responsible for:
+
+- opening SQLite
+- reading and writing the keyring
+- launching `ssh`
+- launching `sftp`
+- managing PTY sessions
+- streaming terminal output back to React
+
+## 3. Important technologies in plain language
 
 ### React
 
-React is the library used to build the UI.
+React is used to build the UI from reusable components.
 
-Think of React as:
+In this project, examples of components are:
 
-- **state** = the current data the screen cares about
-- **components** = reusable UI building blocks
-- **rendering** = React turns state into visible HTML-like UI
-
-In this project, React is used for:
-
-- the top bar
-- the connection list
-- dialogs
-- the terminal workspace shell
+- `ConnectionList`
+- `ConnectionFormDialog`
+- `TerminalWorkspace`
+- `TransferDialog`
 
 ### TypeScript
 
 TypeScript is JavaScript with types.
 
-Types help describe data shapes, for example:
-
-- what a connection looks like
-- what session status values are allowed
-- what arguments a function expects
-
-Example from this project:
+A type from this project:
 
 ```ts
-type SessionStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'disconnected'
-  | 'error'
+type SessionState = {
+  sessionId: string
+  connectionId: string
+  connectionName: string
+  status: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
+  message?: string
+}
 ```
 
-That means the app only allows those exact status strings.
+That type tells you what the frontend expects for each terminal tab.
 
 ### Tauri
 
-Tauri is the bridge between the web-style frontend and the native desktop backend.
+Tauri is the bridge between frontend and backend.
 
-In this project:
+React can call Rust commands like this:
 
-- React runs in the desktop window
-- Rust runs in the native side
-- React calls Rust commands through Tauri
-- Rust sends events back to React through Tauri
+```ts
+invoke('connect_session', { connectionId })
+```
+
+Rust can send events back like this:
+
+```ts
+listen('terminal-output', ...)
+```
 
 ### Rust
 
-Rust is the language used in the backend.
+Rust is used for the native desktop work:
 
-You can think of the Rust side as the part that is trusted to do machine-level work:
-
-- open the SQLite database
-- read and write the keyring
-- spawn the system `ssh` process
-- manage the PTY terminal session
-
-### SQLite
-
-SQLite is a local file-based database.
-
-This project uses it only for connection metadata such as:
-
-- name
-- host
-- port
-- username
-
-### Keyring
-
-The keyring is the operating system's secure credential storage.
-
-This project stores passwords there instead of in SQLite.
-
-### xterm.js
-
-This is the terminal renderer in the frontend.
-
-It does not create the SSH session itself. It only draws the terminal and forwards user keystrokes.
-
----
-
-## 3. The big picture architecture
-
-The app has two main halves.
-
-### Frontend (`src\`)
-
-Responsible for:
-
-- showing screens
-- keeping UI state
-- opening dialogs
-- rendering the terminal
-- calling backend commands
-
-### Backend (`src-tauri\src\`)
-
-Responsible for:
-
-- database access
-- keyring access
-- SSH session lifecycle
-- terminal I/O
-- sending session events to the frontend
-
-### The simplest way to think about the whole app
-
-1. React shows a list of connections
-2. user clicks one
-3. React asks Rust to connect
-4. Rust loads the connection from SQLite
-5. Rust checks the keyring for a saved password
-6. Rust launches `ssh` in a PTY
-7. Rust streams terminal output back to React
-8. React writes that output into xterm.js
-
----
+- SQLite
+- keyring
+- SSH process management
+- file transfer execution
 
 ## 4. Project structure
 
-This is the most important folder map:
-
 | Path | Purpose |
 | --- | --- |
-| `src\` | frontend React application |
-| `src\components\` | UI building blocks |
-| `src\api\client.ts` | frontend bridge to Tauri backend |
-| `src\lib\types.ts` | shared frontend type definitions |
-| `src-tauri\src\lib.rs` | backend entry point and Tauri commands |
-| `src-tauri\src\database.rs` | SQLite code |
-| `src-tauri\src\credentials.rs` | keyring code |
-| `src-tauri\src\session.rs` | SSH + PTY session manager |
-| `src-tauri\src\models.rs` | backend request/response models |
-| `doc\` | product and design documents |
+| `src\App.tsx` | main app shell |
+| `src\api\client.ts` | frontend command/event wrapper |
+| `src\components\` | UI components |
+| `src\lib\types.ts` | frontend types |
+| `src-tauri\src\lib.rs` | backend entry point and commands |
+| `src-tauri\src\database.rs` | SQLite logic |
+| `src-tauri\src\credentials.rs` | keyring logic |
+| `src-tauri\src\session.rs` | multi-session SSH manager |
+| `src-tauri\src\transfer.rs` | SFTP execution |
 
-If you only want to understand the project quickly, read these files in this order:
+If you want a fast reading order:
 
 1. `README.md`
 2. `src\App.tsx`
 3. `src\api\client.ts`
 4. `src-tauri\src\lib.rs`
 5. `src-tauri\src\session.rs`
-
----
+6. `src-tauri\src\transfer.rs`
 
 ## 5. How the frontend works
 
-## 5.1 `src\App.tsx`
+### 5.1 `App.tsx`
 
 This is the top-level React component.
 
-It stores the main UI state:
+It keeps major UI state such as:
 
 - `connections`
+- `sessions`
 - `selectedConnectionId`
-- `sessionState`
-- dialog open/closed state
-- error state
+- `activeSessionId`
+- dialog visibility
+- theme and locale
 
-When the app starts, it:
-
-1. loads connections
-2. loads current session state
-3. subscribes to backend session events
-
-That happens here:
+On startup it loads:
 
 ```ts
-const [loadedConnections, loadedSession] = await Promise.all([
+const [loadedConnections, loadedSessions] = await Promise.all([
   appClient.listConnections(),
-  appClient.getSessionState(),
+  appClient.getSessionStates(),
 ])
 ```
 
-This is a common React pattern:
+### 5.2 `ConnectionList`
 
-- load data
-- put it into component state
-- re-render the UI
+This component:
 
-## 5.2 Components
+- groups connections by `groupName`
+- shows per-connection actions
+- shows how many tabs are active for a host
 
-The main UI pieces are:
+### 5.3 `TerminalWorkspace`
 
-- `ConnectionList`
-- `ConnectionFormDialog`
-- `DeleteConnectionDialog`
-- `TerminalWorkspace`
+This component owns xterm.js.
 
-These are regular React components that receive data through **props**.
+Important idea:
 
-Example idea:
+- the backend can have many live sessions
+- the frontend keeps one visible terminal
+- terminal output is buffered by `sessionId`
+- switching tabs resets the visible xterm and replays the buffered output for the selected tab
 
-- parent component owns the state
-- child component shows part of it
-- child calls a callback when the user does something
+### 5.4 `ConnectionFormDialog`
 
-That is why `App.tsx` passes functions like:
+This component is used for:
 
-- `onConnect`
-- `onEdit`
-- `onDelete`
-- `onSave`
+- create
+- edit
+- copy
 
-## 5.3 `src\api\client.ts`
+It can also:
 
-This file is very important.
-
-It is the frontend-side API layer.
-
-It hides the difference between:
-
-- running inside **Tauri**
-- running in a normal browser with a **mock fallback**
-
-That means:
-
-- `npm run dev` works with mock behavior
-- `npm run tauri -- dev` uses the real Rust backend
-
-Examples of frontend-to-backend calls:
-
-```ts
-invoke<ConnectionRecord[]>('list_connections')
-invoke<SessionState>('connect_session', { connectionId })
-invoke('write_session_input', { data })
-```
-
-Examples of backend-to-frontend events:
-
-```ts
-listen<SessionState>('session-status', ...)
-listen<TerminalOutputEvent>('terminal-output', ...)
-```
-
-If you want to understand how React talks to Rust, this file is the best place to start.
-
----
+- save a password to keyring
+- remove an existing saved password
 
 ## 6. How the backend works
 
-## 6.1 `src-tauri\src\lib.rs`
+### 6.1 `lib.rs`
 
-This is the backend entry point.
-
-It does three important things:
-
-1. creates shared app state
-2. registers Tauri commands
-3. starts the Tauri application
-
-The shared state is:
+This file wires together:
 
 - database
 - credentials store
 - session manager
+- transfer runner
 
-That is wrapped in:
-
-```rust
-struct AppState {
-    database: Database,
-    credentials: CredentialStore,
-    sessions: SessionManager,
-}
-```
-
-The Tauri commands are functions React can call, for example:
+It also exposes Tauri commands such as:
 
 - `list_connections`
 - `create_connection`
 - `update_connection`
-- `delete_connection`
 - `connect_session`
-- `write_session_input`
-- `resize_session`
 - `disconnect_session`
-- `get_session_state`
+- `close_session`
+- `transfer_file`
 
-If you want to answer the question "what can the frontend ask the backend to do?", this file answers it.
+### 6.2 `database.rs`
 
-## 6.2 `src-tauri\src\database.rs`
+This file manages the `connections` table.
 
-This file handles SQLite.
+It stores connection metadata only:
 
-It:
+- name
+- group name
+- host
+- port
+- username
 
-- creates the `connections` table
-- inserts records
-- updates records
-- deletes records
-- loads records
+It never stores passwords.
 
-This is standard persistence logic. It is intentionally separate from the UI and from the SSH code.
+### 6.3 `credentials.rs`
 
-## 6.3 `src-tauri\src\credentials.rs`
+This file talks to the operating system keyring.
 
-This file handles the system keyring.
-
-Important rule:
-
-- **passwords are not stored in SQLite**
-
-Instead, the keyring entry uses:
+The key used is:
 
 - service: `iridium-remote`
 - account: `username@host`
 
-## 6.4 `src-tauri\src\session.rs`
+### 6.4 `session.rs`
 
-This is the most important backend file for runtime behavior.
+This file manages multiple SSH tabs at once.
 
-It creates and manages the active SSH session.
+Important beginner idea:
 
-The session manager:
+- each tab has a `sessionId`
+- the session manager stores sessions in a `HashMap`
+- each session may have live process resources or just a disconnected snapshot
 
-- opens a PTY
-- launches `ssh`
-- reads output
-- writes user input
-- emits session status events
+When output arrives:
 
-Important methods:
+1. Rust reads bytes from the PTY
+2. Rust emits `terminal-output` with `sessionId`
+3. React appends that output to the matching tab buffer
+4. if that tab is active, React also writes it to xterm.js immediately
 
-- `connect(...)`
-- `write_input(...)`
-- `resize(...)`
-- `disconnect(...)`
+### 6.5 `transfer.rs`
 
-This file is where terminal behavior really lives.
+This file runs file transfers with the system `sftp` client.
 
----
+Current behavior:
 
-## 7. One end-to-end example: clicking Connect
+- user provides local and remote paths
+- Rust launches `sftp`
+- Rust injects the saved password if needed
+- Rust runs `put` or `get`
 
-Let’s trace one real flow.
+## 7. A complete connect flow
 
-### Step 1: user clicks a saved connection
+Here is the normal path when a user starts a new session:
 
-In the frontend, `ConnectionList` calls the `onConnect` callback.
+1. User clicks `Connect`
+2. React calls `connect_session(connectionId)`
+3. Rust loads the connection from SQLite
+4. Rust loads any saved password from keyring
+5. Rust launches `ssh` in a PTY
+6. Rust emits `session-status`
+7. Rust streams terminal output through `terminal-output`
+8. React shows a new tab and renders output in xterm.js
 
-### Step 2: `App.tsx` handles that action
+## 8. A complete transfer flow
 
-`App.tsx` calls:
+1. User opens the transfer dialog
+2. React calls `transfer_file`
+3. Rust launches `sftp`
+4. Rust sends the saved password if required
+5. Rust runs upload/download commands
+6. Rust returns a success message or a structured error
 
-```ts
-appClient.connectSession(connection.id)
-```
+## 9. Password behavior
 
-### Step 3: `src\api\client.ts` forwards the command
+There are two different ways a password can enter the system:
 
-In real Tauri runtime, that becomes:
+### 9.1 Saved in the connection form
 
-```ts
-invoke<SessionState>('connect_session', { connectionId })
-```
+- user types a password in the dialog
+- app saves it to keyring
+- future connects can reuse it
+- SFTP can reuse it too
 
-### Step 4: Rust receives the command
+### 9.2 Typed manually in the terminal
 
-In `src-tauri\src\lib.rs`, the `connect_session` command:
+- user types directly into the SSH prompt
+- app does not capture that text for later storage
+- if the user wants it saved, they must edit the connection and type it into the form
 
-1. loads the connection from SQLite
-2. looks up a saved password in keyring
-3. asks `SessionManager` to start the session
+## 10. Theme and language support
 
-### Step 5: `SessionManager` launches `ssh`
+Theme and language are frontend preferences stored in local storage.
 
-In `src-tauri\src\session.rs`, `connect(...)`:
+That means:
 
-1. opens a PTY
-2. builds the `ssh` command
-3. if a saved password exists, sends it automatically
-4. if no saved password, SSH password prompt will appear in the terminal
-5. spawns the process
-6. starts a background thread to read output and detect successful connection
+- switching them is immediate
+- they survive app restarts
+- the backend does not need to know about them
 
-### Step 6: Rust emits events
+## 11. Common beginner questions
 
-As output arrives, the backend emits:
+### Why is there both SQLite and keyring?
 
-- `session-status`
-- `terminal-output`
+Because they store different kinds of data:
 
-### Step 7: React receives the events
+- SQLite = normal connection metadata
+- keyring = secrets
 
-`App.tsx` updates visible state from `session-status`.
+### Why does the terminal only show one tab at a time if multiple sessions are active?
 
-`TerminalWorkspace` writes terminal text to xterm.js from `terminal-output`.
+Because xterm.js is the visible terminal widget, while the backend sessions keep running independently in the background.
 
-When a password prompt appears in the terminal, the user types directly into the terminal just like they would in a normal terminal application.
+### Why does file transfer use `sftp` instead of custom code?
 
-That is the core frontend/backend loop of the app.
+Because this app prefers the system OpenSSH tools over embedding a separate protocol stack.
 
----
+## 12. Helpful commands
 
-## 8. How to run the project
+- install packages: `npm install`
+- run frontend only: `npm run dev`
+- run full desktop app: `npm run tauri -- dev`
+- lint: `npm run lint`
+- test: `npm run test`
+- build frontend: `npm run build`
+- build release installers: `npm run tauri -- build`
+- check Rust only: `cargo check --manifest-path src-tauri\Cargo.toml`
 
-## 8.1 Install dependencies
+## 13. If you want to make a safe first change
 
-```powershell
-npm install
-```
+Good beginner areas:
 
-## 8.2 Run the frontend only
+- add or rename UI text in `src\lib\i18n.ts`
+- tweak connection card layout in `src\components\ConnectionList.tsx`
+- tweak dialog labels in `ConnectionFormDialog.tsx`
+- inspect command wiring in `src\api\client.ts`
 
-```powershell
-npm run dev
-```
-
-Use this when:
-
-- you only want to work on UI
-- you do not need real SSH behavior
-- the mock client is enough
-
-## 8.3 Run the real desktop app
-
-```powershell
-npm run tauri -- dev
-```
-
-Use this when:
-
-- you want the real Rust backend
-- you want SQLite, keyring, and SSH behavior
-
-Note: In debug mode, a console window appears alongside the app window, which can be useful for seeing debug output. In release builds, this console window is hidden automatically.
-
-## 8.4 Run checks
-
-```powershell
-npm run lint
-npm run test
-npm run build
-cargo check --manifest-path src-tauri\Cargo.toml
-```
-
-## 8.5 Build the desktop app
-
-```powershell
-npm run tauri -- build --debug
-```
-
----
-
-## 9. How to make your first safe changes
-
-If you are new to the stack, start with changes that only touch one side at a time.
-
-### Good first frontend changes
-
-- change button text
-- change status labels
-- adjust spacing or colors
-- add helper text in a dialog
-
-Likely files:
-
-- `src\App.tsx`
-- `src\components\*.tsx`
-- `src\index.css`
-
-### Good first backend changes
-
-- add a new error message
-- adjust validation rules
-- change how connection records are ordered
-
-Likely files:
-
-- `src-tauri\src\database.rs`
-- `src-tauri\src\errors.rs`
-- `src-tauri\src\models.rs`
-
-### More advanced changes
-
-These require understanding both sides:
-
-- new Tauri commands
-- new session states
-- new terminal behavior
-- changing password flow
-
-For those, you usually need to edit both:
-
-- `src\api\client.ts`
-- one or more Rust command files
-
----
-
-## 10. Beginner notes for JavaScript/TypeScript
-
-## 10.1 Arrow functions
-
-You will see code like:
-
-```ts
-const openCreateDialog = () => {
-  setEditingConnection(null)
-  setConnectionDialogOpen(true)
-}
-```
-
-This is just a function assigned to a variable.
-
-## 10.2 `useState`
-
-Example:
-
-```ts
-const [error, setError] = useState<AppError | null>(null)
-```
-
-This means:
-
-- `error` = current value
-- `setError(...)` = function to change it
-
-When you call `setError`, React re-renders the component.
-
-## 10.3 `useEffect`
-
-`useEffect` runs side effects such as:
-
-- loading data
-- subscribing to events
-- cleaning up listeners
-
-This pattern:
-
-```ts
-useEffect(() => {
-  // do setup
-  return () => {
-    // do cleanup
-  }
-}, [])
-```
-
-usually means:
-
-- run once when component starts
-- clean up when component unmounts
-
-## 10.4 Props
-
-Props are how one component passes data or callbacks to another component.
-
-Example idea:
-
-- parent owns `onSave`
-- child calls `onSave(...)`
-
----
-
-## 11. Beginner notes for Rust
-
-## 11.1 `struct`
-
-A `struct` is a data type with named fields.
-
-Example:
-
-```rust
-struct AppState {
-    database: Database,
-    credentials: CredentialStore,
-    sessions: SessionManager,
-}
-```
-
-This is similar to an object shape.
-
-## 11.2 `impl`
-
-`impl` is where methods for a type are defined.
-
-Example idea:
-
-```rust
-impl Database {
-    pub fn list_connections(&self) -> AppResult<Vec<ConnectionRecord>> {
-        // ...
-    }
-}
-```
-
-That means `Database` has a method called `list_connections`.
-
-## 11.3 `Result`
-
-Rust uses `Result<T, E>` for operations that can fail.
-
-In this project:
-
-- success returns the expected value
-- failure returns `AppError`
-
-Example:
-
-```rust
-pub fn initialize(&self) -> AppResult<()> {
-```
-
-This means:
-
-- it either succeeds with no special value
-- or returns an `AppError`
-
-## 11.4 `Arc<Mutex<...>>`
-
-You will see:
-
-```rust
-inner: Arc<Mutex<SessionInner>>
-```
-
-Very roughly:
-
-- `Arc` = shared ownership
-- `Mutex` = only one thread can mutate the data at a time
-
-This is used because the session manager has background work and shared state.
-
----
-
-## 12. When to edit which file
-
-Use this cheat sheet.
-
-| If you want to... | Start here |
-| --- | --- |
-| change top-level UI flow | `src\App.tsx` |
-| change a dialog | `src\components\*.tsx` |
-| change frontend/backend calls | `src\api\client.ts` |
-| add or change a backend command | `src-tauri\src\lib.rs` |
-| change database behavior | `src-tauri\src\database.rs` |
-| change credential behavior | `src-tauri\src\credentials.rs` |
-| change SSH or terminal behavior | `src-tauri\src\session.rs` |
-| change shared backend data shapes | `src-tauri\src\models.rs` |
-
----
-
-## 13. Suggested learning path
-
-If you are completely new, do this in order:
-
-1. run `npm run dev`
-2. open `src\App.tsx`
-3. find where the `New Connection` button is rendered
-4. change its label and see the result
-5. read `src\api\client.ts`
-6. run `npm run tauri -- dev`
-7. read `src-tauri\src\lib.rs`
-8. trace one command, such as `list_connections`
-9. read `src-tauri\src\session.rs` only after the rest makes sense
-
-That path keeps the learning curve manageable.
-
----
-
-## 14. Common confusion points
-
-### "Why are there two runtimes?"
-
-Because this is a desktop app built with web UI technology.
-
-- React handles UI
-- Rust handles native/system behavior
-
-### "Why does `npm run dev` not behave like the real app?"
-
-Because `src\api\client.ts` includes a mock fallback when Tauri is not present.
-
-That is intentional so frontend work can happen without the native runtime.
-
-### "Where is the actual SSH connection created?"
-
-In Rust, inside `src-tauri\src\session.rs`.
-
-### "Where is the database?"
-
-SQLite is created in the app data directory, not in the repository.
-
-### "Where is the password stored?"
-
-In the system keyring for connections that have been saved.
-
-When you first connect with a new saved connection:
-- If you have a saved password in the keyring, it is sent automatically
-- If you don't have a saved password, you type it into the terminal when SSH prompts for it
-- The password you type is not automatically saved to keyring (to avoid exposing it, there is no way to capture it without a UI dialog)
-
-Passwords are never stored in SQLite or in the repository.
-
----
-
-## 15. Final advice
-
-When you feel lost, narrow the question:
-
-- "Which side owns this behavior, frontend or backend?"
-- "Is this just UI state, or does it require system access?"
-- "Which file is the entry point for this flow?"
-
-If the answer is:
-
-- **UI only** -> start in `src\`
-- **database / keyring / ssh / terminal process** -> start in `src-tauri\src\`
-- **communication between the two** -> start in `src\api\client.ts` and `src-tauri\src\lib.rs`
-
-That mental model is enough to work productively even before you are comfortable with JavaScript or Rust.
+These changes are usually easier than changing the PTY/session code immediately.

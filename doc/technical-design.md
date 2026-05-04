@@ -2,334 +2,207 @@
 
 ## 1. Purpose
 
-This document translates the MVP requirements into a concrete technical design for **Iridium Remote**. It defines architecture, component boundaries, runtime flows, storage responsibilities, and implementation constraints for a Windows-first desktop SSH client built with Tauri and React.
+This document translates the current product requirements into a concrete implementation design for **Iridium Remote**.
 
-## 2. Goals and non-goals
+## 2. Goals
 
-### 2.1 Goals
-
-- launch quickly and keep the architecture small
-- manage saved SSH connection definitions locally
-- start SSH sessions through the system OpenSSH client
-- render terminal output in the frontend through xterm.js
-- securely persist credentials through the operating-system keyring
-- survive disconnects and subprocess failures without crashing the app
-
-### 2.2 Non-goals
-
-- implementing a custom SSH protocol stack
-- multi-session or multi-tab terminal management
-- advanced terminal customization
-- cross-device sync or shared profiles
-- plugin, scripting, or command-library infrastructure
+- keep the desktop app responsive while several sessions are active
+- manage saved connection metadata locally with simple schema evolution
+- launch system `ssh` and `sftp` instead of embedding protocol implementations
+- keep password storage explicit and secure through the system keyring
+- support theme and language preferences in the frontend shell
 
 ## 3. System overview
 
-The application is a desktop shell with three major layers:
+The app has three major layers:
 
-1. **Frontend application (React + Tailwind + xterm.js)** for UI rendering and user interaction
-2. **Desktop backend (Tauri + Rust)** for privileged system operations and storage access
-3. **Host operating system services** for SSH execution and secure credential storage
+1. **React frontend** for layout, tabs, dialogs, preferences, and terminal rendering
+2. **Tauri + Rust backend** for SQLite, keyring, PTY-backed SSH, and SFTP execution
+3. **OS services** for OpenSSH, secure storage, and native menu plumbing
 
-### 3.1 High-level responsibilities
+## 4. Frontend design
 
-#### Frontend
+### 4.1 Main responsibilities
 
-- render connection list and forms
-- render and manage the xterm.js terminal instance
-- invoke backend commands through Tauri
-- subscribe to backend-emitted events for terminal output and session state
-- maintain lightweight UI state for selection, dialogs, and visible status
+- load connections and active session state on startup
+- render grouped connection cards
+- manage the active tab selection
+- maintain theme and locale preferences in local storage
+- render xterm.js and route input to the active session only
+- create the native desktop menu through Tauri's frontend menu API
 
-#### Tauri backend
+### 4.2 Main modules
 
-- initialize and access SQLite
-- expose commands for connection CRUD
-- expose commands for session lifecycle operations
-- spawn and supervise the system `ssh` subprocess
-- bridge terminal input/output between frontend and subprocess
-- access the system keyring
-- normalize backend errors into stable UI-consumable responses
+- `App.tsx`: app shell, preferences, dialogs, and command orchestration
+- `ConnectionList`: grouped host browsing and actions
+- `ConnectionFormDialog`: create/edit/copy flow plus explicit password save
+- `TerminalWorkspace`: tab strip, xterm.js lifecycle, per-tab switching
+- `TransferDialog`: upload/download flow
+- `AboutDialog`: app metadata
+- `api/client.ts`: typed bridge for commands, events, and browser mock behavior
 
-#### Operating system integrations
+## 5. Backend design
 
-- **OpenSSH** handles network protocol behavior and authentication prompts
-- **keyring** stores secrets in platform-secure storage
-- the OS process model supplies pipes, lifecycle signals, and environment access
+### 5.1 Main responsibilities
 
-## 4. Proposed runtime architecture
+- initialize and migrate SQLite
+- enrich connection records with `hasPassword`
+- read/write/delete keyring entries
+- create and manage many PTY-backed SSH sessions at once
+- emit per-session terminal output events
+- run `sftp` transfer jobs on demand
 
-## 4.1 Frontend modules
+### 5.2 Modules
 
-- **app shell module:** top-level layout and bootstrapping
-- **connections module:** list view, form modal, CRUD actions, local validation
-- **terminal module:** xterm.js lifecycle, resize handling, keyboard/input forwarding
-- **session state module:** active connection metadata, connection status, and prompt visibility
-- **API bridge module:** typed wrappers around Tauri commands and event subscriptions
+- `database.rs`: connection CRUD plus schema migration for `group_name`
+- `credentials.rs`: keyring helpers
+- `session.rs`: multi-session SSH manager
+- `transfer.rs`: SFTP transfer runner
+- `models.rs`: serialized command/event payloads
+- `lib.rs`: Tauri commands and app-state wiring
 
-## 4.2 Backend modules
+## 6. Session architecture
 
-- **database module:** SQLite initialization, migrations, and query helpers
-- **connection repository module:** CRUD operations for connection records
-- **credential module:** keyring read/write/delete helpers
-- **ssh session manager:** create, track, and terminate the single active session
-- **pty/process I/O bridge:** stdin writes plus stdout/stderr streaming to frontend
-- **event emitter module:** emits typed session and terminal events to the frontend
-- **error module:** maps internal failures to stable application error codes/messages
+### 6.1 Session identity
 
-## 4.3 Session model
+Each active or recently closed tab is represented by a unique `session_id`.
 
-The MVP supports **exactly one active SSH session** at a time.
+Each session keeps:
 
-This simplifies:
+- `session_id`
+- `connection_id`
+- `connection_name`
+- `status`
+- `message`
 
-- focus management in the UI
-- process supervision in the backend
-- event routing between backend and frontend
-- cleanup on disconnect and shutdown
+### 6.2 Runtime storage
 
-If the user starts another connection while a session is active, the app should explicitly stop or replace the active session rather than attempt multiplexing.
+The session manager stores a map of sessions plus an ordered tab list.
 
-## 5. End-to-end data flow
+Active sessions also keep:
 
-### 5.1 Startup flow
+- PTY master
+- writer handle
+- child process handle
+- queued saved password
+- connected/not-connected flag
 
-1. Tauri app launches
-2. Backend initializes SQLite and ensures schema exists
-3. Frontend loads
-4. Frontend requests saved connections
-5. Connection list is rendered
-6. Terminal workspace starts in idle state
+### 6.3 Event routing
 
-### 5.2 Create or edit connection flow
+- `session-status` carries per-session lifecycle updates
+- `session-removed` tells the frontend to remove a tab
+- `terminal-output` carries `sessionId` so the frontend can buffer output by tab
 
-1. User submits connection form in frontend
-2. Frontend validates obvious field errors
-3. Frontend invokes backend `create_connection` or `update_connection`
-4. Backend validates and persists to SQLite
-5. Backend returns normalized connection record
-6. Frontend updates the list view
+### 6.4 Session lifecycle
 
-### 5.3 Connect flow with stored credential
+1. Frontend calls `connect_session(connection_id)`
+2. Backend reads the saved connection and optional keyring password
+3. Backend creates a PTY and launches `ssh`
+4. Backend emits `connecting`
+5. Output is streamed with `sessionId`
+6. If a password prompt appears and a saved password exists, backend writes it automatically
+7. When the session becomes interactive, backend emits `connected`
+8. On disconnect/error, backend keeps the tab state but drops live resources
 
-1. Frontend invokes `connect_session(connection_id)`
-2. Backend loads the connection from SQLite
-3. Backend looks up credential in keyring using `username@host`
-4. Backend launches `ssh`
-5. Backend writes password or otherwise participates in the supported authentication flow
-6. Backend emits session status updates and terminal output
-7. Frontend marks the workspace connected and forwards terminal keystrokes with `write_session_input`
+## 7. Credential handling
 
-### 5.4 Connect flow (password entry in terminal)
+### 7.1 Explicit save path
 
-1. Frontend invokes `connect_session(connection_id)`
-2. Backend loads the connection from SQLite
-3. Backend looks up credential in keyring using `username@host`
-4. Backend launches `ssh` with the system SSH client
-5. If a saved password exists, it is sent automatically before the user sees a prompt
-6. If no saved password exists, the SSH password prompt appears directly in the terminal
-7. User types password directly into the terminal (not in a separate dialog)
-8. Frontend forwards terminal keystrokes via `write_session_input` to the SSH process
-9. Backend emits session status updates and terminal output
-10. Frontend marks the workspace connected
-11. On successful login, backend stores the password in keyring for future automatic login
+Passwords are saved only when the user provides them in the connection form.
 
-### 5.5 Disconnect flow
+Rules:
 
-1. SSH process exits or is terminated
-2. Backend captures exit status and emits a terminal/session-end event
-3. Frontend updates status to `Disconnected` or `Error`
-4. Session manager releases process handles and clears active-session state
+- never store passwords in SQLite
+- save to keyring under `username@host`
+- when username/host changes, migrate the saved key to the new account if possible
+- allow explicit keyring deletion from the edit form
 
-## 6. SSH subprocess design
+### 7.2 Manual terminal entry
 
-## 6.1 Why system SSH
+When a user types a password directly into the terminal:
 
-The requirements explicitly select **system ssh (OpenSSH)**. The backend should therefore behave as an orchestration layer, not a protocol implementation.
+- the SSH flow still works
+- the password is not captured from terminal output/input for later saving
+- the user must open the connection form to save a password explicitly
 
-Benefits:
+## 8. File transfer design
 
-- smaller code surface for MVP
-- behavior aligned with standard SSH tooling
-- simpler path to Windows-first delivery
+### 8.1 Command shape
 
-Tradeoff:
+Frontend calls `transfer_file` with:
 
-- the app must handle subprocess lifecycle and I/O carefully
+- `connectionId`
+- `direction`
+- `localPath`
+- `remotePath`
 
-## 6.2 Process management responsibilities
+### 8.2 Execution path
 
-The backend session manager should:
+1. Backend loads the connection and any saved password
+2. Backend launches system `sftp` in a PTY
+3. Backend waits for the password prompt or `sftp>` prompt
+4. Backend sends the queued password when available
+5. Backend sends `put` or `get` followed by `bye`
+6. Backend returns a concise success message or a structured error
 
-- construct the command from saved connection metadata
-- launch the process with piped stdin/stdout/stderr
-- stream output incrementally
-- handle exit, failure to launch, and user-requested termination
-- guarantee cleanup on app shutdown
+### 8.3 Current scope
 
-## 6.3 Terminal I/O model
+The transfer UI is path-based, not browser-based. Queueing, retry history, and remote browsing are deferred.
 
-Suggested transport:
+## 9. Persistence design
 
-- frontend writes user keystrokes to backend command `write_session_input`
-- backend writes bytes to SSH stdin
-- backend emits stdout/stderr chunks to frontend events
-- frontend writes incoming chunks to xterm.js
+### 9.1 SQLite
 
-Because xterm.js is the rendering engine, backend should avoid terminal interpretation beyond what is needed for process interaction.
-
-## 6.4 Authentication handling
-
-The requirements mandate password-based login in V1 and credential reuse through keyring.
-
-Design constraints:
-
-- never persist passwords in SQLite
-- do not write credentials to logs
-- if a stored credential fails, the user can type a new password directly in the terminal
-
-Implementation detail may vary depending on how the SSH subprocess accepts password input on Windows, but the public app behavior should remain:
-
-- reuse credentials from keyring when available
-- display SSH password prompts directly in the terminal (no separate dialog)
-- reconnect automatically when credential retrieval succeeds
-- note: when a user types a password manually in the terminal, it is not automatically saved to keyring (since there is no way to detect it without a dialog).
-
-## 7. Persistence design
-
-## 7.1 SQLite responsibilities
-
-SQLite stores only connection metadata:
+The `connections` table stores:
 
 - id
 - name
+- group_name
 - host
 - port
 - username
 - created_at
 - updated_at
 
-SQLite does **not** store:
+### 9.2 Keyring
 
-- passwords
-- session transcripts
-- command history
-- remote host keys or SSH agent material
+The keyring stores:
 
-## 7.2 Keyring responsibilities
+- service: `iridium-remote`
+- account: `username@host`
+- value: password only
 
-Keyring stores the password associated with a connection identity:
+## 10. Desktop shell features
 
-- `service`: `iridium-remote`
-- `account`: `username@host`
+### 10.1 About menu
 
-Recommended behavior:
+The native app menu is created in the frontend with Tauri's menu API.
 
-- write only after successful login
-- overwrite on credential refresh
-- optionally delete when a connection is deleted, if that policy is chosen and documented consistently
+Current menu structure:
 
-## 7.3 Suggested schema management
+- File
+  - New Connection
+- Help
+  - About
 
-Even with one table, use a migration/versioning mechanism in the backend rather than raw ad hoc initialization. This keeps future schema changes predictable.
+### 10.2 Theme and locale
 
-## 8. Error handling design
+Theme and locale are frontend preferences stored in local storage and applied immediately across the shell.
 
-## 8.1 Error classes
+## 11. Windows considerations
 
-Backend errors should be normalized into stable categories:
+Release builds use:
 
-- validation error
-- database error
-- keyring error
-- SSH launch error
-- authentication error
-- session state error
-- unexpected internal error
+`#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`
 
-## 8.2 Error presentation
+This keeps the extra console visible in debug mode and hidden in release installers.
 
-The backend should return structured errors with:
+## 12. TODO section
 
-- a stable code
-- a user-facing summary
-- optional details for diagnostics
+Deferred technical work:
 
-The frontend should:
-
-- show concise messages by default
-- keep terminal/session state synchronized with the actual backend state
-- avoid presenting raw stack traces in standard UI
-
-## 8.3 Disconnect resilience
-
-The app must not crash when:
-
-- the remote host closes the session
-- the SSH process exits unexpectedly
-- credential lookup fails
-- the user closes the active session
-
-This implies the session manager should treat process exit as a normal state transition, not as an exceptional crash path.
-
-## 9. Performance and operational considerations
-
-- initialize only the minimum required services at startup
-- open the database once and reuse the handle safely
-- avoid buffering the entire terminal stream in memory
-- emit terminal output incrementally to keep the UI responsive
-- avoid expensive polling if events can represent state changes
-
-The app should optimize for:
-
-- startup under the requirement target
-- low-latency typing in the terminal
-- fast reconnect to frequently used hosts
-
-## 10. Security design
-
-- no plaintext password storage outside the system keyring
-- no password echo in terminal output handling
-- no credential logging
-- validate and sanitize connection metadata before command construction
-- minimize shell interpolation risk by passing SSH arguments as structured process arguments instead of composing a shell string where possible
-
-## 11. Suggested implementation phases
-
-Aligned with the requirements priority:
-
-1. scaffold Tauri + React application shell
-2. integrate static xterm.js terminal and app layout
-3. implement SQLite-backed connection CRUD
-4. implement SSH subprocess launch and streamed output
-5. wire terminal input to the active session
-6. integrate keyring-backed credential storage and retry handling
-7. harden disconnect, error, and shutdown behavior
-
-## 12. Windows-specific considerations
-
-On Windows, the application uses a conditional `windows_subsystem` attribute in `src-tauri/src/main.rs` to prevent console window allocation in release builds while allowing developer access to console output in debug mode:
-
-- **Debug mode** (`npm run tauri -- dev`): Console window is shown, allowing developers to see debug output
-- **Release mode** (built installers): Console window is hidden, providing a clean user experience
-
-This is configured via `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` which applies the Windows subsystem only when `debug_assertions` is false (i.e., release mode).
-
-## 13. Open design decisions to resolve during implementation
-
-These should be settled in code or a later ADR once scaffolding begins:
-
-- exact backend strategy for password injection/interaction with the Windows SSH client
-- whether deleting a connection also deletes its stored credential immediately
-- whether reconnect should automatically replace an existing active session or require explicit confirmation
-
-## 14. Acceptance criteria for technical design
-
-The technical design is complete for MVP when it supports:
-
-- one active terminal session at a time
-- CRUD for saved connections through SQLite
-- SSH launched through system OpenSSH
-- terminal streaming between backend and xterm.js
-- keyring-backed credential persistence
-- controlled handling of disconnects, auth failures, and subprocess errors
+- connection search index
+- SSH host-key trust management UX
+- transfer queueing/progress streaming
+- advanced terminal preferences
+- cloud sync and remote profile distribution

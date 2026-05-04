@@ -2,18 +2,22 @@
 
 Iridium Remote is a Windows-first desktop SSH client built with **Tauri**, **React**, **Tailwind CSS**, and **xterm.js**.
 
-The MVP focuses on:
+## Current feature set
 
-- saved connection management
-- a single active SSH terminal session
-- credential storage in the system keyring
-- connection metadata stored in local SQLite
+- grouped connection management
+- duplicate-from-existing connection creation
+- optional password save to the system keyring from the connection form
+- multiple active SSH sessions with terminal tabs
+- basic file transfer through the system `sftp` client
+- light and dark themes
+- English and Simplified Chinese UI
+- About menu entry in the desktop app
 
 ## Architecture
 
-- **Frontend (`src/`)**: React UI for the app shell, connection list, dialogs, and xterm.js terminal workspace
-- **Backend (`src-tauri/src/`)**: Tauri commands plus Rust services for SQLite, keyring access, and PTY-backed SSH session management
-- **Docs (`doc/`)**: requirements plus UI, technical, data, and integration design documents
+- **Frontend (`src\`)**: React UI for grouped connections, dialogs, preferences, terminal tabs, and transfer flows
+- **Backend (`src-tauri\src\`)**: Tauri commands plus Rust services for SQLite, keyring access, multi-session PTY-backed SSH, and SFTP execution
+- **Docs (`doc\`)**: requirements, UI design, technical design, data model, contracts, and the beginner tutorial
 
 ## Prerequisites
 
@@ -30,15 +34,16 @@ The MVP focuses on:
 - Test: `npm run test`
 - Run a single test file: `npm run test -- src/App.test.tsx`
 - Build frontend assets: `npm run build`
-- Build the desktop application: `npm run tauri -- build --debug`
+- Build the desktop application in release mode: `npm run tauri -- build`
+- Build debug installers: `npm run tauri -- build --debug`
+- Check the Rust backend directly: `cargo check --manifest-path src-tauri\Cargo.toml`
 
 ## Build output
 
-Recent debug build artifacts are produced under:
+- Debug bundles: `src-tauri\target\debug\bundle\`
+- Release bundles: `src-tauri\target\release\bundle\`
 
-- `src-tauri\target\debug\iridium-remote.exe`
-- `src-tauri\target\debug\bundle\msi\Iridium Remote_0.1.0_x64_en-US.msi`
-- `src-tauri\target\debug\bundle\nsis\Iridium Remote_0.1.0_x64-setup.exe`
+Use the release build for end users; it hides the extra Windows console window.
 
 ## Learning the codebase
 

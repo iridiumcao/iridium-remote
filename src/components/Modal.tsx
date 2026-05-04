@@ -1,23 +1,43 @@
 import type { PropsWithChildren, ReactNode } from 'react'
+import type { AppTheme } from '../lib/types'
 
 type ModalProps = PropsWithChildren<{
   title: string
   description?: string
   open: boolean
   footer: ReactNode
+  theme: AppTheme
 }>
 
-export const Modal = ({ children, description, footer, open, title }: ModalProps) => {
+export const Modal = ({ children, description, footer, open, theme, title }: ModalProps) => {
   if (!open) {
     return null
   }
 
+  const isDark = theme === 'dark'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl shadow-black/40">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center px-4 py-6 backdrop-blur-sm ${
+        isDark ? 'bg-slate-950/70' : 'bg-slate-950/20'
+      }`}
+    >
+      <div
+        className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${
+          isDark
+            ? 'border-white/10 bg-slate-900 text-white shadow-black/40'
+            : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'
+        }`}
+      >
         <div className="mb-5">
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          {description ? <p className="mt-2 text-sm text-slate-300">{description}</p> : null}
+          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            {title}
+          </h2>
+          {description ? (
+            <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              {description}
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-4">{children}</div>
