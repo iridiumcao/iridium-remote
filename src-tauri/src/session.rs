@@ -8,7 +8,6 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use tauri::{AppHandle, Emitter};
 
 use crate::{
-    credentials::CredentialStore,
     errors::{AppError, AppResult},
     models::{ConnectionRecord, SessionStatePayload, SessionStatus, TerminalOutputEvent},
 };
@@ -30,14 +29,12 @@ struct SessionInner {
 
 #[derive(Clone)]
 pub struct SessionManager {
-    credentials: CredentialStore,
     inner: Arc<Mutex<SessionInner>>,
 }
 
 impl SessionManager {
-    pub fn new(credentials: CredentialStore) -> Self {
+    pub fn new() -> Self {
         Self {
-            credentials,
             inner: Arc::new(Mutex::new(SessionInner {
                 generation: 0,
                 snapshot: SessionStatePayload::default(),
@@ -286,27 +283,6 @@ impl SessionManager {
                 status,
                 message: Some(message.to_string()),
             };
-            inner.snapshot.clone()
-        };
-
-        let _ = self.emit_status(app, &snapshot);
-    }
-
-    fn update_message(
-        &self,
-        app: &AppHandle,
-        generation: u64,
-        status: SessionStatus,
-        message: String,
-    ) {
-        let snapshot = {
-            let mut inner = self.inner.lock().expect("session mutex poisoned");
-            if inner.generation != generation {
-                return;
-            }
-
-            inner.snapshot.status = status;
-            inner.snapshot.message = Some(message);
             inner.snapshot.clone()
         };
 

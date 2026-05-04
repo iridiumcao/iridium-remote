@@ -19,15 +19,6 @@ impl CredentialStore {
         self.get_by_account(&self.account_for_connection(connection))
     }
 
-    pub fn set_by_account(&self, account: &str, password: &str) -> AppResult<()> {
-        let entry = Entry::new(SERVICE_NAME, account)
-            .map_err(|error| AppError::keyring("Failed to create the keyring entry.", error.to_string()))?;
-
-        entry
-            .set_password(password)
-            .map_err(|error| AppError::keyring("Failed to store the password in the keyring.", error.to_string()))
-    }
-
     pub fn delete_for_connection(&self, connection: &ConnectionRecord) -> AppResult<()> {
         self.delete_by_account(&self.account_for_connection(connection))
     }

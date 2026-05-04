@@ -6,7 +6,6 @@ mod session;
 
 use std::{fs, sync::Arc};
 
-use credentials::CredentialStore;
 use database::Database;
 use errors::{AppError, AppResult};
 use models::{
@@ -18,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 struct AppState {
     database: Database,
-    credentials: CredentialStore,
+    credentials: credentials::CredentialStore,
     sessions: SessionManager,
 }
 
@@ -129,8 +128,8 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
     let database = Database::new(app_data_dir.join("iridium-remote.db"));
     database.initialize()?;
 
-    let credentials = CredentialStore::new();
-    let sessions = SessionManager::new(credentials.clone());
+    let credentials = credentials::CredentialStore::new();
+    let sessions = SessionManager::new();
 
     Ok(Arc::new(AppState {
         database,
