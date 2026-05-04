@@ -306,7 +306,16 @@ Aligned with the requirements priority:
 6. integrate keyring-backed credential storage and retry handling
 7. harden disconnect, error, and shutdown behavior
 
-## 12. Open design decisions to resolve during implementation
+## 12. Windows-specific considerations
+
+On Windows, the application uses a conditional `windows_subsystem` attribute in `src-tauri/src/main.rs` to prevent console window allocation in release builds while allowing developer access to console output in debug mode:
+
+- **Debug mode** (`npm run tauri -- dev`): Console window is shown, allowing developers to see debug output
+- **Release mode** (built installers): Console window is hidden, providing a clean user experience
+
+This is configured via `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` which applies the Windows subsystem only when `debug_assertions` is false (i.e., release mode).
+
+## 13. Open design decisions to resolve during implementation
 
 These should be settled in code or a later ADR once scaffolding begins:
 
@@ -314,7 +323,7 @@ These should be settled in code or a later ADR once scaffolding begins:
 - whether deleting a connection also deletes its stored credential immediately
 - whether reconnect should automatically replace an existing active session or require explicit confirmation
 
-## 13. Acceptance criteria for technical design
+## 14. Acceptance criteria for technical design
 
 The technical design is complete for MVP when it supports:
 

@@ -463,6 +463,8 @@ Use this when:
 - you want the real Rust backend
 - you want SQLite, keyring, and SSH behavior
 
+Note: In debug mode, a console window appears alongside the app window, which can be useful for seeing debug output. In release builds, this console window is hidden automatically.
+
 ## 8.4 Run checks
 
 ```powershell
