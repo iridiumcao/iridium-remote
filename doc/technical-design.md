@@ -33,7 +33,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - per-connection actions
 
 Collapsed groups are persisted through app settings rather than local-only UI state.
-Filtering is done in the frontend in real time against connection name, host, and username. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons.
+Filtering is done in the frontend in real time against connection name, host, and username. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
 
 ### Terminal workspace
 
@@ -44,7 +44,7 @@ Filtering is done in the frontend in real time against connection name, host, an
 - transfer action access
 - empty-state rendering
 
-The layout uses `min-h-0` and overflow boundaries so the main window does not become the scroll container.
+The layout uses `min-h-0` and overflow boundaries so the main window does not become the scroll container. `src\App.tsx` suppresses the default browser-like context menu across the shell, while `src\components\TerminalWorkspace.tsx` marks the xterm host container as the one place where native right-click behavior stays enabled.
 
 ### Frontend bridge
 

@@ -97,6 +97,12 @@ The sidebar search box filters the connection list in real time in the frontend.
 
 Group collapse state is also saved in app settings. That means UI state is no longer just temporary browser memory.
 
+### Context menus
+
+- `src\App.tsx` installs a document-level `contextmenu` handler so the browser-style menu does not appear across the main app shell.
+- `src\components\TerminalWorkspace.tsx` marks the xterm host container so right-click keeps working there.
+- `src\components\ConnectionList.tsx` opens the compact `Edit` / `Copy` / `Delete` popup on right-click, while normal mode does not open a custom menu.
+
 ### Import and export
 
 - Export asks the backend for a JSON payload containing app settings plus connections, then saves it to the path the user picks in the native Tauri save dialog.

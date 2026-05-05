@@ -35,7 +35,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - a real-time search box that matches connection name, host, and username
   - normal display mode
   - compact display mode
-- In compact mode, edit/copy/delete actions are grouped behind a more menu.
+- In compact mode, edit/copy/delete actions are grouped behind a more menu and the same actions appear on connection right-click.
+- In normal mode, connection right-click should not open a context menu.
 - Users can import and export JSON backup files containing app settings and connection metadata.
 - Export must let users choose the destination path and filename for the backup file.
 - Duplicate imports should be skipped instead of creating obvious duplicates.
@@ -74,6 +75,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - `Import`
   - `Export`
   - `Exit`
+- The app should suppress the default browser-like context menu across the main window, except inside the xterm terminal viewport.
 
 #### Help menu
 

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getTranslations } from '../lib/i18n'
 import type { ConnectionListDisplayMode, ConnectionRecord } from '../lib/types'
 import { ConnectionList } from './ConnectionList'
@@ -63,6 +63,10 @@ const TestConnectionList = ({
 }
 
 describe('ConnectionList', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   it('filters connections in real time by name, host, and username', async () => {
     const user = userEvent.setup()
 
@@ -88,5 +92,24 @@ describe('ConnectionList', () => {
     expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  it('opens the compact action menu on right click', () => {
+    render(<TestConnectionList initialDisplayMode="compact" />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha'))
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  it('does not open a custom context menu in normal mode', () => {
+    render(<TestConnectionList />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha'))
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 })

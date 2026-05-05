@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle } from '../lib/format'
 import type { AppTheme, ConnectionListDisplayMode, ConnectionRecord } from '../lib/types'
@@ -104,8 +104,8 @@ export const ConnectionList = ({
     return Array.from(grouped.entries()).map(([groupKey, value]) => ({
       groupKey,
       groupLabel: value.label,
-        connections: value.connections,
-      }))
+      connections: value.connections,
+    }))
   }, [filteredConnections, t.ungrouped])
 
   const headerButtonClass = `rounded-lg border px-3 py-2 text-sm transition ${
@@ -125,6 +125,69 @@ export const ConnectionList = ({
       ? 'border-rose-500/20 text-rose-200 hover:bg-rose-500/10'
       : 'border-rose-200 text-rose-600 hover:bg-rose-50'
   }`
+
+  const closeCompactMenu = () => {
+    setOpenMenuConnectionId(null)
+  }
+
+  const openCompactMenu = (connectionId: string) => {
+    setOpenMenuConnectionId(connectionId)
+  }
+
+  const handleCompactContextMenu = (
+    event: ReactMouseEvent<HTMLDivElement>,
+    connection: ConnectionRecord,
+  ) => {
+    event.preventDefault()
+    onSelect(connection.id)
+    openCompactMenu(connection.id)
+  }
+
+  const renderCompactMenuItems = (connection: ConnectionRecord) => (
+    <>
+      <button
+        role="menuitem"
+        type="button"
+        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+          isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+        }`}
+        onClick={() => {
+          closeCompactMenu()
+          onEdit(connection)
+        }}
+      >
+        {t.edit}
+      </button>
+      <button
+        role="menuitem"
+        type="button"
+        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+          isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+        }`}
+        onClick={() => {
+          closeCompactMenu()
+          onDuplicate(connection)
+        }}
+      >
+        {t.duplicate}
+      </button>
+      <button
+        role="menuitem"
+        type="button"
+        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+          isDark
+            ? 'text-rose-200 hover:bg-rose-500/10'
+            : 'text-rose-600 hover:bg-rose-50'
+        }`}
+        onClick={() => {
+          closeCompactMenu()
+          onDelete(connection)
+        }}
+      >
+        {t.delete}
+      </button>
+    </>
+  )
 
   const renderDefaultActions = (connection: ConnectionRecord) => (
     <div className="flex shrink-0 items-center gap-2">
@@ -176,47 +239,7 @@ export const ConnectionList = ({
                 : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
             }`}
           >
-            <button
-              role="menuitem"
-              type="button"
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
-                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
-              }`}
-              onClick={() => {
-                setOpenMenuConnectionId(null)
-                onEdit(connection)
-              }}
-            >
-              {t.edit}
-            </button>
-            <button
-              role="menuitem"
-              type="button"
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
-                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
-              }`}
-              onClick={() => {
-                setOpenMenuConnectionId(null)
-                onDuplicate(connection)
-              }}
-            >
-              {t.duplicate}
-            </button>
-            <button
-              role="menuitem"
-              type="button"
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
-                isDark
-                  ? 'text-rose-200 hover:bg-rose-500/10'
-                  : 'text-rose-600 hover:bg-rose-50'
-              }`}
-              onClick={() => {
-                setOpenMenuConnectionId(null)
-                onDelete(connection)
-              }}
-            >
-              {t.delete}
-            </button>
+            {renderCompactMenuItems(connection)}
           </div>
         ) : null}
       </div>
@@ -389,6 +412,7 @@ export const ConnectionList = ({
                         return (
                           <div
                             key={connection.id}
+                            onContextMenu={(event) => handleCompactContextMenu(event, connection)}
                             className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition ${
                               isSelected
                                 ? isDark

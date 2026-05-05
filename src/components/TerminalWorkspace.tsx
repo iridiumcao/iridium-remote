@@ -361,6 +361,7 @@ export const TerminalWorkspace = ({
 
       <div className="relative min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
         <div
+          data-allow-native-context-menu="true"
           className={`terminal-shell h-full min-h-full overflow-hidden rounded-2xl border shadow-inner ${
             isDark
               ? 'border-white/10 bg-slate-950/70 shadow-cyan-950/20'

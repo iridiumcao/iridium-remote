@@ -63,6 +63,13 @@ The sidebar contains four layers in order:
 - Fewer secondary details
 - Better for large connection libraries
 - `Connect` stays visible while `Edit`, `Copy`, and `Delete` move into a small popup menu opened from a `⋮` button
+- Right-clicking a connection opens the same compact popup menu
+
+### Context menus
+
+- The default browser-like context menu is suppressed across the app shell
+- The xterm viewport keeps its native right-click behavior
+- In normal mode, connection rows do not open a custom context menu
 
 ## Connection interactions
 

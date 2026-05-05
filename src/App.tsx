@@ -86,6 +86,25 @@ function App() {
   }, [sessions])
 
   useEffect(() => {
+    const handleContextMenu = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) {
+        return
+      }
+
+      if (event.target.closest('[data-allow-native-context-menu="true"]')) {
+        return
+      }
+
+      event.preventDefault()
+    }
+
+    document.addEventListener('contextmenu', handleContextMenu)
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu)
+    }
+  }, [])
+
+  useEffect(() => {
     let active = true
 
     const load = async () => {
