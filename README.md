@@ -16,6 +16,7 @@ Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, an
 - Export and import JSON backups containing app settings and connections, with export saving to a user-selected location
 - Persist user settings in the local application database
 - Write application logs to the app log directory
+- Prefer a single running desktop instance by focusing the existing window on relaunch
 
 ## Architecture
 

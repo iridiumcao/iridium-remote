@@ -297,6 +297,19 @@ pub fn run() {
                 .timezone_strategy(TimezoneStrategy::UseLocal)
                 .build(),
         )
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            log::info!(
+                "Rejected a secondary instance launch from '{}' with args {:?}.",
+                cwd,
+                args
+            );
+
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {

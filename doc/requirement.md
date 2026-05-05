@@ -118,6 +118,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - Preserve fast startup and fast connect behavior.
 - Avoid separate console windows in release builds on Windows.
 - Browser-only development mode should keep working through the mock frontend client.
+- The desktop runtime should prefer a single running instance. Launching the app again should activate the existing main window instead of leaving multiple desktop instances open.
 
 ## Storage boundaries
 

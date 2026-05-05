@@ -69,6 +69,7 @@ In packaged Tauri builds, the File menu exposes new connection, import, export, 
 - connection export/import
 
 It also configures logging and starts shared application state.
+The desktop runtime also registers a single-instance guard so a second launch focuses the existing `main` window instead of creating another long-lived desktop instance.
 
 ### Database layer
 
@@ -142,6 +143,7 @@ The desktop runtime uses `tauri-plugin-log`.
 
 - debug runs may show a console window
 - release builds and release installers hide it
+- a second desktop launch focuses the existing main window instead of keeping another instance open
 
 ## Error handling
 

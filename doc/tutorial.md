@@ -47,6 +47,7 @@ It is responsible for:
 - launching `ssh` and `sftp`
 - managing active terminal sessions
 - sending terminal output back to the frontend
+- preferring a single running desktop instance and focusing the existing window on relaunch
 
 Important files:
 
@@ -112,6 +113,11 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 ### Logging
 
 The Rust backend writes log files through Tauri’s logging plugin. This helps when debugging packaged builds.
+
+### Single-instance behavior
+
+- `src-tauri\src\lib.rs` registers Tauri's single-instance plugin during startup.
+- If the user launches Iridium Remote again while it is already running, the new launch exits and the existing `main` window is shown, restored, and focused.
 
 ## How to run the project
 
