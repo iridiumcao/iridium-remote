@@ -325,19 +325,12 @@ function App() {
   const handleExportConnections = useCallback(async () => {
     try {
       setError(null)
+      setNotice(null)
       const payload = await appClient.exportConnections()
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {
-        type: 'application/json',
-      })
-      const url = URL.createObjectURL(blob)
-      const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `iridium-remote-backup-${timestamp}.json`
-      document.body.append(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      const saved = await appClient.saveExportConnections(payload)
+      if (!saved) {
+        return
+      }
       setNotice(t.exportConnectionsSuccess)
     } catch (cause) {
       setError(appClient.normalizeError(cause))

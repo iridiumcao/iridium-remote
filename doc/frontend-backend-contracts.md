@@ -36,7 +36,11 @@ Stores and returns the normalized settings payload.
 
 ### `export_connections() -> ConnectionsExportPayload`
 
-Returns the JSON-serializable backup payload for app settings plus all saved connections.
+Returns the JSON-serializable backup payload for app settings plus all saved connections. In Tauri builds, the frontend uses this payload after the user chooses a destination in the native save dialog.
+
+### `write_export_file(path, payload) -> void`
+
+Writes the pretty-printed JSON backup payload to the user-selected path.
 
 ### `import_connections(payload) -> ImportConnectionsResult`
 
@@ -107,5 +111,6 @@ When the app is not running inside Tauri:
 - settings are persisted via browser storage
 - sessions are simulated
 - import/export works against the mock store, including settings when present
+- exports fall back to the browser download flow because the Tauri native save dialog is not available
 
 This keeps `npm run dev` useful for UI development without the Rust runtime.

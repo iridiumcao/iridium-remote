@@ -99,7 +99,7 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 
 ### Import and export
 
-- Export asks the backend for a JSON payload containing app settings plus connections and downloads it as a file.
+- Export asks the backend for a JSON payload containing app settings plus connections, then saves it to the path the user picks in the native Tauri save dialog.
 - Import reads a JSON file in the frontend and sends the parsed payload to the backend.
 - The backend skips duplicates, restores settings when the backup contains them, and returns counts for imported and skipped entries.
 

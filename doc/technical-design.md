@@ -117,12 +117,15 @@ Exports produce a JSON document containing:
 - app settings
 - connection records
 
+In Tauri builds, the frontend opens the native save dialog so the user can choose the destination path and filename before the backup JSON is written.
+
 Imports merge into the existing library:
 
 - settings are restored when present in the backup
 - passwords are ignored
 - duplicates are skipped using a normalized signature
 - the result payload returns counts for imported and skipped entries plus whether settings were restored
+- browser-only development keeps the simpler download fallback because it does not have access to Tauri's native save dialog
 
 ## Logging
 

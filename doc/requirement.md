@@ -37,6 +37,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - compact display mode
 - In compact mode, edit/copy/delete actions are grouped behind a more menu.
 - Users can import and export JSON backup files containing app settings and connection metadata.
+- Export must let users choose the destination path and filename for the backup file.
 - Duplicate imports should be skipped instead of creating obvious duplicates.
 
 ### Authentication and credentials

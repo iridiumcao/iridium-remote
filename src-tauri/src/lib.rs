@@ -162,6 +162,18 @@ fn export_connections(state: State<'_, Arc<AppState>>) -> AppResult<ConnectionsE
 }
 
 #[tauri::command]
+fn write_export_file(path: String, payload: ConnectionsExportPayload) -> AppResult<()> {
+    let contents = serde_json::to_string_pretty(&payload)
+        .map_err(|error| AppError::internal("Failed to encode the export file.", error.to_string()))?;
+
+    fs::write(&path, contents)
+        .map_err(|error| AppError::internal("Failed to write the export file.", error.to_string()))?;
+
+    log::info!("Saved the connection export file.");
+    Ok(())
+}
+
+#[tauri::command]
 fn import_connections(
     state: State<'_, Arc<AppState>>,
     payload: ConnectionsExportPayload,
@@ -285,6 +297,7 @@ pub fn run() {
                 .timezone_strategy(TimezoneStrategy::UseLocal)
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let state = build_state(app.handle()).map_err(|error| {
@@ -308,6 +321,7 @@ pub fn run() {
             get_app_settings,
             update_app_settings,
             export_connections,
+            write_export_file,
             import_connections,
             transfer_file,
         ])

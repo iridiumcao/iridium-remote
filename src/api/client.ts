@@ -104,6 +104,11 @@ const emitMockOutput = (sessionId: string, data: string) => {
 
 const now = () => new Date().toISOString()
 
+const getExportFileName = (payload: ConnectionsExportPayload) => {
+  const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
+  return `iridium-remote-backup-${timestamp}.json`
+}
+
 const normalizeGroup = (value?: string | null) => {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
@@ -360,6 +365,41 @@ export const appClient = {
     }
 
     return invoke<ConnectionsExportPayload>('export_connections')
+  },
+
+  async saveExportConnections(payload: ConnectionsExportPayload) {
+    if (!isTauriRuntime()) {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = getExportFileName(payload)
+      document.body.append(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      return true
+    }
+
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    const path = await save({
+      defaultPath: getExportFileName(payload),
+      filters: [
+        {
+          name: 'JSON',
+          extensions: ['json'],
+        },
+      ],
+    })
+
+    if (!path) {
+      return false
+    }
+
+    await invoke('write_export_file', { path, payload })
+    return true
   },
 
   async importConnections(payload: ConnectionsExportPayload) {
