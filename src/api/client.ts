@@ -10,6 +10,7 @@ import type {
   FileTransferInput,
   FileTransferResult,
   ImportConnectionsResult,
+  RemotePathListing,
   SessionRemovedEvent,
   SessionState,
   TerminalOutputEvent,
@@ -104,6 +105,12 @@ const emitMockOutput = (sessionId: string, data: string) => {
 
 const now = () => new Date().toISOString()
 
+const getRemoteFileName = (path: string) => {
+  const normalized = path.trim().replace(/\\/g, '/')
+  const segments = normalized.split('/').filter(Boolean)
+  return segments.at(-1) ?? ''
+}
+
 const getExportFileName = (payload: ConnectionsExportPayload) => {
   const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
   return `iridium-remote-backup-${timestamp}.json`
@@ -115,6 +122,7 @@ const normalizeGroup = (value?: string | null) => {
 }
 
 const randomId = () => crypto.randomUUID()
+type TransferLocalPathSelectionMode = 'file' | 'directory'
 
 export const appClient = {
   isTauriRuntime,
@@ -473,6 +481,67 @@ export const appClient = {
     return invoke<FileTransferResult>('transfer_file', { input })
   },
 
+  async pickTransferLocalPath(
+    direction: FileTransferInput['direction'],
+    selectionMode: TransferLocalPathSelectionMode,
+    currentLocalPath: string,
+    currentRemotePath: string,
+  ) {
+    if (!isTauriRuntime()) {
+      if (selectionMode === 'directory') {
+        return currentLocalPath || 'C:\\mock\\folder'
+      }
+
+      if (direction === 'upload') {
+        return currentLocalPath || 'C:\\mock\\upload.txt'
+      }
+
+      return currentLocalPath || `C:\\mock\\${getRemoteFileName(currentRemotePath) || 'download.txt'}`
+    }
+
+    const { open, save } = await import('@tauri-apps/plugin-dialog')
+    if (selectionMode === 'directory') {
+      const path = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: currentLocalPath.trim() || undefined,
+      })
+
+      return typeof path === 'string' ? path : null
+    }
+
+    if (direction === 'upload') {
+      const path = await open({
+        directory: false,
+        multiple: false,
+        defaultPath: currentLocalPath.trim() || undefined,
+      })
+
+      return typeof path === 'string' ? path : null
+    }
+
+    const path = await save({
+      defaultPath: currentLocalPath.trim() || getRemoteFileName(currentRemotePath) || 'download.txt',
+    })
+
+    return path
+  },
+
+  async listRemoteDirectory(connectionId: string, path?: string) {
+    if (!isTauriRuntime()) {
+      const currentPath = normalizeMockRemotePath(path)
+      return {
+        currentPath,
+        entries: getMockRemoteEntries(currentPath),
+      } satisfies RemotePathListing
+    }
+
+    return invoke<RemotePathListing>('list_remote_directory', {
+      connectionId,
+      path,
+    })
+  },
+
   async onSessionState(listener: (state: SessionState) => void): Promise<Unsubscribe> {
     if (!isTauriRuntime()) {
       mockStore.sessionListeners.add(listener)
@@ -511,4 +580,43 @@ export const appClient = {
       listener(event.payload)
     })
   },
+}
+
+const normalizeMockRemotePath = (path?: string) => {
+  const trimmed = path?.trim()
+  if (!trimmed || trimmed === '.') {
+    return '/'
+  }
+
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
+const getMockRemoteEntries = (path: string): RemotePathListing['entries'] => {
+  const normalized = normalizeMockRemotePath(path)
+
+  switch (normalized) {
+    case '/':
+      return [
+        { name: 'home', path: '/home', isDirectory: true },
+        { name: 'var', path: '/var', isDirectory: true },
+        { name: 'README.txt', path: '/README.txt', isDirectory: false },
+      ]
+    case '/home':
+      return [
+        { name: 'demo', path: '/home/demo', isDirectory: true },
+        { name: 'notes.txt', path: '/home/notes.txt', isDirectory: false },
+      ]
+    case '/home/demo':
+      return [
+        { name: 'deploy.sh', path: '/home/demo/deploy.sh', isDirectory: false },
+        { name: 'logs', path: '/home/demo/logs', isDirectory: true },
+      ]
+    case '/var':
+      return [
+        { name: 'www', path: '/var/www', isDirectory: true },
+        { name: 'app.log', path: '/var/app.log', isDirectory: false },
+      ]
+    default:
+      return []
+  }
 }

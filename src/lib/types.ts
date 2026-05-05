@@ -88,6 +88,17 @@ export type FileTransferResult = {
   message: string
 }
 
+export type RemotePathEntry = {
+  name: string
+  path: string
+  isDirectory: boolean
+}
+
+export type RemotePathListing = {
+  currentPath: string
+  entries: RemotePathEntry[]
+}
+
 export type ConnectionExportRecord = {
   name: string
   groupName: string | null

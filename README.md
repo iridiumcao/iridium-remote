@@ -11,6 +11,7 @@ Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, an
 - Switch the connection list between normal and compact display modes
 - Open multiple active SSH sessions in terminal tabs
 - Upload and download files with SFTP
+- Browse for local files, local folders, and remote SFTP paths from the file transfer dialog
 - Switch between light and dark themes
 - Switch between English and Simplified Chinese
 - Export and import JSON backups containing app settings and connections, with export saving to a user-selected location

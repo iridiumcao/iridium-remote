@@ -1,9 +1,12 @@
 import { useState } from 'react'
+import { appClient } from '../api/client'
 import type { getTranslations } from '../lib/i18n'
 import type { AppTheme, FileTransferDirection, FileTransferInput } from '../lib/types'
 import { Modal } from './Modal'
+import { RemotePathPickerDialog } from './RemotePathPickerDialog'
 
 type TransferDialogProps = {
+  connectionId: string
   connectionName: string
   open: boolean
   onClose: () => void
@@ -13,6 +16,7 @@ type TransferDialogProps = {
 }
 
 export const TransferDialog = ({
+  connectionId,
   connectionName,
   onClose,
   onTransfer,
@@ -26,12 +30,34 @@ export const TransferDialog = ({
   const [remotePath, setRemotePath] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isRemoteBrowserOpen, setRemoteBrowserOpen] = useState(false)
 
   const inputClass = `w-full rounded-xl border px-3 py-2 outline-none transition ${
     isDark
       ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
       : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
   }`
+
+  const browseButtonClass = `rounded-lg border px-3 py-2 text-sm transition ${
+    isDark
+      ? 'border-white/10 text-slate-300 hover:bg-white/5'
+      : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+  }`
+
+  const handleBrowseLocalPath = async (selectionMode: 'file' | 'directory') => {
+    try {
+      setError(null)
+      const path = await appClient.pickTransferLocalPath(direction, selectionMode, localPath, remotePath)
+      if (!path) {
+        return
+      }
+
+      setLocalPath(path)
+    } catch (cause) {
+      const normalized = appClient.normalizeError(cause)
+      setError(normalized.message)
+    }
+  }
 
   const handleSubmit = async () => {
     setSubmitting(true)
@@ -106,18 +132,53 @@ export const TransferDialog = ({
         <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
           {t.localPath}
         </span>
-        <input className={inputClass} onChange={(event) => setLocalPath(event.target.value)} value={localPath} />
+        <div className="flex gap-2">
+          <input
+            className={inputClass}
+            onChange={(event) => setLocalPath(event.target.value)}
+            value={localPath}
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={browseButtonClass}
+              onClick={() => {
+                void handleBrowseLocalPath('file')
+              }}
+            >
+              {t.browseFile}
+            </button>
+            <button
+              type="button"
+              className={browseButtonClass}
+              onClick={() => {
+                void handleBrowseLocalPath('directory')
+              }}
+            >
+              {t.browseFolder}
+            </button>
+          </div>
+        </div>
       </label>
 
       <label className="block text-sm">
         <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
           {t.remotePath}
         </span>
-        <input
-          className={inputClass}
-          onChange={(event) => setRemotePath(event.target.value)}
-          value={remotePath}
-        />
+        <div className="flex gap-2">
+          <input
+            className={inputClass}
+            onChange={(event) => setRemotePath(event.target.value)}
+            value={remotePath}
+          />
+          <button
+            type="button"
+            className={browseButtonClass}
+            onClick={() => setRemoteBrowserOpen(true)}
+          >
+            {t.browse}
+          </button>
+        </div>
       </label>
 
       {error ? (
@@ -130,6 +191,19 @@ export const TransferDialog = ({
         >
           {error}
         </div>
+      ) : null}
+
+      {isRemoteBrowserOpen ? (
+        <RemotePathPickerDialog
+          connectionId={connectionId}
+          connectionName={connectionName}
+          onClose={() => setRemoteBrowserOpen(false)}
+          onSelect={setRemotePath}
+          open
+          remotePath={remotePath}
+          t={t}
+          theme={theme}
+        />
       ) : null}
     </Modal>
   )

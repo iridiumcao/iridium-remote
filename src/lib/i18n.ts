@@ -75,6 +75,18 @@ type Dictionary = {
   download: string
   localPath: string
   remotePath: string
+  browse: string
+  browseFile: string
+  browseFolder: string
+  select: string
+  openFolder: string
+  remoteBrowserTitle: string
+  remoteBrowserDescription: string
+  loadingRemotePaths: string
+  noRemotePaths: string
+  parentFolder: string
+  useCurrentFolder: string
+  selectCurrentFolder: string
   startTransfer: string
   transferDescription: string
   transferSuccess: string
@@ -180,6 +192,18 @@ const dictionaries: Record<Locale, Dictionary> = {
     download: 'Download',
     localPath: 'Local path',
     remotePath: 'Remote path',
+    browse: 'Browse',
+    browseFile: 'Browse file',
+    browseFolder: 'Browse folder',
+    select: 'Select',
+    openFolder: 'Open',
+    remoteBrowserTitle: 'Browse Remote Path',
+    remoteBrowserDescription: 'Browse files and folders on the remote host.',
+    loadingRemotePaths: 'Loading remote paths...',
+    noRemotePaths: 'No files or folders were found here.',
+    parentFolder: 'Up to parent folder',
+    useCurrentFolder: 'Use current folder',
+    selectCurrentFolder: 'Select current folder',
     startTransfer: 'Start Transfer',
     transferDescription:
       'Transfers use the system SFTP client. Save a password on the connection if the host requires one.',
@@ -293,6 +317,18 @@ const dictionaries: Record<Locale, Dictionary> = {
     download: '下载',
     localPath: '本地路径',
     remotePath: '远程路径',
+    browse: '浏览',
+    browseFile: '选择文件',
+    browseFolder: '选择文件夹',
+    select: '选择',
+    openFolder: '打开',
+    remoteBrowserTitle: '浏览远程路径',
+    remoteBrowserDescription: '浏览远程主机上的文件和文件夹。',
+    loadingRemotePaths: '正在加载远程路径...',
+    noRemotePaths: '这里没有可用的文件或文件夹。',
+    parentFolder: '返回上级文件夹',
+    useCurrentFolder: '使用当前文件夹',
+    selectCurrentFolder: '选择当前文件夹',
     startTransfer: '开始传输',
     transferDescription: '文件传输使用系统 SFTP 客户端。如果主机需要密码，请先在连接中保存密码。',
     transferSuccess: '传输完成。',
@@ -402,6 +438,18 @@ const dictionaries: Record<Locale, Dictionary> = {
     download: '下載',
     localPath: '本地路徑',
     remotePath: '遠端路徑',
+    browse: '瀏覽',
+    browseFile: '選擇檔案',
+    browseFolder: '選擇資料夾',
+    select: '選取',
+    openFolder: '開啟',
+    remoteBrowserTitle: '瀏覽遠端路徑',
+    remoteBrowserDescription: '瀏覽遠端主機上的檔案和資料夾。',
+    loadingRemotePaths: '正在載入遠端路徑...',
+    noRemotePaths: '這裡沒有可用的檔案或資料夾。',
+    parentFolder: '返回上層資料夾',
+    useCurrentFolder: '使用目前資料夾',
+    selectCurrentFolder: '選擇目前資料夾',
     startTransfer: '開始傳輸',
     transferDescription: '檔案傳輸使用系統 SFTP 客戶端。如果主機需要密碼，請先在連線中儲存密碼。',
     transferSuccess: '傳輸完成。',

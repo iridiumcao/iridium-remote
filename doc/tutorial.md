@@ -110,6 +110,14 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 - Import reads a JSON file in the frontend and sends the parsed payload to the backend.
 - The backend skips duplicates, restores settings when the backup contains them, and returns counts for imported and skipped entries.
 
+### File transfer pickers
+
+- `src\components\TransferDialog.tsx` now includes separate local file/folder browse buttons plus the remote path browser.
+- Local browse uses Tauri's native open/save dialogs through `src\api\client.ts` so uploads can choose files or folders, and downloads can choose either a destination folder or a specific save-as file path.
+- Remote browse opens a lightweight picker backed by the `list_remote_directory` command in `src-tauri\src\transfer.rs`.
+- Remote browse and transfers work with saved passwords and with non-interactive SSH-key auth when the system OpenSSH tools can connect without prompting.
+- The backend runs that remote listing work off the main Tauri thread, applies a timeout so a slow remote host does not lock up the desktop window or spin forever in the loading state, and uses recursive SFTP commands when the selected source path is a directory.
+
 ### Logging
 
 The Rust backend writes log files through Tauri’s logging plugin. This helps when debugging packaged builds.

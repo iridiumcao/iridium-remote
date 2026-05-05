@@ -97,6 +97,7 @@ Password prompts remain terminal-native; the backend no longer opens a custom pa
 ### File transfer
 
 `src-tauri\src\transfer.rs` shells out to `sftp` using the selected connection and saved credentials where possible.
+The transfer dialog uses Tauri's native file dialogs for local file/folder selection and a lightweight SFTP-backed remote path listing command for browsing remote files and folders. Transfers and remote browsing support saved-password auth and non-interactive SSH-key auth, remote directory transfers use recursive `get -r` / `put -r`, and the remote SFTP work runs off the main desktop thread so a slow or misbehaving remote host does not freeze the app window.
 
 ## Settings persistence
 

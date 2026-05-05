@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectionsExportPayload } from '../lib/types'
 
 const invokeMock = vi.fn()
+const openMock = vi.fn()
 const saveMock = vi.fn()
 const createObjectUrlMock = vi.fn(() => 'blob:backup')
 const revokeObjectUrlMock = vi.fn()
@@ -14,6 +15,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: openMock,
   save: saveMock,
 }))
 
@@ -106,5 +108,64 @@ describe('appClient.saveExportConnections', () => {
 
     expect(saved).toBe(false)
     expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('opens a native file picker for upload local paths', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    openMock.mockResolvedValueOnce('C:\\Users\\iridi\\Desktop\\upload.txt')
+    const { appClient } = await import('./client')
+
+    const selected = await appClient.pickTransferLocalPath('upload', 'file', '', '/remote/upload.txt')
+
+    expect(selected).toBe('C:\\Users\\iridi\\Desktop\\upload.txt')
+    expect(openMock).toHaveBeenCalledWith({
+      directory: false,
+      multiple: false,
+    })
+  })
+
+  it('opens a native save picker for download local paths', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    saveMock.mockResolvedValueOnce('C:\\Users\\iridi\\Desktop\\download.txt')
+    const { appClient } = await import('./client')
+
+    const selected = await appClient.pickTransferLocalPath('download', 'file', '', '/remote/download.txt')
+
+    expect(selected).toBe('C:\\Users\\iridi\\Desktop\\download.txt')
+    expect(saveMock).toHaveBeenCalledWith({
+      defaultPath: 'download.txt',
+    })
+  })
+
+  it('opens a native directory picker for folder selections', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    openMock.mockResolvedValueOnce('C:\\Users\\iridi\\Desktop\\Downloads')
+    const { appClient } = await import('./client')
+
+    const selected = await appClient.pickTransferLocalPath(
+      'download',
+      'directory',
+      '',
+      '/remote/folder',
+    )
+
+    expect(selected).toBe('C:\\Users\\iridi\\Desktop\\Downloads')
+    expect(openMock).toHaveBeenCalledWith({
+      directory: true,
+      multiple: false,
+      defaultPath: undefined,
+    })
+  })
+
+  it('returns mock remote directory listings outside Tauri', async () => {
+    const { appClient } = await import('./client')
+
+    const listing = await appClient.listRemoteDirectory('connection-1', '/home')
+
+    expect(listing.currentPath).toBe('/home')
+    expect(listing.entries).toEqual([
+      { name: 'demo', path: '/home/demo', isDirectory: true },
+      { name: 'notes.txt', path: '/home/notes.txt', isDirectory: false },
+    ])
   })
 })

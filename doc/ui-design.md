@@ -113,7 +113,7 @@ Password entry here is for optional keyring storage, not for runtime prompt hand
 
 ### File transfer dialog
 
-Supports upload and download flows with simple path entry and status feedback.
+Supports upload and download flows with path entry, separate local file/folder browse buttons, a lightweight remote file browser, and status feedback. The remote picker can either select a file directly or return the current folder as a directory path.
 
 ### About dialog
 

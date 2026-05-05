@@ -11,7 +11,8 @@ use database::Database;
 use errors::{AppError, AppResult};
 use models::{
     AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput,
-    FileTransferInput, FileTransferResult, ImportConnectionsResult, SessionStatePayload, UpdateConnectionInput,
+    FileTransferInput, FileTransferResult, ImportConnectionsResult, RemotePathListing, SessionStatePayload,
+    UpdateConnectionInput,
 };
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -135,11 +136,31 @@ fn get_session_states(state: State<'_, Arc<AppState>>) -> AppResult<Vec<SessionS
 }
 
 #[tauri::command]
-fn transfer_file(state: State<'_, Arc<AppState>>, input: FileTransferInput) -> AppResult<FileTransferResult> {
+async fn transfer_file(
+    state: State<'_, Arc<AppState>>,
+    input: FileTransferInput,
+) -> AppResult<FileTransferResult> {
     let connection = state.database.get_connection(&input.connection_id)?;
     let saved_password = state.credentials.get_for_connection(&connection)?;
     log::info!("Starting {:?} transfer for '{}'.", input.direction, connection.name);
-    transfer::transfer_file(&connection, saved_password, input)
+    tauri::async_runtime::spawn_blocking(move || transfer::transfer_file(&connection, saved_password, input))
+        .await
+        .map_err(|error| AppError::internal("The file transfer task failed.", error.to_string()))?
+}
+
+#[tauri::command]
+async fn list_remote_directory(
+    state: State<'_, Arc<AppState>>,
+    connection_id: String,
+    path: Option<String>,
+) -> AppResult<RemotePathListing> {
+    let connection = state.database.get_connection(&connection_id)?;
+    let saved_password = state.credentials.get_for_connection(&connection)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        transfer::list_remote_directory(&connection, saved_password, path)
+    })
+    .await
+    .map_err(|error| AppError::internal("The remote path listing task failed.", error.to_string()))?
 }
 
 #[tauri::command]
@@ -333,6 +354,7 @@ pub fn run() {
             get_session_states,
             get_app_settings,
             update_app_settings,
+            list_remote_directory,
             export_connections,
             write_export_file,
             import_connections,

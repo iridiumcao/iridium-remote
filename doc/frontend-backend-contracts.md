@@ -70,13 +70,19 @@ Stops the target session and releases backend resources.
 
 ## File transfer commands
 
-### `upload_file(connectionId, localPath, remotePath) -> TransferResult`
+### `transfer_file(input) -> TransferResult`
 
-Uploads a file via `sftp`.
+Runs an upload or download via `sftp`.
 
-### `download_file(connectionId, remotePath, localPath) -> TransferResult`
+- Upload accepts a local file or local directory.
+- Download accepts a remote file or remote directory.
+- File transfers may target either a directory path or a specific file path rename when the source is a file.
+- Directory transfers require the destination side to be a directory.
+- The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for transfers.
 
-Downloads a file via `sftp`.
+### `list_remote_directory(connectionId, path?) -> RemotePathListing`
+
+Lists remote files and folders for the lightweight SFTP-backed remote path browser used by the transfer dialog. The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for this lookup, and return an explicit error instead of hanging when the remote host cannot complete the listing.
 
 ## Runtime events
 

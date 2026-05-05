@@ -685,6 +685,7 @@ function App() {
 
       {isTransferDialogOpen && activeConnection ? (
         <TransferDialog
+          connectionId={activeConnection.id}
           connectionName={activeConnection.name}
           onClose={() => setTransferDialogOpen(false)}
           onTransfer={handleTransfer}

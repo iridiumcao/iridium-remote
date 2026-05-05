@@ -130,6 +130,21 @@ pub struct FileTransferResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RemotePathEntry {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemotePathListing {
+    pub current_path: String,
+    pub entries: Vec<RemotePathEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConnectionExportRecord {
     pub name: String,
     pub group_name: Option<String>,
