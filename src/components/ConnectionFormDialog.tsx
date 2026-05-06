@@ -93,8 +93,17 @@ export const ConnectionFormDialog = ({
   }`
 
   const handleChange = (field: keyof FormState, value: string | boolean) => {
-    setFormState((current) => ({ ...current, [field]: value }))
+    setFormState((current) => {
+      if (field === 'password' && typeof value === 'string' && value) {
+        return { ...current, password: value, clearSavedPassword: false }
+      }
+
+      return { ...current, [field]: value }
+    })
   }
+
+  const passwordPlaceholder =
+    connection?.hasPassword && !formState.password && !formState.clearSavedPassword ? '********' : undefined
 
   const handleSubmit = async () => {
     const name = formState.name.trim()
@@ -242,6 +251,7 @@ export const ConnectionFormDialog = ({
         <input
           className={inputClass}
           onChange={(event) => handleChange('password', event.target.value)}
+          placeholder={passwordPlaceholder}
           type="password"
           value={formState.password}
         />

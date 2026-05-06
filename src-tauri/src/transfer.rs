@@ -13,9 +13,10 @@ use portable_pty::{native_pty_system, CommandBuilder, ExitStatus as PtyExitStatu
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        ConnectionRecord, FileTransferDirection, FileTransferInput, FileTransferResult, RemotePathEntry,
-        RemotePathListing,
+        ConnectionRecord, FileTransferDirection, FileTransferInput, FileTransferResult,
+        RemotePathEntry, RemotePathListing,
     },
+    terminal_detection::{append_recent_output, contains_password_prompt, contains_sftp_prompt},
 };
 
 const REMOTE_LIST_TIMEOUT: Duration = Duration::from_secs(15);
@@ -43,14 +44,17 @@ pub fn transfer_file(
     }
 
     let command_text = match input.direction {
-        FileTransferDirection::Upload => build_upload_command(connection, saved_password.clone(), local_path, remote_path)?,
+        FileTransferDirection::Upload => {
+            build_upload_command(connection, saved_password.clone(), local_path, remote_path)?
+        }
         FileTransferDirection::Download => {
             build_download_command(connection, saved_password.clone(), remote_path, local_path)?
         }
     };
 
     let (success, transcript) = run_transfer_command(connection, saved_password, &command_text)?;
-    let error_re = regex::Regex::new(r"(?i)(permission denied|no such file|failure|couldn't|error)").unwrap();
+    let error_re =
+        regex::Regex::new(r"(?i)(permission denied|no such file|failure|couldn't|error)").unwrap();
     if !success || error_re.is_match(&transcript) {
         return Err(AppError::internal(
             "The file transfer did not complete successfully.",
@@ -86,7 +90,8 @@ pub fn list_remote_directory(
         "This remote browser needs SSH key access or a saved password on the connection.",
     )?;
 
-    let error_re = regex::Regex::new(r"(?i)(permission denied|no such file|failure|couldn't|error)").unwrap();
+    let error_re =
+        regex::Regex::new(r"(?i)(permission denied|no such file|failure|couldn't|error)").unwrap();
     if !success || error_re.is_match(&transcript) {
         return Err(AppError::internal(
             "Failed to list the remote path.",
@@ -238,9 +243,11 @@ fn run_short_sftp_command(
         return Ok((status.success(), transcript));
     }
 
-    let (status, transcript) = run_batch_sftp_command(connection, command_text, REMOTE_LIST_TIMEOUT)?;
+    let (status, transcript) =
+        run_batch_sftp_command(connection, command_text, REMOTE_LIST_TIMEOUT)?;
     if !status.success() {
-        let auth_re = regex::Regex::new(r"(?i)(permission denied|authentication failed|batchmode)").unwrap();
+        let auth_re =
+            regex::Regex::new(r"(?i)(permission denied|authentication failed|batchmode)").unwrap();
         if auth_re.is_match(&transcript) {
             return Err(AppError::validation(missing_auth_message));
         }
@@ -271,17 +278,17 @@ fn run_batch_sftp_command(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = command
-        .spawn()
-        .map_err(|error| AppError::ssh_launch("Failed to start the SFTP process.", error.to_string()))?;
+    let mut child = command.spawn().map_err(|error| {
+        AppError::ssh_launch("Failed to start the SFTP process.", error.to_string())
+    })?;
 
     if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(command_text.as_bytes())
-            .map_err(|error| AppError::internal("Failed to send the SFTP command.", error.to_string()))?;
-        stdin
-            .flush()
-            .map_err(|error| AppError::internal("Failed to flush the SFTP command.", error.to_string()))?;
+        stdin.write_all(command_text.as_bytes()).map_err(|error| {
+            AppError::internal("Failed to send the SFTP command.", error.to_string())
+        })?;
+        stdin.flush().map_err(|error| {
+            AppError::internal("Failed to flush the SFTP command.", error.to_string())
+        })?;
     }
 
     let (sender, receiver) = mpsc::channel();
@@ -295,7 +302,10 @@ fn run_batch_sftp_command(
         .map_err(|_| {
             AppError::internal(
                 "The SFTP session timed out while waiting for the remote host.",
-                format!("The remote host did not complete the SFTP command within {} seconds.", timeout.as_secs()),
+                format!(
+                    "The remote host did not complete the SFTP command within {} seconds.",
+                    timeout.as_secs()
+                ),
             )
         })?
         .map_err(|error| AppError::internal("Failed to wait for the SFTP process.", error))?;
@@ -328,7 +338,12 @@ fn run_interactive_sftp_command(
             pixel_width: 0,
             pixel_height: 0,
         })
-        .map_err(|error| AppError::ssh_launch("Failed to initialize the file transfer terminal.", error.to_string()))?;
+        .map_err(|error| {
+            AppError::ssh_launch(
+                "Failed to initialize the file transfer terminal.",
+                error.to_string(),
+            )
+        })?;
 
     let mut command = CommandBuilder::new("sftp");
     command.arg("-P");
@@ -336,20 +351,17 @@ fn run_interactive_sftp_command(
     command.arg(format!("{}@{}", connection.username, connection.host));
     command.env("TERM", "xterm-256color");
 
-    let mut child = pair
-        .slave
-        .spawn_command(command)
-        .map_err(|error| AppError::ssh_launch("Failed to start the SFTP process.", error.to_string()))?;
+    let mut child = pair.slave.spawn_command(command).map_err(|error| {
+        AppError::ssh_launch("Failed to start the SFTP process.", error.to_string())
+    })?;
 
-    let reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|error| AppError::ssh_launch("Failed to open the SFTP reader.", error.to_string()))?;
+    let reader = pair.master.try_clone_reader().map_err(|error| {
+        AppError::ssh_launch("Failed to open the SFTP reader.", error.to_string())
+    })?;
 
-    let mut writer = pair
-        .master
-        .take_writer()
-        .map_err(|error| AppError::ssh_launch("Failed to open the SFTP writer.", error.to_string()))?;
+    let mut writer = pair.master.take_writer().map_err(|error| {
+        AppError::ssh_launch("Failed to open the SFTP writer.", error.to_string())
+    })?;
 
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -377,6 +389,7 @@ fn run_interactive_sftp_command(
     });
 
     let mut queued_password = saved_password;
+    let mut recent_output = String::new();
     let mut transcript = String::new();
     let mut command_started = false;
 
@@ -384,12 +397,12 @@ fn run_interactive_sftp_command(
         match receiver.recv_timeout(timeout) {
             Ok(Ok(Some(chunk))) => {
                 transcript.push_str(&chunk);
+                append_recent_output(&mut recent_output, &chunk);
 
-                let lower = chunk.to_ascii_lowercase();
-                if lower.contains("password:") {
+                if contains_password_prompt(&recent_output) {
                     if let Some(password) = queued_password.take() {
                         writer
-                            .write_all(format!("{password}\n").as_bytes())
+                            .write_all(format!("{password}\r").as_bytes())
                             .map_err(|error| {
                                 AppError::internal(
                                     "Failed to send the saved password to SFTP.",
@@ -397,30 +410,36 @@ fn run_interactive_sftp_command(
                                 )
                             })?;
                         writer.flush().map_err(|error| {
-                            AppError::internal("Failed to flush the SFTP password.", error.to_string())
+                            AppError::internal(
+                                "Failed to flush the SFTP password.",
+                                error.to_string(),
+                            )
                         })?;
+                        recent_output.clear();
                     } else {
                         let _ = child.kill();
                         return Err(AppError::validation(missing_password_message));
                     }
                 }
 
-                if !command_started && chunk.contains("sftp>") {
-                    writer
-                        .write_all(command_text.as_bytes())
-                        .map_err(|error| {
-                            AppError::internal("Failed to send the SFTP command.", error.to_string())
-                        })?;
+                if !command_started && contains_sftp_prompt(&recent_output) {
+                    writer.write_all(command_text.as_bytes()).map_err(|error| {
+                        AppError::internal("Failed to send the SFTP command.", error.to_string())
+                    })?;
                     writer.flush().map_err(|error| {
                         AppError::internal("Failed to flush the SFTP command.", error.to_string())
                     })?;
+                    recent_output.clear();
                     command_started = true;
                 }
             }
             Ok(Ok(None)) => break,
             Ok(Err(error)) => {
                 let _ = child.kill();
-                return Err(AppError::internal("The SFTP session failed while reading output.", error));
+                return Err(AppError::internal(
+                    "The SFTP session failed while reading output.",
+                    error,
+                ));
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 let _ = child.kill();
@@ -433,9 +452,9 @@ fn run_interactive_sftp_command(
         }
     }
 
-    let exit_status = child
-        .wait()
-        .map_err(|error| AppError::internal("Failed to wait for the SFTP process.", error.to_string()))?;
+    let exit_status = child.wait().map_err(|error| {
+        AppError::internal("Failed to wait for the SFTP process.", error.to_string())
+    })?;
 
     Ok((exit_status, transcript))
 }
@@ -450,12 +469,14 @@ fn parse_remote_working_directory(transcript: &str) -> Option<String> {
 
 fn determine_remote_path_kind(success: bool, transcript: &str) -> AppResult<RemotePathKind> {
     let lower = transcript.to_ascii_lowercase();
-    let missing_re = regex::Regex::new(r"(?i)(no such file|couldn't stat remote file|not found)").unwrap();
+    let missing_re =
+        regex::Regex::new(r"(?i)(no such file|couldn't stat remote file|not found)").unwrap();
     if missing_re.is_match(&lower) {
         return Ok(RemotePathKind::Missing);
     }
 
-    let cd_failed = regex::Regex::new(r"(?i)(can't change directory to|couldn't canonicalize)").unwrap()
+    let cd_failed = regex::Regex::new(r"(?i)(can't change directory to|couldn't canonicalize)")
+        .unwrap()
         .is_match(&lower);
     if !cd_failed && parse_remote_working_directory(transcript).is_some() {
         return Ok(RemotePathKind::Directory);
@@ -539,11 +560,7 @@ fn join_remote_path(base: &str, name: &str) -> String {
 }
 
 fn tail_transcript(transcript: &str) -> String {
-    let lines = transcript
-        .lines()
-        .rev()
-        .take(8)
-        .collect::<Vec<_>>();
+    let lines = transcript.lines().rev().take(8).collect::<Vec<_>>();
 
     if lines.is_empty() {
         "No transfer output was captured.".into()

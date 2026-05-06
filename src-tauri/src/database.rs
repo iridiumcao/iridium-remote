@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        AppSettings, ConnectionExportRecord, ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput,
+        AppSettings, ConnectionExportRecord, ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput,        
         ImportConnectionsResult, UpdateConnectionInput,
     },
 };
@@ -63,7 +63,7 @@ impl Database {
         match raw {
             Some(value) => {
                 let settings = serde_json::from_str::<AppSettings>(&value)
-                    .map_err(|error| AppError::database("Failed to decode app settings.", error.to_string()))?;
+                    .map_err(|error| AppError::database("Failed to decode app settings.", error.to_string()))?;        
                 normalize_app_settings(settings)
             }
             None => Ok(AppSettings::default()),
@@ -242,7 +242,7 @@ impl Database {
         })
     }
 
-    pub fn import_connections(&self, payload: ConnectionsExportPayload) -> AppResult<ImportConnectionsResult> {
+    pub fn import_connections(&self, payload: ConnectionsExportPayload) -> AppResult<ImportConnectionsResult> {        
         let ConnectionsExportPayload {
             settings,
             connections,
@@ -257,7 +257,7 @@ impl Database {
         let mut connection = self.connect()?;
         let transaction = connection
             .transaction()
-            .map_err(|error| AppError::database("Failed to start the import transaction.", error.to_string()))?;
+            .map_err(|error| AppError::database("Failed to start the import transaction.", error.to_string()))?;       
 
         let normalized_settings = settings.map(normalize_app_settings).transpose()?;
         let settings_applied = normalized_settings.is_some();
@@ -317,7 +317,7 @@ impl Database {
 
         transaction
             .commit()
-            .map_err(|error| AppError::database("Failed to finish the import transaction.", error.to_string()))?;
+            .map_err(|error| AppError::database("Failed to finish the import transaction.", error.to_string()))?;      
 
         Ok(ImportConnectionsResult {
             imported,
@@ -348,11 +348,11 @@ impl Database {
     fn has_column(connection: &Connection, table_name: &str, column_name: &str) -> AppResult<bool> {
         let mut statement = connection
             .prepare(&format!("PRAGMA table_info({table_name})"))
-            .map_err(|error| AppError::database("Failed to inspect the database schema.", error.to_string()))?;
+            .map_err(|error| AppError::database("Failed to inspect the database schema.", error.to_string()))?;        
 
         let mut rows = statement
             .query([])
-            .map_err(|error| AppError::database("Failed to read database schema details.", error.to_string()))?;
+            .map_err(|error| AppError::database("Failed to read database schema details.", error.to_string()))?;       
 
         while let Some(row) = rows
             .next()

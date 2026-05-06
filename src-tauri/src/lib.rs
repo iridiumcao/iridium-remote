@@ -3,6 +3,7 @@ mod database;
 mod errors;
 mod models;
 mod session;
+mod terminal_detection;
 mod transfer;
 
 use std::{fs, sync::Arc};
@@ -10,9 +11,9 @@ use std::{fs, sync::Arc};
 use database::Database;
 use errors::{AppError, AppResult};
 use models::{
-    AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput,
-    FileTransferInput, FileTransferResult, ImportConnectionsResult, RemotePathListing, SessionStatePayload,
-    UpdateConnectionInput,
+    AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload,
+    CreateConnectionInput, FileTransferInput, FileTransferResult, ImportConnectionsResult,
+    RemotePathListing, SessionStatePayload, UpdateConnectionInput,
 };
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -41,7 +42,9 @@ fn create_connection(
     let connection = state.database.create_connection(input)?;
 
     if let Some(password) = password {
-        state.credentials.set_for_connection(&connection, &password)?;
+        state
+            .credentials
+            .set_for_connection(&connection, &password)?;
     }
 
     let connection = enrich_connection(&state, connection)?;
@@ -70,11 +73,7 @@ fn update_connection(
 }
 
 #[tauri::command]
-fn delete_connection(
-    app: AppHandle,
-    state: State<'_, Arc<AppState>>,
-    id: String,
-) -> AppResult<()> {
+fn delete_connection(app: AppHandle, state: State<'_, Arc<AppState>>, id: String) -> AppResult<()> {
     state.sessions.close_by_connection(app.clone(), &id)?;
 
     let deleted = state.database.delete_connection(&id)?;
@@ -126,7 +125,11 @@ fn disconnect_session(
 }
 
 #[tauri::command]
-fn close_session(app: AppHandle, state: State<'_, Arc<AppState>>, session_id: String) -> AppResult<()> {
+fn close_session(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> AppResult<()> {
     state.sessions.close(app, &session_id)
 }
 
@@ -142,10 +145,16 @@ async fn transfer_file(
 ) -> AppResult<FileTransferResult> {
     let connection = state.database.get_connection(&input.connection_id)?;
     let saved_password = state.credentials.get_for_connection(&connection)?;
-    log::info!("Starting {:?} transfer for '{}'.", input.direction, connection.name);
-    tauri::async_runtime::spawn_blocking(move || transfer::transfer_file(&connection, saved_password, input))
-        .await
-        .map_err(|error| AppError::internal("The file transfer task failed.", error.to_string()))?
+    log::info!(
+        "Starting {:?} transfer for '{}'.",
+        input.direction,
+        connection.name
+    );
+    tauri::async_runtime::spawn_blocking(move || {
+        transfer::transfer_file(&connection, saved_password, input)
+    })
+    .await
+    .map_err(|error| AppError::internal("The file transfer task failed.", error.to_string()))?
 }
 
 #[tauri::command]
@@ -160,7 +169,9 @@ async fn list_remote_directory(
         transfer::list_remote_directory(&connection, saved_password, path)
     })
     .await
-    .map_err(|error| AppError::internal("The remote path listing task failed.", error.to_string()))?
+    .map_err(|error| {
+        AppError::internal("The remote path listing task failed.", error.to_string())
+    })?
 }
 
 #[tauri::command]
@@ -169,7 +180,10 @@ fn get_app_settings(state: State<'_, Arc<AppState>>) -> AppResult<AppSettings> {
 }
 
 #[tauri::command]
-fn update_app_settings(state: State<'_, Arc<AppState>>, settings: AppSettings) -> AppResult<AppSettings> {
+fn update_app_settings(
+    state: State<'_, Arc<AppState>>,
+    settings: AppSettings,
+) -> AppResult<AppSettings> {
     let saved = state.database.set_app_settings(&settings)?;
     log::info!("Updated app settings.");
     Ok(saved)
@@ -184,11 +198,13 @@ fn export_connections(state: State<'_, Arc<AppState>>) -> AppResult<ConnectionsE
 
 #[tauri::command]
 fn write_export_file(path: String, payload: ConnectionsExportPayload) -> AppResult<()> {
-    let contents = serde_json::to_string_pretty(&payload)
-        .map_err(|error| AppError::internal("Failed to encode the export file.", error.to_string()))?;
+    let contents = serde_json::to_string_pretty(&payload).map_err(|error| {
+        AppError::internal("Failed to encode the export file.", error.to_string())
+    })?;
 
-    fs::write(&path, contents)
-        .map_err(|error| AppError::internal("Failed to write the export file.", error.to_string()))?;
+    fs::write(&path, contents).map_err(|error| {
+        AppError::internal("Failed to write the export file.", error.to_string())
+    })?;
 
     log::info!("Saved the connection export file.");
     Ok(())
@@ -209,24 +225,36 @@ fn import_connections(
     Ok(result)
 }
 
-fn emit_connection_list_changed(app: &AppHandle, reason: &str, connection_id: &str) -> AppResult<()> {
+fn emit_connection_list_changed(
+    app: &AppHandle,
+    reason: &str,
+    connection_id: &str,
+) -> AppResult<()> {
     let payload = ConnectionListChangedEvent {
         reason: reason.to_string(),
         connection_id: connection_id.to_string(),
     };
 
     app.emit("connection-list-changed", payload)
-        .map_err(|error| AppError::internal("Failed to emit connection list event.", error.to_string()))
+        .map_err(|error| {
+            AppError::internal("Failed to emit connection list event.", error.to_string())
+        })
 }
 
 fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| AppError::internal("Failed to resolve the app data directory.", error.to_string()))?;
+    let app_data_dir = app.path().app_data_dir().map_err(|error| {
+        AppError::internal(
+            "Failed to resolve the app data directory.",
+            error.to_string(),
+        )
+    })?;
 
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|error| AppError::internal("Failed to initialize the app data directory.", error.to_string()))?;
+    fs::create_dir_all(&app_data_dir).map_err(|error| {
+        AppError::internal(
+            "Failed to initialize the app data directory.",
+            error.to_string(),
+        )
+    })?;
 
     let database = Database::new(app_data_dir.join("iridium-remote.db"));
     database.initialize()?;
@@ -241,14 +269,20 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
     }))
 }
 
-fn enrich_connections(state: &AppState, connections: Vec<ConnectionRecord>) -> AppResult<Vec<ConnectionRecord>> {
+fn enrich_connections(
+    state: &AppState,
+    connections: Vec<ConnectionRecord>,
+) -> AppResult<Vec<ConnectionRecord>> {
     connections
         .into_iter()
         .map(|connection| enrich_connection(state, connection))
         .collect()
 }
 
-fn enrich_connection(state: &AppState, mut connection: ConnectionRecord) -> AppResult<ConnectionRecord> {
+fn enrich_connection(
+    state: &AppState,
+    mut connection: ConnectionRecord,
+) -> AppResult<ConnectionRecord> {
     connection.has_password = state.credentials.get_for_connection(&connection)?.is_some();
     Ok(connection)
 }
@@ -281,7 +315,9 @@ fn handle_updated_credentials(
 
     if old_account != new_account {
         if let Some(existing_password) = state.credentials.get_for_connection(existing)? {
-            state.credentials.set_for_connection(updated, &existing_password)?;
+            state
+                .credentials
+                .set_for_connection(updated, &existing_password)?;
             state.credentials.delete_for_connection(existing)?;
         }
     }

@@ -12,8 +12,10 @@ use uuid::Uuid;
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        ConnectionRecord, SessionRemovedEvent, SessionStatePayload, SessionStatus, TerminalOutputEvent,
+        ConnectionRecord, SessionRemovedEvent, SessionStatePayload, SessionStatus,
+        TerminalOutputEvent,
     },
+    terminal_detection::{append_recent_output, contains_password_prompt, contains_shell_prompt},
 };
 
 struct SessionResources {
@@ -21,6 +23,7 @@ struct SessionResources {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     queued_password: Option<String>,
+    recent_output: String,
     connected: bool,
 }
 
@@ -54,7 +57,12 @@ impl SessionManager {
         inner
             .order
             .iter()
-            .filter_map(|session_id| inner.sessions.get(session_id).map(|session| session.snapshot.clone()))
+            .filter_map(|session_id| {
+                inner
+                    .sessions
+                    .get(session_id)
+                    .map(|session| session.snapshot.clone())
+            })
             .collect()
     }
 
@@ -72,7 +80,12 @@ impl SessionManager {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|error| AppError::ssh_launch("Failed to initialize the terminal session.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::ssh_launch(
+                    "Failed to initialize the terminal session.",
+                    error.to_string(),
+                )
+            })?;
 
         let mut command = CommandBuilder::new("ssh");
         command.arg("-p");
@@ -80,20 +93,17 @@ impl SessionManager {
         command.arg(format!("{}@{}", connection.username, connection.host));
         command.env("TERM", "xterm-256color");
 
-        let child = pair
-            .slave
-            .spawn_command(command)
-            .map_err(|error| AppError::ssh_launch("Failed to start the SSH process.", error.to_string()))?;
+        let child = pair.slave.spawn_command(command).map_err(|error| {
+            AppError::ssh_launch("Failed to start the SSH process.", error.to_string())
+        })?;
 
-        let reader = pair
-            .master
-            .try_clone_reader()
-            .map_err(|error| AppError::ssh_launch("Failed to open the SSH session reader.", error.to_string()))?;
+        let reader = pair.master.try_clone_reader().map_err(|error| {
+            AppError::ssh_launch("Failed to open the SSH session reader.", error.to_string())
+        })?;
 
-        let writer = pair
-            .master
-            .take_writer()
-            .map_err(|error| AppError::ssh_launch("Failed to open the SSH session writer.", error.to_string()))?;
+        let writer = pair.master.take_writer().map_err(|error| {
+            AppError::ssh_launch("Failed to open the SSH session writer.", error.to_string())
+        })?;
 
         let session_id = Uuid::new_v4().to_string();
         let snapshot = SessionStatePayload {
@@ -116,6 +126,7 @@ impl SessionManager {
                         master: pair.master,
                         writer,
                         queued_password: saved_password,
+                        recent_output: String::new(),
                         connected: false,
                     }),
                 },
@@ -132,10 +143,9 @@ impl SessionManager {
 
     pub fn write_input(&self, session_id: &str, data: &str) -> AppResult<()> {
         let mut inner = self.inner.lock().expect("session mutex poisoned");
-        let session = inner
-            .sessions
-            .get_mut(session_id)
-            .ok_or_else(|| AppError::no_active_session("The selected session is no longer available."))?;
+        let session = inner.sessions.get_mut(session_id).ok_or_else(|| {
+            AppError::no_active_session("The selected session is no longer available.")
+        })?;
         let resources = session
             .resources
             .as_mut()
@@ -144,11 +154,12 @@ impl SessionManager {
         resources
             .writer
             .write_all(data.as_bytes())
-            .map_err(|error| AppError::internal("Failed to send terminal input.", error.to_string()))?;
-        resources
-            .writer
-            .flush()
-            .map_err(|error| AppError::internal("Failed to flush terminal input.", error.to_string()))
+            .map_err(|error| {
+                AppError::internal("Failed to send terminal input.", error.to_string())
+            })?;
+        resources.writer.flush().map_err(|error| {
+            AppError::internal("Failed to flush terminal input.", error.to_string())
+        })
     }
 
     pub fn resize(&self, session_id: &str, cols: u16, rows: u16) -> AppResult<()> {
@@ -168,20 +179,20 @@ impl SessionManager {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|error| AppError::internal("Failed to resize the terminal.", error.to_string()))
+            .map_err(|error| {
+                AppError::internal("Failed to resize the terminal.", error.to_string())
+            })
     }
 
     pub fn disconnect(&self, app: AppHandle, session_id: &str) -> AppResult<SessionStatePayload> {
         let snapshot = {
             let mut inner = self.inner.lock().expect("session mutex poisoned");
-            let session = inner
-                .sessions
-                .get_mut(session_id)
-                .ok_or_else(|| AppError::no_active_session("The selected session is no longer available."))?;
-            let mut resources = session
-                .resources
-                .take()
-                .ok_or_else(|| AppError::no_active_session("The selected session is already closed."))?;
+            let session = inner.sessions.get_mut(session_id).ok_or_else(|| {
+                AppError::no_active_session("The selected session is no longer available.")
+            })?;
+            let mut resources = session.resources.take().ok_or_else(|| {
+                AppError::no_active_session("The selected session is already closed.")
+            })?;
 
             let _ = resources.child.kill();
             session.snapshot.status = SessionStatus::Disconnected;
@@ -237,7 +248,12 @@ impl SessionManager {
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => {
-                    self.finish_session(&app, &session_id, SessionStatus::Disconnected, "Session closed.");
+                    self.finish_session(
+                        &app,
+                        &session_id,
+                        SessionStatus::Disconnected,
+                        "Session closed.",
+                    );
                     break;
                 }
                 Ok(bytes_read) => {
@@ -278,15 +294,14 @@ impl SessionManager {
             let Some(resources) = session.resources.as_mut() else {
                 return;
             };
+            append_recent_output(&mut resources.recent_output, &data);
 
-            let password_re = regex::Regex::new(r"(?i)password:\s*").unwrap();
-            let shell_re = regex::Regex::new(r"[\$#>%]\s*").unwrap();
-
-            if password_re.is_match(&data) {
+            if contains_password_prompt(&resources.recent_output) {
                 if let Some(password) = resources.queued_password.take() {
+                    resources.recent_output.clear();
                     auto_password = Some(password);
                 }
-            } else if !resources.connected && shell_re.is_match(&data) {
+            } else if !resources.connected && contains_shell_prompt(&resources.recent_output) {
                 resources.connected = true;
                 session.snapshot.status = SessionStatus::Connected;
                 session.snapshot.message = Some("Connected.".into());
@@ -295,7 +310,7 @@ impl SessionManager {
         }
 
         if let Some(password) = auto_password {
-            if let Err(error) = self.write_input(session_id, &format!("{password}\n")) {
+            if let Err(error) = self.write_input(session_id, &format!("{password}\r")) {
                 self.finish_session(app, session_id, SessionStatus::Error, &error.message);
                 return;
             }
@@ -306,7 +321,13 @@ impl SessionManager {
         }
     }
 
-    fn finish_session(&self, app: &AppHandle, session_id: &str, status: SessionStatus, message: &str) {
+    fn finish_session(
+        &self,
+        app: &AppHandle,
+        session_id: &str,
+        status: SessionStatus,
+        message: &str,
+    ) {
         let snapshot = {
             let mut inner = self.inner.lock().expect("session mutex poisoned");
             let Some(session) = inner.sessions.get_mut(session_id) else {
@@ -324,7 +345,9 @@ impl SessionManager {
 
     fn emit_status(&self, app: &AppHandle, payload: &SessionStatePayload) -> AppResult<()> {
         app.emit("session-status", payload.clone())
-            .map_err(|error| AppError::internal("Failed to emit the session event.", error.to_string()))
+            .map_err(|error| {
+                AppError::internal("Failed to emit the session event.", error.to_string())
+            })
     }
 
     fn emit_removed(&self, app: &AppHandle, session_id: &str) -> AppResult<()> {
@@ -334,6 +357,11 @@ impl SessionManager {
                 session_id: session_id.to_string(),
             },
         )
-        .map_err(|error| AppError::internal("Failed to emit the session removal event.", error.to_string()))
+        .map_err(|error| {
+            AppError::internal(
+                "Failed to emit the session removal event.",
+                error.to_string(),
+            )
+        })
     }
 }
