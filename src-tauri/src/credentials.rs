@@ -1,7 +1,4 @@
-use crate::{
-    errors::AppResult,
-    models::ConnectionRecord,
-};
+use crate::{errors::AppResult, models::ConnectionRecord};
 
 const SERVICE_NAME: &str = "iridium-remote";
 
@@ -17,7 +14,11 @@ impl CredentialStore {
         self.get_by_account(&self.account_for_connection(connection))
     }
 
-    pub fn set_for_connection(&self, connection: &ConnectionRecord, password: &str) -> AppResult<()> {
+    pub fn set_for_connection(
+        &self,
+        connection: &ConnectionRecord,
+        password: &str,
+    ) -> AppResult<()> {
         self.set_by_account(&self.account_for_connection(connection), password)
     }
 
@@ -101,8 +102,14 @@ mod platform {
         let target_name = utf16_null_terminated(&target_name(account));
         let mut credential_ptr: *mut CREDENTIALW = ptr::null_mut();
 
-        let loaded =
-            unsafe { CredReadW(target_name.as_ptr(), CRED_TYPE_GENERIC, 0, &mut credential_ptr) };
+        let loaded = unsafe {
+            CredReadW(
+                target_name.as_ptr(),
+                CRED_TYPE_GENERIC,
+                0,
+                &mut credential_ptr,
+            )
+        };
         if loaded == 0 {
             let error = io::Error::last_os_error();
             return if error.raw_os_error() == Some(ERROR_NOT_FOUND as i32) {
@@ -174,17 +181,22 @@ mod platform {
     use super::SERVICE_NAME;
 
     pub fn set_by_account(account: &str, password: &str) -> AppResult<()> {
-        let entry = Entry::new(SERVICE_NAME, account)
-            .map_err(|error| AppError::keyring("Failed to create the keyring entry.", error.to_string()))?;
+        let entry = Entry::new(SERVICE_NAME, account).map_err(|error| {
+            AppError::keyring("Failed to create the keyring entry.", error.to_string())
+        })?;
 
-        entry
-            .set_password(password)
-            .map_err(|error| AppError::keyring("Failed to store the password in the keyring.", error.to_string()))
+        entry.set_password(password).map_err(|error| {
+            AppError::keyring(
+                "Failed to store the password in the keyring.",
+                error.to_string(),
+            )
+        })
     }
 
     pub fn get_by_account(account: &str) -> AppResult<Option<String>> {
-        let entry = Entry::new(SERVICE_NAME, account)
-            .map_err(|error| AppError::keyring("Failed to create the keyring entry.", error.to_string()))?;
+        let entry = Entry::new(SERVICE_NAME, account).map_err(|error| {
+            AppError::keyring("Failed to create the keyring entry.", error.to_string())
+        })?;
 
         match entry.get_password() {
             Ok(password) => Ok(Some(password)),
@@ -197,8 +209,9 @@ mod platform {
     }
 
     pub fn delete_by_account(account: &str) -> AppResult<()> {
-        let entry = Entry::new(SERVICE_NAME, account)
-            .map_err(|error| AppError::keyring("Failed to create the keyring entry.", error.to_string()))?;
+        let entry = Entry::new(SERVICE_NAME, account).map_err(|error| {
+            AppError::keyring("Failed to create the keyring entry.", error.to_string())
+        })?;
 
         match entry.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
@@ -224,7 +237,10 @@ mod tests {
 
         store.delete_by_account(&account).unwrap();
         store.set_by_account(&account, password).unwrap();
-        assert_eq!(store.get_by_account(&account).unwrap().as_deref(), Some(password));
+        assert_eq!(
+            store.get_by_account(&account).unwrap().as_deref(),
+            Some(password)
+        );
         store.delete_by_account(&account).unwrap();
         assert_eq!(store.get_by_account(&account).unwrap(), None);
     }

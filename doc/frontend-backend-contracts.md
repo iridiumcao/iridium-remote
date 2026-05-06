@@ -72,7 +72,7 @@ Stops the target session and releases backend resources.
 
 ### `transfer_file(input) -> TransferResult`
 
-Runs an upload or download via `sftp`.
+Runs an upload or download through the backend `russh`-based SFTP client.
 
 - Upload accepts a local file or local directory.
 - Download accepts a remote file or remote directory.

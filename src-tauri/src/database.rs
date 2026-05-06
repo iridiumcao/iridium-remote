@@ -7,8 +7,8 @@ use uuid::Uuid;
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        AppSettings, ConnectionExportRecord, ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput,        
-        ImportConnectionsResult, UpdateConnectionInput,
+        AppSettings, ConnectionExportRecord, ConnectionRecord, ConnectionsExportPayload,
+        CreateConnectionInput, ImportConnectionsResult, UpdateConnectionInput,
     },
 };
 
@@ -41,7 +41,9 @@ impl Database {
                     value TEXT NOT NULL
                 );",
             )
-            .map_err(|error| AppError::database("Failed to initialize the database.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to initialize the database.", error.to_string())
+            })?;
 
         if !Self::has_column(&connection, "connections", "group_name")? {
             connection
@@ -56,14 +58,21 @@ impl Database {
     pub fn get_app_settings(&self) -> AppResult<AppSettings> {
         let connection = self.connect()?;
         let raw = connection
-            .query_row("SELECT value FROM app_settings WHERE key = 'app'", [], |row| row.get::<_, String>(0))
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = 'app'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
             .optional()
-            .map_err(|error| AppError::database("Failed to load app settings.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to load app settings.", error.to_string())
+            })?;
 
         match raw {
             Some(value) => {
-                let settings = serde_json::from_str::<AppSettings>(&value)
-                    .map_err(|error| AppError::database("Failed to decode app settings.", error.to_string()))?;        
+                let settings = serde_json::from_str::<AppSettings>(&value).map_err(|error| {
+                    AppError::database("Failed to decode app settings.", error.to_string())
+                })?;
                 normalize_app_settings(settings)
             }
             None => Ok(AppSettings::default()),
@@ -72,8 +81,9 @@ impl Database {
 
     pub fn set_app_settings(&self, settings: &AppSettings) -> AppResult<AppSettings> {
         let normalized = normalize_app_settings(settings.clone())?;
-        let payload = serde_json::to_string(&normalized)
-            .map_err(|error| AppError::database("Failed to encode app settings.", error.to_string()))?;
+        let payload = serde_json::to_string(&normalized).map_err(|error| {
+            AppError::database("Failed to encode app settings.", error.to_string())
+        })?;
         let connection = self.connect()?;
 
         connection
@@ -82,7 +92,9 @@ impl Database {
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 [payload],
             )
-            .map_err(|error| AppError::database("Failed to save app settings.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to save app settings.", error.to_string())
+            })?;
 
         Ok(normalized)
     }
@@ -104,14 +116,19 @@ impl Database {
                    port,
                    lower(username)",
             )
-            .map_err(|error| AppError::database("Failed to list connections.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to list connections.", error.to_string())
+            })?;
 
         let rows = statement
             .query_map([], Self::map_connection)
-            .map_err(|error| AppError::database("Failed to read connection rows.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to read connection rows.", error.to_string())
+            })?;
 
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|error| AppError::database("Failed to decode connection rows.", error.to_string()))
+        rows.collect::<Result<Vec<_>, _>>().map_err(|error| {
+            AppError::database("Failed to decode connection rows.", error.to_string())
+        })
     }
 
     pub fn get_connection(&self, id: &str) -> AppResult<ConnectionRecord> {
@@ -125,7 +142,9 @@ impl Database {
                 Self::map_connection,
             )
             .optional()
-            .map_err(|error| AppError::database("Failed to load the connection.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to load the connection.", error.to_string())
+            })?;
 
         record.ok_or_else(|| AppError::not_found("Connection not found."))
     }
@@ -219,7 +238,9 @@ impl Database {
         let connection = self.connect()?;
         connection
             .execute("DELETE FROM connections WHERE id = ?1", [id])
-            .map_err(|error| AppError::database("Failed to delete the connection.", error.to_string()))?;
+            .map_err(|error| {
+                AppError::database("Failed to delete the connection.", error.to_string())
+            })?;
         Ok(existing)
     }
 
@@ -242,7 +263,10 @@ impl Database {
         })
     }
 
-    pub fn import_connections(&self, payload: ConnectionsExportPayload) -> AppResult<ImportConnectionsResult> {        
+    pub fn import_connections(
+        &self,
+        payload: ConnectionsExportPayload,
+    ) -> AppResult<ImportConnectionsResult> {
         let ConnectionsExportPayload {
             settings,
             connections,
@@ -255,16 +279,17 @@ impl Database {
             .collect::<HashSet<_>>();
 
         let mut connection = self.connect()?;
-        let transaction = connection
-            .transaction()
-            .map_err(|error| AppError::database("Failed to start the import transaction.", error.to_string()))?;       
+        let transaction = connection.transaction().map_err(|error| {
+            AppError::database("Failed to start the import transaction.", error.to_string())
+        })?;
 
         let normalized_settings = settings.map(normalize_app_settings).transpose()?;
         let settings_applied = normalized_settings.is_some();
 
         if let Some(settings) = normalized_settings {
-            let payload = serde_json::to_string(&settings)
-                .map_err(|error| AppError::database("Failed to encode app settings.", error.to_string()))?;
+            let payload = serde_json::to_string(&settings).map_err(|error| {
+                AppError::database("Failed to encode app settings.", error.to_string())
+            })?;
 
             transaction
                 .execute(
@@ -272,7 +297,9 @@ impl Database {
                      ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                     [payload],
                 )
-                .map_err(|error| AppError::database("Failed to import app settings.", error.to_string()))?;
+                .map_err(|error| {
+                    AppError::database("Failed to import app settings.", error.to_string())
+                })?;
         }
 
         let mut imported = 0;
@@ -315,9 +342,12 @@ impl Database {
             imported += 1;
         }
 
-        transaction
-            .commit()
-            .map_err(|error| AppError::database("Failed to finish the import transaction.", error.to_string()))?;      
+        transaction.commit().map_err(|error| {
+            AppError::database(
+                "Failed to finish the import transaction.",
+                error.to_string(),
+            )
+        })?;
 
         Ok(ImportConnectionsResult {
             imported,
@@ -348,19 +378,20 @@ impl Database {
     fn has_column(connection: &Connection, table_name: &str, column_name: &str) -> AppResult<bool> {
         let mut statement = connection
             .prepare(&format!("PRAGMA table_info({table_name})"))
-            .map_err(|error| AppError::database("Failed to inspect the database schema.", error.to_string()))?;        
+            .map_err(|error| {
+                AppError::database("Failed to inspect the database schema.", error.to_string())
+            })?;
 
-        let mut rows = statement
-            .query([])
-            .map_err(|error| AppError::database("Failed to read database schema details.", error.to_string()))?;       
+        let mut rows = statement.query([]).map_err(|error| {
+            AppError::database("Failed to read database schema details.", error.to_string())
+        })?;
 
-        while let Some(row) = rows
-            .next()
-            .map_err(|error| AppError::database("Failed to read database schema row.", error.to_string()))?
-        {
-            let existing: String = row
-                .get(1)
-                .map_err(|error| AppError::database("Failed to decode schema column.", error.to_string()))?;
+        while let Some(row) = rows.next().map_err(|error| {
+            AppError::database("Failed to read database schema row.", error.to_string())
+        })? {
+            let existing: String = row.get(1).map_err(|error| {
+                AppError::database("Failed to decode schema column.", error.to_string())
+            })?;
             if existing == column_name {
                 return Ok(true);
             }

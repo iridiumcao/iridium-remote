@@ -44,7 +44,7 @@ It is responsible for:
 
 - storing data in SQLite
 - storing passwords in the OS keyring
-- launching `ssh` and `sftp`
+- launching `ssh` and opening SFTP sessions
 - managing active terminal sessions
 - sending terminal output back to the frontend
 - preferring a single running desktop instance and focusing the existing window on relaunch
@@ -54,7 +54,7 @@ Important files:
 - `src-tauri\src\lib.rs` - app startup and Tauri commands
 - `src-tauri\src\database.rs` - SQLite operations
 - `src-tauri\src\session.rs` - SSH/PTTY session management
-- `src-tauri\src\transfer.rs` - SFTP helpers
+- `src-tauri\src\transfer.rs` - `russh`/SFTP transfer helpers
 - `src-tauri\src\models.rs` - serialized Rust data types
 
 ## A simple mental model
@@ -115,8 +115,8 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 - `src\components\TransferDialog.tsx` now includes separate local file/folder browse buttons plus the remote path browser.
 - Local browse uses Tauri's native open/save dialogs through `src\api\client.ts` so uploads can choose files or folders, and downloads can choose either a destination folder or a specific save-as file path.
 - Remote browse opens a lightweight picker backed by the `list_remote_directory` command in `src-tauri\src\transfer.rs`.
-- Remote browse and transfers work with saved passwords and with non-interactive SSH-key auth when the system OpenSSH tools can connect without prompting.
-- The backend runs that remote listing work off the main Tauri thread, applies a timeout so a slow remote host does not lock up the desktop window or spin forever in the loading state, and uses recursive SFTP commands when the selected source path is a directory.
+- Remote browse and transfers use the backend `russh` + `russh-sftp` client, supporting saved passwords and non-interactive SSH-key auth through standard SSH config and identity files.
+- The backend applies explicit timeouts so a slow remote host does not lock up the desktop window or spin forever in the loading state, verifies host keys against known_hosts unless SSH config disables strict checking for the host, and handles directory transfers recursively through the SFTP client.
 
 ### Logging
 

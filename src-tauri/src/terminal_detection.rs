@@ -21,10 +21,6 @@ pub fn contains_password_prompt(buffer: &str) -> bool {
     normalize_for_inline_prompt(buffer).contains("password:")
 }
 
-pub fn contains_sftp_prompt(buffer: &str) -> bool {
-    normalize_for_inline_prompt(buffer).contains("sftp>")
-}
-
 pub fn contains_shell_prompt(buffer: &str) -> bool {
     shell_prompt_re().is_match(&strip_ansi(buffer))
 }
@@ -54,9 +50,7 @@ fn shell_prompt_re() -> &'static Regex {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        append_recent_output, contains_password_prompt, contains_sftp_prompt, contains_shell_prompt,
-    };
+    use super::{append_recent_output, contains_password_prompt, contains_shell_prompt};
 
     #[test]
     fn detects_password_prompt_across_split_chunks() {
@@ -74,15 +68,6 @@ mod tests {
         append_recent_output(&mut recent_output, "word:\u{1b}[0m");
 
         assert!(contains_password_prompt(&recent_output));
-    }
-
-    #[test]
-    fn detects_sftp_prompt_across_split_chunks() {
-        let mut recent_output = String::new();
-        append_recent_output(&mut recent_output, "sf");
-        append_recent_output(&mut recent_output, "tp> ");
-
-        assert!(contains_sftp_prompt(&recent_output));
     }
 
     #[test]

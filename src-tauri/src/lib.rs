@@ -150,11 +150,7 @@ async fn transfer_file(
         input.direction,
         connection.name
     );
-    tauri::async_runtime::spawn_blocking(move || {
-        transfer::transfer_file(&connection, saved_password, input)
-    })
-    .await
-    .map_err(|error| AppError::internal("The file transfer task failed.", error.to_string()))?
+    transfer::transfer_file(&connection, saved_password, input).await
 }
 
 #[tauri::command]
@@ -165,13 +161,7 @@ async fn list_remote_directory(
 ) -> AppResult<RemotePathListing> {
     let connection = state.database.get_connection(&connection_id)?;
     let saved_password = state.credentials.get_for_connection(&connection)?;
-    tauri::async_runtime::spawn_blocking(move || {
-        transfer::list_remote_directory(&connection, saved_password, path)
-    })
-    .await
-    .map_err(|error| {
-        AppError::internal("The remote path listing task failed.", error.to_string())
-    })?
+    transfer::list_remote_directory(&connection, saved_password, path).await
 }
 
 #[tauri::command]
