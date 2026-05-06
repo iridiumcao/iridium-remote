@@ -233,6 +233,14 @@ export const TerminalWorkspace = ({
   }, [activeSession])
 
   const headerConnection = activeConnection ?? selectedConnection
+  const headerTitle = headerConnection
+    ? formatConnectionSubtitle(headerConnection)
+    : t.terminalWorkspace
+  const headerSubtitle = headerConnection
+    ? headerConnection.name === headerTitle
+      ? null
+      : headerConnection.name
+    : t.selectConnectionToStart
   const showIdleState = !headerConnection && !activeSession
   const showSelectionState = Boolean(headerConnection) && !activeSession
   const showOverlay = showIdleState || activeSession?.status === 'connecting' || showSelectionState
@@ -305,26 +313,26 @@ export const TerminalWorkspace = ({
         className={`flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 sm:px-6 ${
           isDark ? 'border-white/10' : 'border-slate-200'
         }`}
-      >
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {headerConnection?.name ?? t.terminalWorkspace}
-            </h2>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                statusClasses[theme][activeSession?.status ?? 'idle']
-              }`}
-            >
-              {formatStatusLabel(activeSession?.status ?? 'idle', t.statusLabel)}
-            </span>
+        >
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {headerTitle}
+              </h2>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                  statusClasses[theme][activeSession?.status ?? 'idle']
+                }`}
+              >
+                {formatStatusLabel(activeSession?.status ?? 'idle', t.statusLabel)}
+              </span>
+            </div>
+            {headerSubtitle ? (
+              <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {headerSubtitle}
+              </p>
+            ) : null}
           </div>
-          <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {headerConnection
-              ? formatConnectionSubtitle(headerConnection)
-              : t.selectConnectionToStart}
-          </p>
-        </div>
 
         <div className="flex items-center gap-3">
           {onConnect ? (
