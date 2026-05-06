@@ -10,14 +10,12 @@ Connection metadata is stored in SQLite.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | integer | Primary key |
+| `id` | text | Primary key UUID |
 | `name` | text | User-facing display name |
 | `host` | text | SSH host |
 | `port` | integer | SSH port |
 | `username` | text | Login username |
 | `group_name` | text nullable | Optional folder/group |
-| `notes` | text nullable | Optional notes |
-| `has_password` | integer | Cached indicator that keyring credentials exist |
 | `created_at` | text | ISO timestamp |
 | `updated_at` | text | ISO timestamp |
 
@@ -30,12 +28,9 @@ App preferences are stored as key/value rows.
 | `key` | text | Primary key |
 | `value` | text | Serialized setting value |
 
-Current keys:
+Current key:
 
-- `locale`
-- `theme`
-- `connection_list_display_mode`
-- `collapsed_connection_groups`
+- `app` - serialized `AppSettings` JSON payload
 
 ## Keyring model
 
@@ -44,7 +39,7 @@ Passwords are stored only in the system keyring.
 - **service:** `iridium-remote`
 - **account:** `username@host`
 
-SQLite stores `has_password` only as a convenience flag for the UI.
+`has_password` is not persisted in SQLite; the backend enriches returned connection records by checking the keyring when it serves connection data.
 
 ## Runtime models
 
@@ -58,7 +53,6 @@ Frontend and backend share a connection model with:
 - port
 - username
 - groupName
-- notes
 - hasPassword
 - createdAt
 - updatedAt
@@ -70,7 +64,7 @@ Frontend and backend share a connection model with:
 - `locale`
 - `theme`
 - `connectionListDisplayMode`
-- `collapsedConnectionGroups`
+- `collapsedGroups`
 
 ### Session
 
@@ -78,10 +72,19 @@ An active session contains:
 
 - `sessionId`
 - `connectionId`
-- `title`
+- `connectionName`
 - `status`
+- `message?`
 
 Session output is event-driven and buffered on the frontend per session.
+
+### TerminalOutputEvent
+
+Terminal output events contain:
+
+- `sessionId`
+- `stream`
+- `data`
 
 ## Export file model
 
@@ -103,8 +106,7 @@ Connection export/import uses JSON.
       "host": "prod.example.com",
       "port": 22,
       "username": "admin",
-      "groupName": "Servers",
-      "notes": "Primary production host"
+      "groupName": "Servers"
     }
   ]
 }

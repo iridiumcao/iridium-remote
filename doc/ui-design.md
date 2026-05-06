@@ -79,7 +79,8 @@ Each connection entry supports:
 - edit
 - duplicate
 - delete
-- file transfer
+
+File transfer is launched from the active workspace header for the currently selected connection, not from each sidebar row.
 
 Search results should temporarily reveal matching groups even if those groups were collapsed previously.
 
@@ -88,6 +89,9 @@ Search results should temporarily reveal matching groups even if those groups we
 The right side contains:
 
 - terminal tab strip for active sessions
+- workspace header showing the active SSH target, saved connection name, and session status
+- connect / disconnect actions for the selected connection
+- file transfer action for the active connection
 - active terminal area
 - empty state when no session is active
 
@@ -107,7 +111,8 @@ Fields:
 - port
 - username
 - password (optional)
-- notes
+
+When saved groups exist, the group field uses a theme-aware suggestion list that lets the user pick an existing group or type a brand new one.
 
 Password entry here is for optional keyring storage, not for runtime prompt handling.
 
@@ -129,6 +134,6 @@ The project URL is an actionable link or button.
 
 ## Visual behavior
 
-- Light and dark themes apply consistently across sidebar, dialogs, and terminal shell framing.
+- Light and dark themes apply consistently across sidebar, dialogs, themed popup menus, and terminal shell framing.
 - Language switching updates visible labels without changing layout structure.
 - Notices for import/export results, settings changes, and operational errors appear inline near the main workspace header.

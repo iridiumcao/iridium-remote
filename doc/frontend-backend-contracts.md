@@ -6,15 +6,15 @@ The React frontend communicates with the Tauri backend through typed commands an
 
 ## Connection commands
 
-### `list_connections() -> Connection[]`
+### `list_connections() -> ConnectionRecord[]`
 
 Returns all saved connections.
 
-### `create_connection(input) -> Connection`
+### `create_connection(input) -> ConnectionRecord`
 
 Creates a connection record and optionally stores a password in the keyring.
 
-### `update_connection(id, input) -> Connection`
+### `update_connection(input) -> ConnectionRecord`
 
 Updates the connection record and synchronizes keyring password state.
 
@@ -52,11 +52,11 @@ Merges the supplied backup payload into the local database and returns:
 
 ## Session commands
 
-### `start_session(connectionId) -> SessionInfo`
+### `connect_session(connectionId) -> SessionState`
 
 Starts an SSH session for the selected connection.
 
-### `send_session_input(sessionId, data) -> void`
+### `write_session_input(sessionId, data) -> void`
 
 Writes terminal input to the target PTY session.
 
@@ -64,13 +64,21 @@ Writes terminal input to the target PTY session.
 
 Updates the PTY size to match the xterm viewport.
 
+### `disconnect_session(sessionId) -> SessionState`
+
+Stops the active SSH process for the session and returns the disconnected session state payload.
+
 ### `close_session(sessionId) -> void`
 
-Stops the target session and releases backend resources.
+Removes the target session from the backend session list and releases backend resources.
+
+### `get_session_states() -> SessionState[]`
+
+Returns the currently tracked session snapshots on startup so the frontend can restore open tabs.
 
 ## File transfer commands
 
-### `transfer_file(input) -> TransferResult`
+### `transfer_file(input) -> FileTransferResult`
 
 Runs an upload or download through the backend `russh`-based SFTP client.
 
@@ -86,11 +94,12 @@ Lists remote files and folders for the lightweight SFTP-backed remote path brows
 
 ## Runtime events
 
-### `session-output`
+### `terminal-output`
 
 Payload:
 
 - `sessionId`
+- `stream`
 - `data`
 
 ### `session-status`
@@ -98,6 +107,8 @@ Payload:
 Payload:
 
 - `sessionId`
+- `connectionId`
+- `connectionName`
 - `status`
 - `message?`
 
@@ -109,6 +120,13 @@ Payload:
 
 Used by the frontend to remove closed tabs and clean up buffered output.
 
+## Frontend-only bridge helpers
+
+`src\api\client.ts` also exposes a few frontend helpers around the raw Tauri commands:
+
+- `saveExportConnections(payload)` opens the native save dialog in Tauri builds, then calls `write_export_file`.
+- `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the transfer dialog.
+
 ## Browser mock behavior
 
 When the app is not running inside Tauri:
@@ -118,5 +136,7 @@ When the app is not running inside Tauri:
 - sessions are simulated
 - import/export works against the mock store, including settings when present
 - exports fall back to the browser download flow because the Tauri native save dialog is not available
+- local transfer-path picks return mock file or folder paths
+- remote browsing returns mock remote directory entries
 
 This keeps `npm run dev` useful for UI development without the Rust runtime.

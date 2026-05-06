@@ -5,10 +5,11 @@
 Iridium Remote is a split frontend/backend desktop application:
 
 - **React frontend** renders the connection manager, dialogs, menus, and terminal host surface.
-- **Tauri backend** exposes commands, manages persistence, launches SSH/SFTP processes, and emits session events.
+- **Tauri backend** exposes commands, manages persistence, launches SSH sessions, opens SFTP clients, and emits session events.
 - **SQLite** stores connection metadata and app settings.
 - **System keyring** stores passwords.
-- **System OpenSSH tools** provide SSH and SFTP transport.
+- **System OpenSSH `ssh`** provides terminal-session transport.
+- **`russh` + `russh-sftp`** provide file transfer and remote-browser transport.
 
 ## Frontend architecture
 
@@ -22,6 +23,8 @@ Iridium Remote is a split frontend/backend desktop application:
 - active session selection
 - import/export flow
 - notice/error banners
+
+It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform.
 
 ### Sidebar
 
@@ -40,6 +43,7 @@ Filtering is done in the frontend in real time against connection name, host, an
 `src\components\TerminalWorkspace.tsx` manages:
 
 - tab rendering for active sessions
+- active workspace header content and actions
 - xterm host container
 - transfer action access
 - empty-state rendering
@@ -54,7 +58,7 @@ The layout uses `min-h-0` and overflow boundaries so the main window does not be
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development.
-In packaged Tauri builds, the File menu exposes new connection, import, export, and exit actions rather than sidebar buttons.
+In packaged Tauri builds, the File menu also exposes new connection, import, export, and exit actions alongside the in-window controls.
 
 ## Backend architecture
 
@@ -78,7 +82,7 @@ The desktop runtime also registers a single-instance guard so a second launch fo
 1. `connections`
 2. `app_settings`
 
-Settings are stored as normalized rows and materialized into a typed `AppSettings` payload for the frontend.
+Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend.
 
 ### Session manager
 
@@ -93,6 +97,7 @@ Responsibilities:
 - keep session output isolated by tab
 
 Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
+When a saved password exists, the session manager queues it and writes it back into the PTY after detecting a password prompt in the terminal output stream.
 
 ### File transfer
 

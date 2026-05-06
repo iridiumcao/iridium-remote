@@ -1,10 +1,11 @@
 # Iridium Remote
 
-Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, and Rust. It combines a saved-connection sidebar, tabbed terminal sessions, optional keyring-backed passwords, and basic SFTP file transfer in a single desktop app.
+Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, and Rust. It combines a saved-connection sidebar, tabbed terminal sessions, optional keyring-backed passwords, and SFTP file transfer in a single desktop app.
 
 ## Current capabilities
 
 - Save SSH connections in SQLite
+- Reuse existing connection groups from a themed suggestion list while still typing new group names
 - Store optional passwords in the system keyring
 - Browse connections by collapsible groups
 - Search saved connections quickly
@@ -13,7 +14,7 @@ Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, an
 - Upload and download files with SFTP
 - Browse for local files, local folders, and remote SFTP paths from the file transfer dialog
 - Switch between light and dark themes
-- Switch between English and Simplified Chinese
+- Switch between English, Simplified Chinese, and Traditional Chinese
 - Export and import JSON backups containing app settings and connections, with export saving to a user-selected location
 - Persist user settings in the local application database
 - Write application logs to the app log directory
@@ -26,7 +27,8 @@ Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, an
 - **Backend:** Rust
 - **Connection storage:** SQLite
 - **Credential storage:** OS keyring
-- **SSH/SFTP transport:** system OpenSSH tools (`ssh`, `sftp`)
+- **Terminal transport:** system OpenSSH `ssh`
+- **File transfer transport:** backend `russh` + `russh-sftp`
 
 ## Repository guide
 

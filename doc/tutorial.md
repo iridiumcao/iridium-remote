@@ -9,10 +9,11 @@ Iridium Remote is a desktop SSH client. You can:
 - save SSH connections
 - optionally save passwords in the system keyring
 - search and group saved connections
+- reuse existing group names from the connection form suggestion list
 - switch the sidebar between compact and normal modes
 - open multiple terminal tabs
 - transfer files with SFTP
-- switch theme and language
+- switch theme and use English, Simplified Chinese, or Traditional Chinese UI labels
 - import and export backups containing settings and connections
 
 ## The two halves of the app
@@ -44,7 +45,8 @@ It is responsible for:
 
 - storing data in SQLite
 - storing passwords in the OS keyring
-- launching `ssh` and opening SFTP sessions
+- launching system `ssh` terminal sessions
+- opening `russh` / `russh-sftp` file transfer sessions
 - managing active terminal sessions
 - sending terminal output back to the frontend
 - preferring a single running desktop instance and focusing the existing window on relaunch
@@ -53,7 +55,7 @@ Important files:
 
 - `src-tauri\src\lib.rs` - app startup and Tauri commands
 - `src-tauri\src\database.rs` - SQLite operations
-- `src-tauri\src\session.rs` - SSH/PTTY session management
+- `src-tauri\src\session.rs` - SSH / PTY session management
 - `src-tauri\src\transfer.rs` - `russh`/SFTP transfer helpers
 - `src-tauri\src\models.rs` - serialized Rust data types
 
@@ -97,6 +99,12 @@ The sidebar search box filters the connection list in real time in the frontend.
 ### Collapsible groups
 
 Group collapse state is also saved in app settings. That means UI state is no longer just temporary browser memory.
+
+### Connection form group suggestions
+
+- `src\App.tsx` derives the unique saved group names from the current connection list.
+- `src\components\ConnectionFormDialog.tsx` shows those groups in a themed suggestion popup.
+- Users can still type a new group name instead of picking an existing one.
 
 ### Context menus
 

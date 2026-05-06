@@ -28,8 +28,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - port
   - username
   - optional group name
-  - optional notes
   - optional password saved to the system keyring
+- In the connection form, the `Group` field should suggest existing groups while still allowing users to type a new group name.
 - The sidebar must support:
   - collapsible groups
   - a real-time search box that matches connection name, host, and username
@@ -66,7 +66,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - Users can download files from the remote host with SFTP.
 - Upload and download should support both files and directories.
 - File transfer should reuse saved connection metadata and credentials when available.
-- File transfer should work with saved-password auth and with non-interactive SSH-key auth when the system OpenSSH tools can connect without prompting.
+- File transfer should work with saved-password auth and with non-interactive SSH-key auth when standard SSH config and identity files allow a connection without prompting.
 - The file transfer dialog should support browsing for local file paths and local directory paths with native pickers.
 - The file transfer dialog should support browsing remote files and folders through a lightweight SFTP-backed picker.
 - Remote browsing should work with non-interactive SSH authentication such as configured SSH keys, not only with saved passwords.
@@ -109,7 +109,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 
 ### Internationalization and theming
 
-- The UI supports English and Simplified Chinese.
+- The UI supports English, Simplified Chinese, and Traditional Chinese.
 - The UI supports light and dark themes.
 - Theme and language selections persist between app launches.
 
