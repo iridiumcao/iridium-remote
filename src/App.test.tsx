@@ -4,7 +4,7 @@ import App from './App'
 
 vi.mock('./components/TerminalWorkspace', () => ({
   TerminalWorkspace: () => (
-    <div data-allow-native-context-menu="true">Terminal Workspace</div>
+    <div>Terminal Workspace</div>
   ),
 }))
 
@@ -33,13 +33,13 @@ describe('App', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
-  it('keeps the terminal panel context menu enabled', async () => {
+  it('prevents the browser context menu inside the terminal panel', async () => {
     render(<App />)
 
     const terminal = screen.getByText('Terminal Workspace')
     const event = createEvent.contextMenu(terminal)
     fireEvent(terminal, event)
 
-    expect(event.defaultPrevented).toBe(false)
+    expect(event.defaultPrevented).toBe(true)
   })
 })

@@ -68,7 +68,8 @@ The sidebar contains four layers in order:
 ### Context menus
 
 - The default browser-like context menu is suppressed across the app shell
-- The xterm viewport keeps its native right-click behavior
+- Right-clicking the terminal workspace opens a custom menu styled with the active app theme
+- The terminal menu uses the active locale and should expose only relevant terminal actions such as copy, paste, and select all
 - In normal mode, connection rows do not open a custom context menu
 
 ## Connection interactions
@@ -89,7 +90,7 @@ Search results should temporarily reveal matching groups even if those groups we
 The right side contains:
 
 - terminal tab strip for active sessions
-- workspace header showing the active SSH target, saved connection name, and session status
+- workspace header showing only the active SSH target in `username@host[:port]` format
 - connect / disconnect actions for the selected connection
 - file transfer action for the active connection
 - active terminal area

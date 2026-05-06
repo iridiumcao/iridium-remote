@@ -99,14 +99,6 @@ function App() {
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
-      if (!(event.target instanceof Element)) {
-        return
-      }
-
-      if (event.target.closest('[data-allow-native-context-menu="true"]')) {
-        return
-      }
-
       event.preventDefault()
     }
 

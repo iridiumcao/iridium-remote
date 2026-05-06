@@ -109,6 +109,9 @@ type Dictionary = {
   validationRequired: string
   validationPort: string
   saveFailed: string
+  terminalCopy: string
+  terminalPaste: string
+  terminalSelectAll: string
   statusLabel: (status: SessionStatus) => string
   copyOf: (name: string) => string
   displayModeLabel: (mode: ConnectionListDisplayMode) => string
@@ -231,6 +234,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     validationRequired: 'Name, host, and username are required.',
     validationPort: 'Port must be a valid TCP port.',
     saveFailed: 'Unable to save the connection.',
+    terminalCopy: 'Copy',
+    terminalPaste: 'Paste',
+    terminalSelectAll: 'Select All',
     statusLabel: (status) =>
       ({
         idle: 'Idle',
@@ -352,6 +358,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     validationRequired: '名称、主机和用户名为必填项。',
     validationPort: '端口必须是有效的 TCP 端口。',
     saveFailed: '无法保存连接。',
+    terminalCopy: '复制',
+    terminalPaste: '粘贴',
+    terminalSelectAll: '全选',
     statusLabel: (status) =>
       ({
         idle: '空闲',
@@ -473,6 +482,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     validationRequired: '名稱、主機和使用者名稱為必填項。',
     validationPort: '連接埠必須是有效的 TCP 連接埠。',
     saveFailed: '無法儲存連線。',
+    terminalCopy: '複製',
+    terminalPaste: '貼上',
+    terminalSelectAll: '全選',
     statusLabel: (status) =>
       ({
         idle: '空閒',

@@ -109,7 +109,7 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 ### Context menus
 
 - `src\App.tsx` installs a document-level `contextmenu` handler so the browser-style menu does not appear across the main app shell.
-- `src\components\TerminalWorkspace.tsx` marks the xterm host container so right-click keeps working there.
+- `src\components\TerminalWorkspace.tsx` opens its own localized, theme-aware terminal menu on right-click.
 - `src\components\ConnectionList.tsx` opens the compact `Edit` / `Copy` / `Delete` popup on right-click, while normal mode does not open a custom menu.
 
 ### Import and export

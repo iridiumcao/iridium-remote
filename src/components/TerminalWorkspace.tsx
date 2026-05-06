@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { appClient } from '../api/client'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle, formatStatusLabel } from '../lib/format'
@@ -37,6 +37,18 @@ const statusClasses = {
     error: 'bg-rose-100 text-rose-700',
   },
 } as const
+
+type TerminalContextMenuState = {
+  x: number
+  y: number
+  open: boolean
+}
+
+const closedContextMenu: TerminalContextMenuState = {
+  x: 0,
+  y: 0,
+  open: false,
+}
 
 const terminalThemes = {
   dark: {
@@ -99,9 +111,12 @@ export const TerminalWorkspace = ({
   const terminalRef = useRef<HTMLDivElement | null>(null)
   const terminalInstance = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const terminalShellRef = useRef<HTMLDivElement | null>(null)
+  const terminalMenuRef = useRef<HTMLDivElement | null>(null)
   const renderedSessionIdRef = useRef<string | null>(null)
   const activeSessionIdRef = useRef<string | null>(null)
   const sessionBuffersRef = useRef<Map<string, string>>(new Map())
+  const [terminalContextMenu, setTerminalContextMenu] = useState<TerminalContextMenuState>(closedContextMenu)
   const isDark = theme === 'dark'
 
   const xtermTheme = useMemo(() => terminalThemes[theme], [theme])
@@ -163,6 +178,35 @@ export const TerminalWorkspace = ({
       terminalInstance.current.options.theme = xtermTheme
     }
   }, [xtermTheme])
+
+  useEffect(() => {
+    if (!terminalContextMenu.open) {
+      return
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        terminalMenuRef.current &&
+        event.target instanceof Node &&
+        !terminalMenuRef.current.contains(event.target)
+      ) {
+        setTerminalContextMenu(closedContextMenu)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTerminalContextMenu(closedContextMenu)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [terminalContextMenu.open])
 
   useEffect(() => {
     let active = true
@@ -236,14 +280,78 @@ export const TerminalWorkspace = ({
   const headerTitle = headerConnection
     ? formatConnectionSubtitle(headerConnection)
     : t.terminalWorkspace
-  const headerSubtitle = headerConnection
-    ? headerConnection.name === headerTitle
-      ? null
-      : headerConnection.name
-    : t.selectConnectionToStart
   const showIdleState = !headerConnection && !activeSession
   const showSelectionState = Boolean(headerConnection) && !activeSession
   const showOverlay = showIdleState || activeSession?.status === 'connecting' || showSelectionState
+  const terminalMenuClass = `absolute z-20 min-w-[160px] rounded-xl border p-1 text-[14px] shadow-xl ${
+    isDark
+      ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
+      : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
+  }`
+
+  const closeTerminalContextMenu = () => {
+    setTerminalContextMenu(closedContextMenu)
+  }
+
+  const handleTerminalContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+
+    const container = terminalShellRef.current
+    if (!container) {
+      return
+    }
+
+    const bounds = container.getBoundingClientRect()
+    const menuWidth = 176
+    const menuHeight = 132
+    const x = Math.max(0, Math.min(event.clientX - bounds.left, bounds.width - menuWidth))
+    const y = Math.max(0, Math.min(event.clientY - bounds.top, bounds.height - menuHeight))
+
+    setTerminalContextMenu({
+      x,
+      y,
+      open: true,
+    })
+  }
+
+  const handleTerminalCopy = async () => {
+    if (!navigator.clipboard) {
+      closeTerminalContextMenu()
+      return
+    }
+
+    const selection = terminalInstance.current?.getSelection()?.trim()
+    if (!selection) {
+      closeTerminalContextMenu()
+      return
+    }
+
+    await navigator.clipboard.writeText(selection)
+    closeTerminalContextMenu()
+  }
+
+  const handleTerminalPaste = async () => {
+    if (!navigator.clipboard) {
+      closeTerminalContextMenu()
+      return
+    }
+
+    const text = await navigator.clipboard.readText()
+    if (!text || !activeSessionIdRef.current) {
+      closeTerminalContextMenu()
+      return
+    }
+
+    await appClient.writeSessionInput(activeSessionIdRef.current, text)
+    terminalInstance.current?.focus()
+    closeTerminalContextMenu()
+  }
+
+  const handleTerminalSelectAll = () => {
+    terminalInstance.current?.selectAll()
+    terminalInstance.current?.focus()
+    closeTerminalContextMenu()
+  }
 
   return (
     <section
@@ -313,26 +421,12 @@ export const TerminalWorkspace = ({
         className={`flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 sm:px-6 ${
           isDark ? 'border-white/10' : 'border-slate-200'
         }`}
-        >
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {headerTitle}
-              </h2>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  statusClasses[theme][activeSession?.status ?? 'idle']
-                }`}
-              >
-                {formatStatusLabel(activeSession?.status ?? 'idle', t.statusLabel)}
-              </span>
-            </div>
-            {headerSubtitle ? (
-              <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {headerSubtitle}
-              </p>
-            ) : null}
-          </div>
+      >
+        <div>
+          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            {headerTitle}
+          </h2>
+        </div>
 
         <div className="flex items-center gap-3">
           {onConnect ? (
@@ -369,14 +463,61 @@ export const TerminalWorkspace = ({
 
       <div className="relative min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
         <div
-          data-allow-native-context-menu="true"
           className={`terminal-shell h-full min-h-full overflow-hidden rounded-2xl border shadow-inner ${
             isDark
               ? 'border-white/10 bg-slate-950/70 shadow-cyan-950/20'
               : 'border-slate-200 bg-white shadow-slate-200/80'
           }`}
-          ref={terminalRef}
+          onContextMenu={handleTerminalContextMenu}
+          ref={(node) => {
+            terminalRef.current = node
+            terminalShellRef.current = node
+          }}
         />
+
+        {terminalContextMenu.open ? (
+          <div
+            className={terminalMenuClass}
+            ref={terminalMenuRef}
+            role="menu"
+            style={{ left: `${terminalContextMenu.x}px`, top: `${terminalContextMenu.y}px` }}
+          >
+            <button
+              role="menuitem"
+              type="button"
+              className={`block w-full rounded-lg px-3 py-2 text-left transition ${
+                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+              }`}
+              onClick={() => {
+                void handleTerminalCopy()
+              }}
+            >
+              {t.terminalCopy}
+            </button>
+            <button
+              role="menuitem"
+              type="button"
+              className={`block w-full rounded-lg px-3 py-2 text-left transition ${
+                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+              }`}
+              onClick={() => {
+                void handleTerminalPaste()
+              }}
+            >
+              {t.terminalPaste}
+            </button>
+            <button
+              role="menuitem"
+              type="button"
+              className={`block w-full rounded-lg px-3 py-2 text-left transition ${
+                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+              }`}
+              onClick={handleTerminalSelectAll}
+            >
+              {t.terminalSelectAll}
+            </button>
+          </div>
+        ) : null}
 
         {showOverlay ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">

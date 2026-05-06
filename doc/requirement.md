@@ -90,7 +90,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - `Import`
   - `Export`
   - `Exit`
-- The app should suppress the default browser-like context menu across the main window, except inside the xterm terminal viewport.
+- The app should suppress the default browser-like context menu across the main window.
+- Right-clicking inside the terminal workspace should open a localized, theme-aware terminal menu instead of the browser menu.
 
 #### Help menu
 
