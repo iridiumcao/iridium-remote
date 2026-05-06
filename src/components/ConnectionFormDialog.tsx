@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { getTranslations } from '../lib/i18n'
 import type {
   AppTheme,
@@ -72,10 +72,12 @@ export const ConnectionFormDialog = ({
       : emptyForm,
   )
   const [error, setError] = useState<string | null>(null)
+  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   const isDark = theme === 'dark'
   const groupListId = useId()
+  const groupFieldRef = useRef<HTMLDivElement | null>(null)
 
   const title = useMemo(() => {
     if (connection) {
@@ -95,6 +97,35 @@ export const ConnectionFormDialog = ({
       : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
   }`
 
+  const filteredGroups = useMemo(() => {
+    const normalizedValue = formState.groupName.trim().toLowerCase()
+
+    return existingGroups.filter((group) =>
+      normalizedValue ? group.toLowerCase().includes(normalizedValue) : true,
+    )
+  }, [existingGroups, formState.groupName])
+
+  useEffect(() => {
+    if (!isGroupMenuOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        groupFieldRef.current &&
+        event.target instanceof Node &&
+        !groupFieldRef.current.contains(event.target)
+      ) {
+        setIsGroupMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [isGroupMenuOpen])
+
   const handleChange = (field: keyof FormState, value: string | boolean) => {
     setFormState((current) => {
       if (field === 'password' && typeof value === 'string' && value) {
@@ -107,6 +138,19 @@ export const ConnectionFormDialog = ({
 
   const passwordPlaceholder =
     connection?.hasPassword && !formState.password && !formState.clearSavedPassword ? '********' : undefined
+  const showGroupSuggestions = isGroupMenuOpen && filteredGroups.length > 0
+
+  const handleGroupValueChange = (value: string) => {
+    handleChange('groupName', value)
+    if (existingGroups.length > 0) {
+      setIsGroupMenuOpen(true)
+    }
+  }
+
+  const handleGroupSelect = (group: string) => {
+    handleChange('groupName', group)
+    setIsGroupMenuOpen(false)
+  }
 
   const handleSubmit = async () => {
     const name = formState.name.trim()
@@ -205,19 +249,53 @@ export const ConnectionFormDialog = ({
         <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
           {t.group}
         </span>
-        <input
-          className={inputClass}
-          list={existingGroups.length > 0 ? groupListId : undefined}
-          onChange={(event) => handleChange('groupName', event.target.value)}
-          value={formState.groupName}
-        />
-        {existingGroups.length > 0 ? (
-          <datalist id={groupListId}>
-            {existingGroups.map((group) => (
-              <option key={group} value={group} />
-            ))}
-          </datalist>
-        ) : null}
+        <div className="relative" ref={groupFieldRef}>
+          <input
+            aria-autocomplete={existingGroups.length > 0 ? 'list' : undefined}
+            aria-controls={showGroupSuggestions ? groupListId : undefined}
+            aria-expanded={existingGroups.length > 0 ? showGroupSuggestions : undefined}
+            aria-haspopup={existingGroups.length > 0 ? 'listbox' : undefined}
+            className={inputClass}
+            onChange={(event) => handleGroupValueChange(event.target.value)}
+            onFocus={() => {
+              if (existingGroups.length > 0) {
+                setIsGroupMenuOpen(true)
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setIsGroupMenuOpen(false)
+              }
+            }}
+            role={existingGroups.length > 0 ? 'combobox' : undefined}
+            value={formState.groupName}
+          />
+          {showGroupSuggestions ? (
+            <div
+              className={`absolute z-10 mt-2 max-h-48 w-full overflow-y-auto rounded-xl border p-1 shadow-xl ${
+                isDark
+                  ? 'border-white/10 bg-slate-950 text-white shadow-black/40'
+                  : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'
+              }`}
+              id={groupListId}
+              role="listbox"
+            >
+              {filteredGroups.map((group) => (
+                <button
+                  key={group}
+                  role="option"
+                  type="button"
+                  className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                  }`}
+                  onClick={() => handleGroupSelect(group)}
+                >
+                  {group}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </label>
 
       <label className="block text-sm">

@@ -9,8 +9,10 @@ describe('ConnectionFormDialog', () => {
     cleanup()
   })
 
-  it('shows existing groups as selectable suggestions', () => {
-    const { container } = render(
+  it('shows existing groups as selectable suggestions', async () => {
+    const user = userEvent.setup()
+
+    render(
       <ConnectionFormDialog
         connection={null}
         existingGroups={['Chengdu', 'Raleigh']}
@@ -22,12 +24,13 @@ describe('ConnectionFormDialog', () => {
     )
 
     const groupInput = screen.getByRole('combobox', { name: 'Group' })
-    const listId = groupInput.getAttribute('list')
-    const groupList = listId ? container.querySelector(`datalist[id="${listId}"]`) : null
+    await user.click(groupInput)
+    const groupList = screen.getByRole('listbox')
 
-    expect(listId).toBeTruthy()
-    expect(groupList?.querySelector('option[value="Chengdu"]')).not.toBeNull()
-    expect(groupList?.querySelector('option[value="Raleigh"]')).not.toBeNull()
+    expect(groupInput).toHaveAttribute('aria-expanded', 'true')
+    expect(groupList).toHaveClass('bg-slate-950')
+    expect(screen.getByRole('option', { name: 'Chengdu' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Raleigh' })).toBeInTheDocument()
   })
 
   it('keeps the group field freeform so new groups can be typed', async () => {
@@ -54,6 +57,38 @@ describe('ConnectionFormDialog', () => {
     expect(onSave).toHaveBeenCalledWith({
       name: 'Test Only',
       groupName: 'New Group',
+      host: '192.168.1.10',
+      port: 22,
+      username: 'tester',
+      password: undefined,
+    })
+  })
+
+  it('lets users pick an existing group from the suggestion list', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ConnectionFormDialog
+        connection={null}
+        existingGroups={['Chengdu', 'Raleigh']}
+        onClose={vi.fn()}
+        onSave={onSave}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Test Only')
+    await user.click(screen.getByRole('combobox', { name: 'Group' }))
+    await user.click(screen.getByRole('option', { name: 'Raleigh' }))
+    await user.type(screen.getByRole('textbox', { name: 'Host' }), '192.168.1.10')
+    await user.type(screen.getByRole('textbox', { name: 'Username' }), 'tester')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onSave).toHaveBeenCalledWith({
+      name: 'Test Only',
+      groupName: 'Raleigh',
       host: '192.168.1.10',
       port: 22,
       username: 'tester',
