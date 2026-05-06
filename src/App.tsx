@@ -85,6 +85,18 @@ function App() {
     }, {})
   }, [sessions])
 
+  const existingGroups = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          connections
+            .map((connection) => connection.groupName?.trim())
+            .filter((groupName): groupName is string => Boolean(groupName)),
+        ),
+      ).sort((left, right) => left.localeCompare(right)),
+    [connections],
+  )
+
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
       if (!(event.target instanceof Element)) {
@@ -653,6 +665,7 @@ function App() {
       {isConnectionDialogOpen ? (
         <ConnectionFormDialog
           connection={editingConnection}
+          existingGroups={existingGroups}
           initialValues={connectionSeed}
           onClose={closeConnectionDialog}
           onSave={saveConnection}

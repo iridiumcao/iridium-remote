@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import type { getTranslations } from '../lib/i18n'
 import type {
   AppTheme,
@@ -11,6 +11,7 @@ import { Modal } from './Modal'
 
 type ConnectionFormDialogProps = {
   connection: ConnectionRecord | null
+  existingGroups: string[]
   initialValues?: ConnectionFormSeed | null
   onClose: () => void
   onSave: (input: CreateConnectionInput | UpdateConnectionInput) => Promise<void>
@@ -40,6 +41,7 @@ const emptyForm: FormState = {
 
 export const ConnectionFormDialog = ({
   connection,
+  existingGroups,
   initialValues,
   onClose,
   onSave,
@@ -73,6 +75,7 @@ export const ConnectionFormDialog = ({
   const [isSaving, setIsSaving] = useState(false)
 
   const isDark = theme === 'dark'
+  const groupListId = useId()
 
   const title = useMemo(() => {
     if (connection) {
@@ -204,9 +207,17 @@ export const ConnectionFormDialog = ({
         </span>
         <input
           className={inputClass}
+          list={existingGroups.length > 0 ? groupListId : undefined}
           onChange={(event) => handleChange('groupName', event.target.value)}
           value={formState.groupName}
         />
+        {existingGroups.length > 0 ? (
+          <datalist id={groupListId}>
+            {existingGroups.map((group) => (
+              <option key={group} value={group} />
+            ))}
+          </datalist>
+        ) : null}
       </label>
 
       <label className="block text-sm">
