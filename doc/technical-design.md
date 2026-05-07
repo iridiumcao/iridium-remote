@@ -37,7 +37,7 @@ It also derives the sorted unique group list used by the connection dialog so th
 
 Collapsed groups are persisted through app settings rather than local-only UI state.
 The independently scrolling sidebar list uses theme-aware scrollbar styling so light and dark mode stay visually consistent even when the host OS default scrollbar colors differ from the app theme.
-Filtering is done in the frontend in real time against connection name, host, and username. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
+Filtering is done in the frontend in real time against connection name, host, and username. Double-clicking a connection row opens a fresh session tab for that saved host. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
 
 ### Terminal workspace
 
@@ -101,6 +101,7 @@ Responsibilities:
 
 Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
 When a saved password exists, the session manager queues it and writes it back into the PTY after detecting a password prompt in the terminal output stream.
+The same output stream is inspected for immediate OpenSSH connection failures so a failed session can switch from `connecting` to `error` quickly and surface the SSH error text instead of leaving the loading state running.
 
 ### File transfer
 

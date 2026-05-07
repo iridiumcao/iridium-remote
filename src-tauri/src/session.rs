@@ -15,7 +15,10 @@ use crate::{
         ConnectionRecord, SessionRemovedEvent, SessionStatePayload, SessionStatus,
         TerminalOutputEvent,
     },
-    terminal_detection::{append_recent_output, contains_password_prompt, contains_shell_prompt},
+    terminal_detection::{
+        append_recent_output, contains_password_prompt, contains_shell_prompt,
+        detect_connection_error_message,
+    },
 };
 
 struct SessionResources {
@@ -248,12 +251,7 @@ impl SessionManager {
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => {
-                    self.finish_session(
-                        &app,
-                        &session_id,
-                        SessionStatus::Disconnected,
-                        "Session closed.",
-                    );
+                    self.finish_session_after_exit(&app, &session_id);
                     break;
                 }
                 Ok(bytes_read) => {
@@ -285,6 +283,7 @@ impl SessionManager {
 
         let mut status_to_emit = None;
         let mut auto_password = None;
+        let mut failure_message = None;
 
         {
             let mut inner = self.inner.lock().expect("session mutex poisoned");
@@ -306,7 +305,14 @@ impl SessionManager {
                 session.snapshot.status = SessionStatus::Connected;
                 session.snapshot.message = Some("Connected.".into());
                 status_to_emit = Some(session.snapshot.clone());
+            } else if !resources.connected {
+                failure_message = detect_connection_error_message(&resources.recent_output);
             }
+        }
+
+        if let Some(message) = failure_message {
+            self.finish_session(app, session_id, SessionStatus::Error, &message);
+            return;
         }
 
         if let Some(password) = auto_password {
@@ -319,6 +325,33 @@ impl SessionManager {
         if let Some(snapshot) = status_to_emit {
             let _ = self.emit_status(app, &snapshot);
         }
+    }
+
+    fn finish_session_after_exit(&self, app: &AppHandle, session_id: &str) {
+        let (status, message) = {
+            let inner = self.inner.lock().expect("session mutex poisoned");
+            let Some(session) = inner.sessions.get(session_id) else {
+                return;
+            };
+            let Some(resources) = session.resources.as_ref() else {
+                return;
+            };
+
+            if resources.connected {
+                (SessionStatus::Disconnected, String::from("Session closed."))
+            } else if let Some(error_message) =
+                detect_connection_error_message(&resources.recent_output)
+            {
+                (SessionStatus::Error, error_message)
+            } else {
+                (
+                    SessionStatus::Error,
+                    String::from("SSH connection failed before the remote shell became available."),
+                )
+            }
+        };
+
+        self.finish_session(app, session_id, status, &message);
     }
 
     fn finish_session(

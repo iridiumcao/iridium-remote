@@ -25,6 +25,19 @@ pub fn contains_shell_prompt(buffer: &str) -> bool {
     shell_prompt_re().is_match(&strip_ansi(buffer))
 }
 
+pub fn detect_connection_error_message(buffer: &str) -> Option<String> {
+    strip_ansi(buffer)
+        .replace('\r', "\n")
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .find_map(|line| {
+            connection_error_re()
+                .is_match(&line.to_ascii_lowercase())
+                .then(|| line.to_string())
+        })
+}
+
 fn normalize_for_inline_prompt(buffer: &str) -> String {
     strip_ansi(buffer)
         .replace('\r', "")
@@ -48,9 +61,22 @@ fn shell_prompt_re() -> &'static Regex {
     SHELL_PROMPT_RE.get_or_init(|| Regex::new(r"(?m)(?:^|[\r\n])[^\r\n]*[\$#>%]\s*$").unwrap())
 }
 
+fn connection_error_re() -> &'static Regex {
+    static CONNECTION_ERROR_RE: OnceLock<Regex> = OnceLock::new();
+    CONNECTION_ERROR_RE.get_or_init(|| {
+        Regex::new(
+            r"(permission denied|could not resolve hostname|connection refused|connection timed out|operation timed out|no route to host|network is unreachable|host key verification failed|connection closed by remote host|connection reset by peer|too many authentication failures|kex_exchange_identification|no matching (host key type|key exchange method|cipher|mac)|ssh:)",
+        )
+        .unwrap()
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{append_recent_output, contains_password_prompt, contains_shell_prompt};
+    use super::{
+        append_recent_output, contains_password_prompt, contains_shell_prompt,
+        detect_connection_error_message,
+    };
 
     #[test]
     fn detects_password_prompt_across_split_chunks() {
@@ -77,5 +103,19 @@ mod tests {
         append_recent_output(&mut recent_output, "user@host:~$ ");
 
         assert!(contains_shell_prompt(&recent_output));
+    }
+
+    #[test]
+    fn detects_connection_errors_from_ssh_output() {
+        let mut recent_output = String::new();
+        append_recent_output(
+            &mut recent_output,
+            "ssh: connect to host example.com port 22: Connection refused\r\n",
+        );
+
+        assert_eq!(
+            detect_connection_error_message(&recent_output).as_deref(),
+            Some("ssh: connect to host example.com port 22: Connection refused")
+        );
     }
 }

@@ -81,6 +81,8 @@ Each connection entry supports:
 - duplicate
 - delete
 
+Double-clicking a connection row should open a new session tab for that connection immediately.
+
 File transfer is launched from the active workspace header for the currently selected connection, not from each sidebar row.
 
 Search results should temporarily reveal matching groups even if those groups were collapsed previously.
@@ -96,7 +98,7 @@ The right side contains:
 - active terminal area
 - empty state when no session is active
 
-Only the terminal viewport scrolls for terminal output. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal.
+Only the terminal viewport scrolls for terminal output. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session.
 
 ## Dialogs
 

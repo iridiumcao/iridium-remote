@@ -33,9 +33,11 @@ const connections: ConnectionRecord[] = [
 
 const TestConnectionList = ({
   initialDisplayMode = 'normal',
+  onConnect = vi.fn(),
   theme = 'dark',
 }: {
   initialDisplayMode?: ConnectionListDisplayMode
+  onConnect?: (connection: ConnectionRecord) => void
   theme?: 'dark' | 'light'
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
@@ -47,7 +49,7 @@ const TestConnectionList = ({
       connections={connections}
       displayMode={initialDisplayMode}
       isLoading={false}
-      onConnect={vi.fn()}
+      onConnect={onConnect}
       onCreate={vi.fn()}
       onDelete={vi.fn()}
       onDisplayModeChange={vi.fn()}
@@ -113,6 +115,18 @@ describe('ConnectionList', () => {
     fireEvent.contextMenu(screen.getByText('Alpha'))
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('opens a new session when a connection row is double-clicked', async () => {
+    const user = userEvent.setup()
+    const onConnect = vi.fn()
+
+    render(<TestConnectionList onConnect={onConnect} />)
+
+    await user.dblClick(screen.getByRole('button', { name: /Alpha root@192\.168\.1\.10/i }))
+
+    expect(onConnect).toHaveBeenCalledTimes(1)
+    expect(onConnect).toHaveBeenCalledWith(expect.objectContaining({ id: '1', name: 'Alpha' }))
   })
 
   it('keeps the sidebar scrollbar classes in sync with the active theme', () => {

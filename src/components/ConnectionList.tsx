@@ -206,6 +206,11 @@ export const ConnectionList = ({
     </div>
   )
 
+  const handleOpenConnection = (connection: ConnectionRecord) => {
+    onSelect(connection.id)
+    onConnect(connection)
+  }
+
   const renderCompactActions = (connection: ConnectionRecord) => {
     const isMenuOpen = openMenuConnectionId === connection.id
 
@@ -430,6 +435,7 @@ export const ConnectionList = ({
                             <button
                               type="button"
                               className="min-w-0 flex-1 text-left"
+                              onDoubleClick={() => handleOpenConnection(connection)}
                               onClick={() => onSelect(connection.id)}
                             >
                               <div className="flex items-center gap-2">
@@ -484,6 +490,7 @@ export const ConnectionList = ({
                           <button
                             type="button"
                             className="w-full text-left"
+                            onDoubleClick={() => handleOpenConnection(connection)}
                             onClick={() => onSelect(connection.id)}
                           >
                             <div className="flex items-start justify-between gap-3">

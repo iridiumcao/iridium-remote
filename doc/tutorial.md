@@ -112,6 +112,12 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 - `src\components\TerminalWorkspace.tsx` opens its own localized, theme-aware terminal menu on right-click.
 - `src\components\ConnectionList.tsx` opens the compact `Edit` / `Copy` / `Delete` popup on right-click, while normal mode does not open a custom menu.
 
+### Opening sessions
+
+- `src\components\ConnectionList.tsx` still exposes explicit connect buttons.
+- Double-clicking a connection row also opens a fresh session tab for that saved host.
+- `src-tauri\src\session.rs` now detects common OpenSSH connection failure output and emits an error session state immediately so the frontend stops showing `Connecting...` and surfaces the SSH error message.
+
 ### Import and export
 
 - Export asks the backend for a JSON payload containing app settings plus connections, then saves it to the path the user picks in the native Tauri save dialog.
