@@ -399,7 +399,11 @@ export const TerminalWorkspace = ({
             <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {t.tabs}
             </p>
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            <div
+              className={`terminal-tab-scroll-region themed-scrollbar mt-2 flex gap-2 overflow-x-auto pb-1 ${
+                isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
+              }`}
+            >
               {sessions.map((session) => (
                 <div
                   key={session.sessionId}

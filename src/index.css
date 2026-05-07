@@ -53,6 +53,7 @@ select {
 
 .themed-scrollbar::-webkit-scrollbar {
   width: 0.8rem;
+  height: 0.8rem;
 }
 
 .themed-scrollbar::-webkit-scrollbar-track {

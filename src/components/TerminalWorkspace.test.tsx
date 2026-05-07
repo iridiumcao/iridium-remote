@@ -171,6 +171,49 @@ describe('TerminalWorkspace', () => {
     expect(screen.queryByText('书写方向')).not.toBeInTheDocument()
   })
 
+  it('keeps the terminal tab-strip scrollbar classes in sync with the active theme', () => {
+    const secondSession: SessionState = {
+      ...session,
+      sessionId: 'session-2',
+      connectionId: 'connection-2',
+      connectionName: 'Second Session',
+    }
+
+    const { container, rerender } = render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    const tabScrollRegion = container.querySelector('.terminal-tab-scroll-region')
+    expect(tabScrollRegion).not.toBeNull()
+    expect(tabScrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-dark')
+    expect(tabScrollRegion).not.toHaveClass('themed-scrollbar-light')
+
+    rerender(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="light"
+      />,
+    )
+
+    expect(tabScrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-light')
+    expect(tabScrollRegion).not.toHaveClass('themed-scrollbar-dark')
+  })
+
   it('replays buffered tab output without resending terminal status queries as input', async () => {
     const secondSession: SessionState = {
       ...session,

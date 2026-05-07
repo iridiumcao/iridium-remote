@@ -98,7 +98,7 @@ The right side contains:
 - active terminal area
 - empty state when no session is active
 
-Only the terminal viewport scrolls for terminal output. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session.
+Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session.
 
 ## Dialogs
 
@@ -137,6 +137,6 @@ The project URL is an actionable link or button.
 
 ## Visual behavior
 
-- Light and dark themes apply consistently across sidebar surfaces, sidebar scrollbars, dialogs, themed popup menus, and terminal shell framing.
+- Light and dark themes apply consistently across sidebar surfaces, sidebar scrollbars, terminal tab-strip scrollbars, dialogs, themed popup menus, and terminal shell framing.
 - Language switching updates visible labels without changing layout structure.
 - Notices for import/export results, settings changes, and operational errors appear inline near the main workspace header.
