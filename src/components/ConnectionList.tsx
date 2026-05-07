@@ -322,7 +322,11 @@ export const ConnectionList = ({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div
+        className={`connection-list-scroll-region themed-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 ${
+          isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
+        }`}
+      >
         {isLoading ? (
           <div className="space-y-3" aria-label="Loading connections">
             {Array.from({ length: 3 }, (_, index) => (

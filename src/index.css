@@ -38,3 +38,39 @@ select {
 .xterm-viewport {
   border-radius: 0.75rem;
 }
+
+.themed-scrollbar {
+  scrollbar-width: thin;
+}
+
+.themed-scrollbar-dark {
+  scrollbar-color: rgba(100, 116, 139, 0.9) rgba(15, 23, 42, 0.35);
+}
+
+.themed-scrollbar-light {
+  scrollbar-color: rgba(148, 163, 184, 0.95) rgba(226, 232, 240, 0.9);
+}
+
+.themed-scrollbar::-webkit-scrollbar {
+  width: 0.8rem;
+}
+
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.themed-scrollbar-dark::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(15, 23, 42, 0.35);
+  border-radius: 9999px;
+  background-color: rgba(100, 116, 139, 0.9);
+}
+
+.themed-scrollbar-light::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(226, 232, 240, 0.9);
+  border-radius: 9999px;
+  background-color: rgba(148, 163, 184, 0.95);
+}
+
+.themed-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}

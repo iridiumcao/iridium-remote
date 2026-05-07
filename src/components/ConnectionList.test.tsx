@@ -33,8 +33,10 @@ const connections: ConnectionRecord[] = [
 
 const TestConnectionList = ({
   initialDisplayMode = 'normal',
+  theme = 'dark',
 }: {
   initialDisplayMode?: ConnectionListDisplayMode
+  theme?: 'dark' | 'light'
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -57,7 +59,7 @@ const TestConnectionList = ({
       searchQuery={searchQuery}
       selectedConnectionId={null}
       t={getTranslations('en')}
-      theme="dark"
+      theme={theme}
     />
   )
 }
@@ -111,5 +113,19 @@ describe('ConnectionList', () => {
     fireEvent.contextMenu(screen.getByText('Alpha'))
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('keeps the sidebar scrollbar classes in sync with the active theme', () => {
+    const { container, rerender } = render(<TestConnectionList theme="dark" />)
+
+    const scrollRegion = container.querySelector('.connection-list-scroll-region')
+    expect(scrollRegion).not.toBeNull()
+    expect(scrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-dark')
+    expect(scrollRegion).not.toHaveClass('themed-scrollbar-light')
+
+    rerender(<TestConnectionList theme="light" />)
+
+    expect(scrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-light')
+    expect(scrollRegion).not.toHaveClass('themed-scrollbar-dark')
   })
 })

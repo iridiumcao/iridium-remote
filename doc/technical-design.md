@@ -36,6 +36,7 @@ It also derives the sorted unique group list used by the connection dialog so th
 - per-connection actions
 
 Collapsed groups are persisted through app settings rather than local-only UI state.
+The independently scrolling sidebar list uses theme-aware scrollbar styling so light and dark mode stay visually consistent even when the host OS default scrollbar colors differ from the app theme.
 Filtering is done in the frontend in real time against connection name, host, and username. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
 
 ### Terminal workspace

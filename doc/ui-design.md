@@ -7,7 +7,7 @@ The main window uses a two-column layout:
 - **Left sidebar:** connection search, display controls, grouped connection list
 - **Right workspace:** top toolbar, terminal tabs, terminal surface, session actions
 
-The window itself should not scroll. The sidebar scrolls independently, and terminal scroll stays inside the xterm viewport.
+The window itself should not scroll. The sidebar scrolls independently, uses scrollbar styling that matches the active light or dark theme, and terminal scroll stays inside the xterm viewport.
 
 ## Top toolbar
 
@@ -135,6 +135,6 @@ The project URL is an actionable link or button.
 
 ## Visual behavior
 
-- Light and dark themes apply consistently across sidebar, dialogs, themed popup menus, and terminal shell framing.
+- Light and dark themes apply consistently across sidebar surfaces, sidebar scrollbars, dialogs, themed popup menus, and terminal shell framing.
 - Language switching updates visible labels without changing layout structure.
 - Notices for import/export results, settings changes, and operational errors appear inline near the main workspace header.
