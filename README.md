@@ -1,57 +1,130 @@
 # Iridium Remote
 
-Iridium Remote is a Windows-first desktop SSH client built with Tauri, React, and Rust. It combines a saved-connection sidebar, tabbed terminal sessions, optional keyring-backed passwords, and SFTP file transfer in a single desktop app.
+English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
-## Current capabilities
+Iridium Remote is a Windows-first desktop SSH client built with **Tauri**, **React**, and **Rust**. It combines saved connections, tabbed terminal sessions, optional keyring-backed passwords, and SFTP file transfer in a single desktop app.
 
-- Save SSH connections in SQLite
-- Reuse existing connection groups from a themed suggestion list while still typing new group names
-- Store optional passwords in the system keyring
-- Browse connections by collapsible groups
-- Search saved connections quickly
-- Switch the connection list between normal and compact display modes
-- Open multiple active SSH sessions in terminal tabs
-- Upload and download files with SFTP
-- Browse for local files, local folders, and remote SFTP paths from the file transfer dialog
-- Switch between light and dark themes
-- Switch between English, Simplified Chinese, and Traditional Chinese
-- Export and import JSON backups containing app settings and connections, with export saving to a user-selected location
-- Persist user settings in the local application database
-- Write application logs to the app log directory
-- Prefer a single running desktop instance by focusing the existing window on relaunch
+## Overview
+
+Iridium Remote is designed for a practical desktop workflow:
+
+- save and organize SSH connections
+- open multiple terminal sessions in tabs
+- keep passwords in the system keyring instead of SQLite
+- transfer files with SFTP from the same app
+- persist user preferences such as theme, language, and sidebar layout
+
+## Feature Summary
+
+| Area | What it includes |
+| --- | --- |
+| **Connection management** | Create, edit, duplicate, delete, group, search, import, and export saved SSH connections |
+| **Terminal sessions** | PTY-backed system `ssh`, multiple concurrent tabs, per-tab isolated I/O, tab switching without replaying unwanted input |
+| **Connection UX** | Collapsible groups, normal/compact sidebar modes, right-click actions in compact mode, double-click to open a new session |
+| **Authentication** | Optional password saving in the OS keyring, terminal-native password prompts, support for non-interactive SSH key auth when system SSH config allows it |
+| **File transfer** | Upload/download files and directories, local file/folder pickers, remote SFTP path browser |
+| **Preferences** | Light/dark theme, English / Simplified Chinese / Traditional Chinese, persisted sidebar state and display mode |
+| **Reliability** | Clear session status updates, immediate connection failure feedback, session cleanup on close, single-instance desktop behavior |
+| **Data safety** | Passwords are never stored in SQLite and are never included in exported backup files |
+
+## Detailed Features
+
+### Connection library
+
+- Save SSH hosts with name, host, port, username, and optional group
+- Suggest existing groups while still allowing freeform group names
+- Search by connection name, host, or username
+- Collapse or expand connection groups
+- Switch the sidebar between normal and compact display modes
+- Import/export JSON backups that include:
+  - application settings
+  - saved connection metadata
+  - **never** saved passwords
+
+### Terminal workspace
+
+- Open multiple SSH sessions at the same time
+- Switch between sessions with tabs
+- Restore each tab's terminal buffer independently
+- Double-click a connection row to open a fresh session tab
+- Use a localized terminal context menu for copy, paste, and select-all
+- Stop the connecting state immediately when OpenSSH reports a startup failure
+
+### Authentication and security
+
+- Use the system OpenSSH `ssh` client for terminal sessions
+- Keep password prompts inside the terminal instead of showing a custom password dialog
+- Optionally save passwords in the system keyring
+- Support saved-password auth and non-interactive SSH-key auth where available
+
+### File transfer
+
+- Upload files or directories
+- Download files or directories
+- Choose local paths with native dialogs
+- Browse remote files and folders through the built-in SFTP picker
+- Reuse saved connection metadata and available credentials
+
+### Desktop UX
+
+- Light and dark themes across the app UI
+- Theme-aware sidebar scrollbar styling
+- English, Simplified Chinese, and Traditional Chinese UI
+- Single-instance desktop behavior that focuses the existing window on relaunch
+- Application logging to the app log directory
 
 ## Architecture
 
-- **Frontend:** React + TypeScript + Tailwind CSS + xterm.js
-- **Desktop shell:** Tauri
-- **Backend:** Rust
-- **Connection storage:** SQLite
-- **Credential storage:** OS keyring
-- **Terminal transport:** system OpenSSH `ssh`
-- **File transfer transport:** backend `russh` + `russh-sftp`
+| Layer | Implementation |
+| --- | --- |
+| **Frontend** | React + TypeScript + Tailwind CSS + xterm.js |
+| **Desktop shell** | Tauri |
+| **Backend** | Rust |
+| **Connection storage** | SQLite |
+| **Credential storage** | OS keyring |
+| **Terminal transport** | System OpenSSH `ssh` |
+| **File transfer transport** | `russh` + `russh-sftp` |
 
-## Repository guide
+## Repository Guide
 
-- `doc\requirement.md` - product requirements and backlog
-- `doc\ui-design.md` - UI structure and interaction design
-- `doc\technical-design.md` - implementation architecture and runtime behavior
-- `doc\data-model.md` - persistent models and backup format
-- `doc\frontend-backend-contracts.md` - Tauri command and event contracts
-- `doc\tutorial.md` - beginner-friendly walkthrough for the codebase
+| Path | Purpose |
+| --- | --- |
+| `doc\requirement.md` | Product requirements and backlog |
+| `doc\ui-design.md` | UI structure and interaction design |
+| `doc\technical-design.md` | Runtime architecture and implementation behavior |
+| `doc\data-model.md` | Persistence model and backup format |
+| `doc\frontend-backend-contracts.md` | Tauri commands and runtime events |
+| `doc\tutorial.md` | Codebase walkthrough |
 
-## Development commands
+## Development
 
-- Install dependencies: `npm install`
-- Run the frontend in browser mode: `npm run dev`
-- Run the desktop app in development: `npm run tauri -- dev`
-- Lint: `npm run lint`
-- Test: `npm run test`
-- Build frontend assets: `npm run build`
-- Check the Rust backend: `cargo check --manifest-path src-tauri\Cargo.toml`
-- Build the desktop app: `npm run tauri -- build`
+### Requirements
+
+- Node.js with npm
+- Rust toolchain
+- Tauri desktop development prerequisites
+- Windows desktop environment for the primary target workflow
+
+### Commands
+
+| Task | Command |
+| --- | --- |
+| Install dependencies | `npm install` |
+| Run frontend only | `npm run dev` |
+| Run desktop app in development | `npm run tauri -- dev` |
+| Lint | `npm run lint` |
+| Test | `npm run test` |
+| Build frontend assets | `npm run build` |
+| Check Rust backend | `cargo check --manifest-path src-tauri\Cargo.toml` |
+| Build desktop app | `npm run tauri -- build` |
 
 ## Notes
 
-- Passwords are never stored in SQLite or exported in backup files.
-- Debug builds may show a console window on Windows. Release builds hide it.
+- The current product focus is **Windows-first**.
+- Browser-only development mode remains available for UI work through the mock frontend client.
+- Debug builds on Windows may show a console window; release builds hide it.
 - Release installers are produced by `npm run tauri -- build`.
+
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
