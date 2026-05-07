@@ -1,20 +1,28 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { appClient } from '../api/client'
 import { getTranslations } from '../lib/i18n'
-import type { ConnectionRecord, SessionState } from '../lib/types'
+import type { ConnectionRecord, SessionState, TerminalOutputEvent } from '../lib/types'
 import { TerminalWorkspace } from './TerminalWorkspace'
 
 const terminalMocks = vi.hoisted(() => {
+  let dataHandler: ((data: string) => void) | undefined
   const terminal = {
     cols: 120,
     rows: 32,
     options: {} as { theme?: unknown },
     loadAddon: vi.fn(),
     open: vi.fn(),
-    onData: vi.fn(),
+    onData: vi.fn((handler: (data: string) => void) => {
+      dataHandler = handler
+      return { dispose: vi.fn() }
+    }),
     reset: vi.fn(),
-    write: vi.fn(),
+    write: vi.fn((data: string) => {
+      if (data.includes('\u001b[6n')) {
+        dataHandler?.('\u001b[1;1R')
+      }
+    }),
     focus: vi.fn(),
     dispose: vi.fn(),
     getSelection: vi.fn(() => 'selected text'),
@@ -103,6 +111,11 @@ beforeAll(() => {
   })
 })
 
+beforeEach(() => {
+  vi.clearAllMocks()
+  terminalMocks.terminal.getSelection.mockReturnValue('selected text')
+})
+
 describe('TerminalWorkspace', () => {
   it('uses the SSH target as the workspace title instead of repeating the tab label', () => {
     render(
@@ -156,5 +169,57 @@ describe('TerminalWorkspace', () => {
     expect(screen.getByRole('menuitem', { name: '全選' })).toBeInTheDocument()
     expect(screen.queryByText('表情符号')).not.toBeInTheDocument()
     expect(screen.queryByText('书写方向')).not.toBeInTheDocument()
+  })
+
+  it('replays buffered tab output without resending terminal status queries as input', async () => {
+    const secondSession: SessionState = {
+      ...session,
+      sessionId: 'session-2',
+      connectionId: 'connection-2',
+      connectionName: 'Second Session',
+    }
+
+    let terminalOutputListener: ((payload: TerminalOutputEvent) => void) | undefined
+    vi.mocked(appClient.onTerminalOutput).mockImplementationOnce(async (listener) => {
+      terminalOutputListener = listener
+      return () => {}
+    })
+
+    const { rerender } = render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    await waitFor(() => expect(terminalOutputListener).toBeDefined())
+
+    terminalOutputListener?.({
+      sessionId: secondSession.sessionId,
+      stream: 'stdout',
+      data: 'prompt\u001b[6nready',
+    })
+
+    rerender(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={secondSession}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith('promptready')
+    expect(appClient.writeSessionInput).not.toHaveBeenCalledWith(secondSession.sessionId, '\u001b[1;1R')
   })
 })

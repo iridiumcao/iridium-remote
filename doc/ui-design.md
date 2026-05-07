@@ -96,7 +96,7 @@ The right side contains:
 - active terminal area
 - empty state when no session is active
 
-Only the terminal viewport scrolls for terminal output. Tab switching should immediately restore the selected session buffer.
+Only the terminal viewport scrolls for terminal output. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal.
 
 ## Dialogs
 

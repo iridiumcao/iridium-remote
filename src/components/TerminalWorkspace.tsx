@@ -95,6 +95,36 @@ const terminalThemes = {
   },
 } as const
 
+const escapeCharacter = String.fromCharCode(0x1b)
+
+const isReplayQueryParameterCharacter = (character: string) =>
+  (character >= '0' && character <= '9') || character === ';' || character === '?'
+
+const sanitizeReplayBuffer = (data: string) => {
+  let sanitized = ''
+
+  for (let index = 0; index < data.length; index += 1) {
+    if (data[index] !== escapeCharacter || data[index + 1] !== '[') {
+    sanitized += data[index]
+      continue
+    }
+
+    let parameterEnd = index + 2
+    while (parameterEnd < data.length && isReplayQueryParameterCharacter(data[parameterEnd])) {
+      parameterEnd += 1
+    }
+
+    if (data[parameterEnd] === 'n') {
+      index = parameterEnd
+      continue
+    }
+
+    sanitized += data[index]
+  }
+
+  return sanitized
+}
+
 export const TerminalWorkspace = ({
   activeConnection,
   activeSession,
@@ -218,7 +248,7 @@ export const TerminalWorkspace = ({
         }
 
         const current = sessionBuffersRef.current.get(payload.sessionId) ?? ''
-        const nextBuffer = `${current}${payload.data}`
+        const nextBuffer = sanitizeReplayBuffer(`${current}${payload.data}`)
         const MAX_BUFFER_SIZE = 500000
         const truncatedBuffer = nextBuffer.length > MAX_BUFFER_SIZE ? nextBuffer.slice(nextBuffer.length - MAX_BUFFER_SIZE) : nextBuffer
 
