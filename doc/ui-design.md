@@ -82,7 +82,9 @@ Each connection entry supports:
 - duplicate
 - delete
 
+Single-clicking a connection row should keep that connection highlighted. If the connection already has an open session tab, the single click should also switch the workspace to that tab.
 Double-clicking a connection row should open a new session tab for that connection immediately.
+Switching to a session tab should update the highlighted connection row in the left sidebar.
 
 File transfer is launched from the active workspace header for the currently selected connection, not from each sidebar row.
 

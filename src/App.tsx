@@ -40,6 +40,22 @@ const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
   )
 }
 
+const findSessionById = (sessions: SessionState[], sessionId: string | null) =>
+  sessionId ? sessions.find((session) => session.sessionId === sessionId) ?? null : null
+
+const findOpenSessionForConnection = (
+  sessions: SessionState[],
+  connectionId: string,
+  preferredSessionId: string | null,
+) => {
+  const preferredSession = findSessionById(sessions, preferredSessionId)
+  if (preferredSession?.connectionId === connectionId) {
+    return preferredSession
+  }
+
+  return sessions.find((session) => session.connectionId === connectionId) ?? null
+}
+
 function App() {
   const [settings, setSettings] = useState<AppSettings>(defaultAppSettings)
   const [connections, setConnections] = useState<ConnectionRecord[]>([])
@@ -157,9 +173,16 @@ function App() {
         appClient.onSessionRemoved(({ sessionId }) => {
           setSessions((current) => {
             const next = current.filter((session) => session.sessionId !== sessionId)
-            setActiveSessionId((currentActive) =>
-              currentActive === sessionId ? next[0]?.sessionId ?? null : currentActive,
-            )
+            setActiveSessionId((currentActive) => {
+              if (currentActive !== sessionId) {
+                return currentActive
+              }
+
+              const nextSessionId = next[0]?.sessionId ?? null
+              const nextSession = findSessionById(next, nextSessionId)
+              setSelectedConnectionId(nextSession?.connectionId ?? null)
+              return nextSessionId
+            })
             return next
           })
         }),
@@ -251,6 +274,32 @@ function App() {
     }
   }
 
+  const selectSession = useCallback(
+    (sessionId: string | null, availableSessions: SessionState[] = sessions) => {
+      setActiveSessionId(sessionId)
+
+      const nextSession = findSessionById(availableSessions, sessionId)
+      if (nextSession) {
+        setSelectedConnectionId(nextSession.connectionId)
+      } else if (sessionId === null && availableSessions.length === 0) {
+        setSelectedConnectionId(null)
+      }
+    },
+    [sessions],
+  )
+
+  const selectConnection = useCallback(
+    (connectionId: string) => {
+      setSelectedConnectionId(connectionId)
+
+      const matchingSession = findOpenSessionForConnection(sessions, connectionId, activeSessionId)
+      if (matchingSession) {
+        setActiveSessionId(matchingSession.sessionId)
+      }
+    },
+    [activeSessionId, sessions],
+  )
+
   const openCreateDialog = useCallback(() => {
     setEditingConnection(null)
     setConnectionSeed(null)
@@ -324,18 +373,21 @@ function App() {
     }
   }
 
-  const connectToConnection = async (connection: ConnectionRecord) => {
+  const connectToConnection = useCallback(async (connection: ConnectionRecord) => {
     try {
       setError(null)
       setNotice(null)
       setSelectedConnectionId(connection.id)
       const nextState = await appClient.connectSession(connection.id)
-      setSessions((current) => upsertSession(current, nextState))
-      setActiveSessionId(nextState.sessionId)
+      setSessions((current) => {
+        const nextSessions = upsertSession(current, nextState)
+        selectSession(nextState.sessionId, nextSessions)
+        return nextSessions
+      })
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
-  }
+  }, [selectSession])
 
   const disconnectSession = async (sessionId: string) => {
     try {
@@ -354,9 +406,16 @@ function App() {
       await appClient.closeSession(sessionId)
       setSessions((current) => {
         const next = current.filter((session) => session.sessionId !== sessionId)
-        setActiveSessionId((currentActive) =>
-          currentActive === sessionId ? next[0]?.sessionId ?? null : currentActive,
-        )
+        setActiveSessionId((currentActive) => {
+          if (currentActive !== sessionId) {
+            return currentActive
+          }
+
+          const nextSessionId = next[0]?.sessionId ?? null
+          const nextSession = findSessionById(next, nextSessionId)
+          setSelectedConnectionId(nextSession?.connectionId ?? null)
+          return nextSessionId
+        })
         return next
       })
     } catch (cause) {
@@ -699,7 +758,7 @@ function App() {
             onDuplicate={openDuplicateDialog}
             onEdit={openEditDialog}
             onSearchChange={setSearchQuery}
-            onSelect={setSelectedConnectionId}
+            onSelect={selectConnection}
             onToggleGroup={handleToggleGroup}
             searchQuery={searchQuery}
             selectedConnectionId={selectedConnectionId}
@@ -714,7 +773,7 @@ function App() {
             onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
             onDisconnect={disconnectSession}
             onOpenTransfer={activeConnection ? () => setTransferDialogOpen(true) : undefined}
-            onSelectSession={setActiveSessionId}
+            onSelectSession={selectSession}
             selectedConnection={selectedConnection}
             sessions={sessions}
             t={t}

@@ -38,6 +38,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 - Search by connection name, host, or username
 - Collapse or expand connection groups
 - Switch the sidebar between normal and compact display modes
+- Single-click a connection to focus its open tab when one already exists, or just highlight it when no session is open
 - Import/export JSON backups that include:
   - application settings
   - saved connection metadata
@@ -47,6 +48,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 
 - Open multiple SSH sessions at the same time
 - Switch between sessions with tabs
+- Keep the left sidebar highlight in sync with the active session tab
 - Restore each tab's terminal buffer independently
 - Double-click a connection row to open a fresh session tab
 - Use a localized terminal context menu for copy, paste, and select-all
