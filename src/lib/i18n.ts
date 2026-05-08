@@ -57,6 +57,7 @@ type Dictionary = {
   lightTheme: string
   menuFile: string
   menuHelp: string
+  menuCheckForUpdate: string
   menuStarOnGitHub: string
   menuReportIssue: string
   menuAbout: string
@@ -106,6 +107,11 @@ type Dictionary = {
   exportConnectionsSuccess: string
   importConnectionsFailed: string
   exportConnectionsFailed: string
+  checkingForUpdates: string
+  updateAvailable: (latestVersion: string, currentVersion: string) => string
+  updateUpToDate: (currentVersion: string) => string
+  downloadUpdate: (latestVersion: string) => string
+  updateCheckFailed: string
   validationRequired: string
   validationPort: string
   saveFailed: string
@@ -176,6 +182,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     lightTheme: 'Light',
     menuFile: 'File',
     menuHelp: 'Help',
+    menuCheckForUpdate: 'Check for Update...',
     menuStarOnGitHub: '❤️ Star on GitHub',
     menuReportIssue: 'Report Issue',
     menuAbout: 'About',
@@ -231,6 +238,12 @@ const dictionaries: Record<Locale, Dictionary> = {
     exportConnectionsSuccess: 'Exported settings and connections to a backup file.',
     importConnectionsFailed: 'Unable to import the selected backup file.',
     exportConnectionsFailed: 'Unable to export the connection backup file.',
+    checkingForUpdates: 'Checking GitHub for the latest release...',
+    updateAvailable: (latestVersion, currentVersion) =>
+      `Update available: v${latestVersion} is newer than your current version v${currentVersion}.`,
+    updateUpToDate: (currentVersion) => `You are up to date. Current version: v${currentVersion}.`,
+    downloadUpdate: (latestVersion) => `Download v${latestVersion}`,
+    updateCheckFailed: 'Failed to check for updates.',
     validationRequired: 'Name, host, and username are required.',
     validationPort: 'Port must be a valid TCP port.',
     saveFailed: 'Unable to save the connection.',
@@ -305,6 +318,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     lightTheme: '浅色',
     menuFile: '文件',
     menuHelp: '帮助',
+    menuCheckForUpdate: '检查更新...',
     menuStarOnGitHub: '❤️ 在 GitHub 上点赞',
     menuReportIssue: '反馈问题',
     menuAbout: '关于',
@@ -355,6 +369,12 @@ const dictionaries: Record<Locale, Dictionary> = {
     exportConnectionsSuccess: '已导出包含设置和连接的备份文件。',
     importConnectionsFailed: '无法导入所选备份文件。',
     exportConnectionsFailed: '无法导出连接备份文件。',
+    checkingForUpdates: '正在检查 GitHub 上的最新版本...',
+    updateAvailable: (latestVersion, currentVersion) =>
+      `发现新版本：v${latestVersion} 高于当前版本 v${currentVersion}。`,
+    updateUpToDate: (currentVersion) => `当前已是最新版本。当前版本：v${currentVersion}。`,
+    downloadUpdate: (latestVersion) => `下载 v${latestVersion}`,
+    updateCheckFailed: '检查更新失败。',
     validationRequired: '名称、主机和用户名为必填项。',
     validationPort: '端口必须是有效的 TCP 端口。',
     saveFailed: '无法保存连接。',
@@ -430,6 +450,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuFile: '檔案',
     menuNewConnection: '新增連線...',
     menuHelp: '說明',
+    menuCheckForUpdate: '檢查更新...',
     menuStarOnGitHub: '在 GitHub 上給我們評星',
     menuReportIssue: '回報問題',
     menuAbout: '關於',
@@ -479,6 +500,12 @@ const dictionaries: Record<Locale, Dictionary> = {
     exportConnectionsSuccess: '已匯出包含設定和連線的備份檔案。',
     importConnectionsFailed: '無法匯入所選備份檔案。',
     exportConnectionsFailed: '無法匯出連線備份檔案。',
+    checkingForUpdates: '正在檢查 GitHub 上的最新版本...',
+    updateAvailable: (latestVersion, currentVersion) =>
+      `有可用更新：v${latestVersion} 高於目前版本 v${currentVersion}。`,
+    updateUpToDate: (currentVersion) => `目前已是最新版本。當前版本：v${currentVersion}。`,
+    downloadUpdate: (latestVersion) => `下載 v${latestVersion}`,
+    updateCheckFailed: '檢查更新失敗。',
     validationRequired: '名稱、主機和使用者名稱為必填項。',
     validationPort: '連接埠必須是有效的 TCP 連接埠。',
     saveFailed: '無法儲存連線。',

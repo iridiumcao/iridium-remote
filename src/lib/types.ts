@@ -133,3 +133,10 @@ export type AppError = {
   message: string
   details?: string
 }
+
+export type UpdateCheckResult = {
+  currentVersion: string
+  latestVersion: string
+  updateAvailable: boolean
+  downloadUrl?: string
+}

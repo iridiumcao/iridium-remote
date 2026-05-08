@@ -5,6 +5,7 @@ mod models;
 mod session;
 mod terminal_detection;
 mod transfer;
+mod update;
 
 use std::{fs, sync::Arc};
 
@@ -13,7 +14,7 @@ use errors::{AppError, AppResult};
 use models::{
     AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload,
     CreateConnectionInput, FileTransferInput, FileTransferResult, ImportConnectionsResult,
-    RemotePathListing, SessionStatePayload, UpdateConnectionInput,
+    RemotePathListing, SessionStatePayload, UpdateCheckResult, UpdateConnectionInput,
 };
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -215,6 +216,12 @@ fn import_connections(
     Ok(result)
 }
 
+#[tauri::command]
+async fn check_for_updates() -> AppResult<UpdateCheckResult> {
+    log::info!("Checking GitHub for a newer release.");
+    update::check_for_updates().await
+}
+
 fn emit_connection_list_changed(
     app: &AppHandle,
     reason: &str,
@@ -384,6 +391,7 @@ pub fn run() {
             export_connections,
             write_export_file,
             import_connections,
+            check_for_updates,
             transfer_file,
         ])
         .run(tauri::generate_context!())

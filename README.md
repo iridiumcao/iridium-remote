@@ -72,6 +72,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 - Light and dark themes across the app UI
 - Theme-aware sidebar scrollbar styling
 - English, Simplified Chinese, and Traditional Chinese UI
+- Manual update checks from **Help -> Check for Update...** against the latest GitHub release, with a release-page download link when a newer version exists
 - Single-instance desktop behavior that focuses the existing window on relaunch
 - Application logging to the app log directory
 

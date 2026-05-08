@@ -6,6 +6,7 @@ import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { TransferDialog } from './components/TransferDialog'
+import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
 import { getTranslations } from './lib/i18n'
 import type {
   AppError,
@@ -20,8 +21,13 @@ import type {
 } from './lib/types'
 import { defaultAppSettings } from './lib/types'
 
-const PROJECT_URL = 'https://github.com/iridiumcao/iridium-remote'
-const REPORT_ISSUE_URL = 'https://github.com/iridiumcao/iridium-remote/issues'
+type NoticeState = {
+  message: string
+  link?: {
+    href: string
+    label: string
+  }
+}
 
 const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
   const existing = sessions.find((session) => session.sessionId === nextState.sessionId)
@@ -43,7 +49,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<AppError | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
   const [editingConnection, setEditingConnection] = useState<ConnectionRecord | null>(null)
   const [connectionSeed, setConnectionSeed] = useState<ConnectionFormSeed | null>(null)
   const [isConnectionDialogOpen, setConnectionDialogOpen] = useState(false)
@@ -96,6 +102,8 @@ function App() {
       ).sort((left, right) => left.localeCompare(right)),
     [connections],
   )
+
+  const noticeLink = notice?.link ?? null
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
@@ -189,6 +197,35 @@ function App() {
       setError(appClient.normalizeError(cause))
     }
   }, [])
+
+  const handleCheckForUpdates = useCallback(async () => {
+    try {
+      setError(null)
+      setNotice({ message: t.checkingForUpdates })
+
+      const result = await appClient.checkForUpdates()
+      if (result.updateAvailable && result.downloadUrl) {
+        setNotice({
+          message: t.updateAvailable(result.latestVersion, result.currentVersion),
+          link: {
+            href: result.downloadUrl,
+            label: t.downloadUpdate(result.latestVersion),
+          },
+        })
+        return
+      }
+
+      setNotice({ message: t.updateUpToDate(result.currentVersion) })
+    } catch (cause) {
+      const normalized = appClient.normalizeError(cause)
+      setNotice(null)
+      setError({
+        code: 'UPDATE_CHECK_FAILED',
+        message: t.updateCheckFailed,
+        details: normalized.message,
+      })
+    }
+  }, [t])
 
   const saveSettings = async (nextSettings: AppSettings) => {
     try {
@@ -338,7 +375,7 @@ function App() {
         connectionId: activeConnection.id,
         ...input,
       })
-      setNotice(result.message)
+      setNotice({ message: result.message })
     } catch (cause) {
       const normalized = appClient.normalizeError(cause)
       throw new Error(normalized.message, { cause })
@@ -354,10 +391,10 @@ function App() {
       if (!saved) {
         return
       }
-      setNotice(t.exportConnectionsSuccess)
+      setNotice({ message: t.exportConnectionsSuccess })
     } catch (cause) {
       setError(appClient.normalizeError(cause))
-      setNotice(t.exportConnectionsFailed)
+      setNotice({ message: t.exportConnectionsFailed })
     }
   }, [t.exportConnectionsFailed, t.exportConnectionsSuccess])
 
@@ -440,6 +477,15 @@ function App() {
                 },
               },
               {
+                id: 'check-for-update',
+                text: t.menuCheckForUpdate,
+                action: () => {
+                  if (!disposed) {
+                    void handleCheckForUpdates()
+                  }
+                },
+              },
+              {
                 id: 'about',
                 text: t.menuAbout,
                 action: () => {
@@ -461,7 +507,15 @@ function App() {
     return () => {
       disposed = true
     }
-  }, [handleExitApp, handleExportConnections, handleImportConnections, openCreateDialog, openExternalUrl, t])
+  }, [
+    handleCheckForUpdates,
+    handleExitApp,
+    handleExportConnections,
+    handleImportConnections,
+    openCreateDialog,
+    openExternalUrl,
+    t,
+  ])
 
   const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -480,11 +534,13 @@ function App() {
       const nextSettings = await appClient.getAppSettings()
       setSettings(nextSettings)
       setNotice(
-        getTranslations(nextSettings.locale).importConnectionsSuccess(
-          result.imported,
-          result.skipped,
-          result.settingsApplied,
-        ),
+        {
+          message: getTranslations(nextSettings.locale).importConnectionsSuccess(
+            result.imported,
+            result.skipped,
+            result.settingsApplied,
+          ),
+        },
       )
     } catch {
       setError({
@@ -607,7 +663,20 @@ function App() {
                 : 'border-cyan-200 bg-cyan-50 text-cyan-700'
             }`}
           >
-            {notice}
+            <span>{notice.message}</span>
+            {noticeLink ? (
+              <button
+                type="button"
+                className={`ml-3 font-semibold underline underline-offset-2 ${
+                  isDark ? 'text-cyan-200 hover:text-cyan-100' : 'text-cyan-700 hover:text-cyan-900'
+                }`}
+                onClick={() => {
+                  void openExternalUrl(noticeLink.href)
+                }}
+              >
+                {noticeLink.label}
+              </button>
+            ) : null}
           </div>
         ) : null}
 

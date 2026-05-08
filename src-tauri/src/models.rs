@@ -169,3 +169,12 @@ pub struct ImportConnectionsResult {
     pub skipped: usize,
     pub settings_applied: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResult {
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_available: bool,
+    pub download_url: Option<String>,
+}

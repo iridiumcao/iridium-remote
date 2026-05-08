@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { APP_VERSION, LATEST_RELEASE_API_URL } from '../lib/appInfo'
 import { defaultAppSettings } from '../lib/types'
 import type {
   AppSettings,
@@ -14,10 +15,16 @@ import type {
   SessionRemovedEvent,
   SessionState,
   TerminalOutputEvent,
+  UpdateCheckResult,
   UpdateConnectionInput,
 } from '../lib/types'
 
 type Unsubscribe = () => void | Promise<void>
+
+type GitHubLatestReleaseResponse = {
+  tag_name?: string
+  html_url?: string
+}
 
 const isTauriRuntime = () =>
   typeof window !== 'undefined' &&
@@ -124,6 +131,102 @@ const normalizeGroup = (value?: string | null) => {
 const randomId = () => crypto.randomUUID()
 type TransferLocalPathSelectionMode = 'file' | 'directory'
 
+type ParsedVersion = {
+  major: number
+  minor: number
+  patch: number
+  prerelease: string[]
+}
+
+const normalizeVersion = (value: string) => value.trim().replace(/^v/i, '')
+
+const parseVersion = (value: string): ParsedVersion | null => {
+  const match = normalizeVersion(value).match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/)
+  if (!match) {
+    return null
+  }
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    prerelease: match[4] ? match[4].split('.') : [],
+  }
+}
+
+const compareIdentifiers = (left: string, right: string) => {
+  const leftIsNumeric = /^\d+$/.test(left)
+  const rightIsNumeric = /^\d+$/.test(right)
+
+  if (leftIsNumeric && rightIsNumeric) {
+    return Number(left) - Number(right)
+  }
+
+  if (leftIsNumeric) {
+    return -1
+  }
+
+  if (rightIsNumeric) {
+    return 1
+  }
+
+  return left.localeCompare(right)
+}
+
+const compareVersions = (left: string, right: string) => {
+  const leftVersion = parseVersion(left)
+  const rightVersion = parseVersion(right)
+
+  if (!leftVersion || !rightVersion) {
+    throw new Error('Invalid version format.')
+  }
+
+  if (leftVersion.major !== rightVersion.major) {
+    return leftVersion.major - rightVersion.major
+  }
+
+  if (leftVersion.minor !== rightVersion.minor) {
+    return leftVersion.minor - rightVersion.minor
+  }
+
+  if (leftVersion.patch !== rightVersion.patch) {
+    return leftVersion.patch - rightVersion.patch
+  }
+
+  if (leftVersion.prerelease.length === 0 && rightVersion.prerelease.length === 0) {
+    return 0
+  }
+
+  if (leftVersion.prerelease.length === 0) {
+    return 1
+  }
+
+  if (rightVersion.prerelease.length === 0) {
+    return -1
+  }
+
+  const segmentCount = Math.max(leftVersion.prerelease.length, rightVersion.prerelease.length)
+  for (let index = 0; index < segmentCount; index += 1) {
+    const leftSegment = leftVersion.prerelease[index]
+    const rightSegment = rightVersion.prerelease[index]
+
+    if (leftSegment === undefined) {
+      return -1
+    }
+
+    if (rightSegment === undefined) {
+      return 1
+    }
+
+    const comparison = compareIdentifiers(leftSegment, rightSegment)
+    if (comparison !== 0) {
+      return comparison
+    }
+  }
+
+  return 0
+}
+
 export const appClient = {
   isTauriRuntime,
 
@@ -145,6 +248,41 @@ export const appClient = {
 
     const { openUrl } = await import('@tauri-apps/plugin-opener')
     await openUrl(url)
+  },
+
+  async checkForUpdates() {
+    if (isTauriRuntime()) {
+      return invoke<UpdateCheckResult>('check_for_updates')
+    }
+
+    const response = await fetch(LATEST_RELEASE_API_URL, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`GitHub release lookup failed with status ${response.status}.`)
+    }
+
+    const payload = (await response.json()) as GitHubLatestReleaseResponse
+    const latestVersion = payload.tag_name ? normalizeVersion(payload.tag_name) : ''
+    const downloadUrl = payload.html_url?.trim()
+
+    if (!latestVersion || !parseVersion(latestVersion) || !parseVersion(APP_VERSION)) {
+      throw new Error('GitHub returned an invalid release version.')
+    }
+
+    if (compareVersions(APP_VERSION, latestVersion) < 0 && !downloadUrl) {
+      throw new Error('GitHub returned no download URL for the latest release.')
+    }
+
+    return {
+      currentVersion: APP_VERSION,
+      latestVersion,
+      updateAvailable: compareVersions(APP_VERSION, latestVersion) < 0,
+      downloadUrl,
+    } satisfies UpdateCheckResult
   },
 
   normalizeError(cause: unknown): AppError {

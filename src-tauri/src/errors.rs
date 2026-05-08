@@ -59,6 +59,14 @@ impl AppError {
         }
     }
 
+    pub fn update_check(message: impl Into<String>, details: impl Into<String>) -> Self {
+        Self {
+            code: "UPDATE_CHECK_ERROR".into(),
+            message: message.into(),
+            details: Some(details.into()),
+        }
+    }
+
     pub fn internal(message: impl Into<String>, details: impl Into<String>) -> Self {
         Self {
             code: "INTERNAL_ERROR".into(),

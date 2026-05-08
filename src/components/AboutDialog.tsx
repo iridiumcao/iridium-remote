@@ -1,4 +1,5 @@
 import type { getTranslations } from '../lib/i18n'
+import { APP_VERSION } from '../lib/appInfo'
 import type { AppTheme } from '../lib/types'
 import { Modal } from './Modal'
 
@@ -77,7 +78,7 @@ export const AboutDialog = ({
           <strong>{t.aboutLicenseLabel}:</strong> Apache License 2.0
         </div>
         <div className={infoClass}>
-          <strong>{t.versionLabel}:</strong> 0.1.0
+          <strong>{t.versionLabel}:</strong> {APP_VERSION}
         </div>
       </div>
     </Modal>

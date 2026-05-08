@@ -9,6 +9,7 @@ const revokeObjectUrlMock = vi.fn()
 const appendMock = vi.fn()
 const removeMock = vi.fn()
 const clickMock = vi.fn()
+const fetchMock = vi.fn()
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
@@ -35,6 +36,7 @@ describe('appClient.saveExportConnections', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.stubGlobal('fetch', fetchMock)
 
     Object.defineProperty(URL, 'createObjectURL', {
       value: createObjectUrlMock,
@@ -64,6 +66,7 @@ describe('appClient.saveExportConnections', () => {
 
   afterEach(() => {
     delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -167,5 +170,75 @@ describe('appClient.saveExportConnections', () => {
       { name: 'demo', path: '/home/demo', isDirectory: true },
       { name: 'notes.txt', path: '/home/notes.txt', isDirectory: false },
     ])
+  })
+
+  it('reports when a newer GitHub release is available', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tag_name: 'v0.1.1',
+        html_url: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+      }),
+    })
+
+    const { appClient } = await import('./client')
+    const result = await appClient.checkForUpdates()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.github.com/repos/iridiumcao/iridium-remote/releases/latest',
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+        },
+      },
+    )
+    expect(result).toEqual({
+      currentVersion: '0.1.0',
+      latestVersion: '0.1.1',
+      updateAvailable: true,
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+    })
+  })
+
+  it('uses the Tauri backend update command inside the desktop runtime', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    invokeMock.mockResolvedValueOnce({
+      currentVersion: '0.1.0',
+      latestVersion: '0.1.1',
+      updateAvailable: true,
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+    })
+
+    const { appClient } = await import('./client')
+    const result = await appClient.checkForUpdates()
+
+    expect(invokeMock).toHaveBeenCalledWith('check_for_updates')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      currentVersion: '0.1.0',
+      latestVersion: '0.1.1',
+      updateAvailable: true,
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+    })
+  })
+
+  it('reports when the current version is already up to date', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tag_name: 'v0.1.0',
+        html_url: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.0',
+      }),
+    })
+
+    const { appClient } = await import('./client')
+    const result = await appClient.checkForUpdates()
+
+    expect(result).toEqual({
+      currentVersion: '0.1.0',
+      latestVersion: '0.1.0',
+      updateAvailable: false,
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.0',
+    })
   })
 })

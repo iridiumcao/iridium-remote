@@ -99,7 +99,10 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The Help menu must contain:
   - `❤️ Star on GitHub`
   - `Report Issue`
+  - `Check for Update...`
   - `About`
+- `Check for Update...` checks the latest GitHub release and tells the user whether an update is available.
+- When an update is available, the result must include the release download page link.
 - `❤️ Star on GitHub` opens `https://github.com/iridiumcao/iridium-remote`
 - `Report Issue` opens `https://github.com/iridiumcao/iridium-remote/issues`
 - The About entry appears only in the Help menu.

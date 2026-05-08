@@ -76,6 +76,15 @@ Removes the target session from the backend session list and releases backend re
 
 Returns the currently tracked session snapshots on startup so the frontend can restore open tabs.
 
+### `check_for_updates() -> UpdateCheckResult`
+
+Queries GitHub from the backend for the latest release and returns:
+
+- `currentVersion`
+- `latestVersion`
+- `updateAvailable`
+- `downloadUrl?`
+
 ## File transfer commands
 
 ### `transfer_file(input) -> FileTransferResult`
@@ -128,6 +137,7 @@ Used by the frontend to remove closed tabs and clean up buffered output.
 
 - `saveExportConnections(payload)` opens the native save dialog in Tauri builds, then calls `write_export_file`.
 - `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the transfer dialog.
+- `checkForUpdates()` calls the Tauri `check_for_updates` command in desktop builds and falls back to a direct GitHub lookup only outside Tauri.
 
 ## Browser mock behavior
 
