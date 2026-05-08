@@ -26,7 +26,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 | **Authentication** | Optional password saving in the OS keyring, terminal-native password prompts, support for non-interactive SSH key auth when system SSH config allows it |
 | **File transfer** | Upload/download files and directories, local file/folder pickers, remote SFTP path browser |
 | **Preferences** | Light/dark theme, English / Simplified Chinese / Traditional Chinese, persisted sidebar state and display mode |
-| **Reliability** | Clear session status updates, immediate connection failure feedback, session cleanup on close, single-instance desktop behavior |
+| **Reliability** | Clear session status updates, immediate connection failure feedback, disconnect detection when the SSH process exits, session cleanup on close, single-instance desktop behavior |
 | **Data safety** | Passwords are never stored in SQLite and are never included in exported backup files |
 
 ## Detailed Features

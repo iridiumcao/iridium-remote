@@ -3,6 +3,7 @@ use std::{
     io::{Read, Write},
     sync::{Arc, Mutex},
     thread,
+    time::Duration,
 };
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
@@ -22,7 +23,7 @@ use crate::{
 };
 
 struct SessionResources {
-    child: Box<dyn Child + Send>,
+    child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     queued_password: Option<String>,
@@ -108,6 +109,7 @@ impl SessionManager {
             AppError::ssh_launch("Failed to open the SSH session writer.", error.to_string())
         })?;
 
+        let child = Arc::new(Mutex::new(child));
         let session_id = Uuid::new_v4().to_string();
         let snapshot = SessionStatePayload {
             session_id: session_id.clone(),
@@ -125,7 +127,7 @@ impl SessionManager {
                 ManagedSession {
                     snapshot: snapshot.clone(),
                     resources: Some(SessionResources {
-                        child,
+                        child: Arc::clone(&child),
                         master: pair.master,
                         writer,
                         queued_password: saved_password,
@@ -139,7 +141,12 @@ impl SessionManager {
         self.emit_status(&app, &snapshot)?;
 
         let manager = self.clone();
-        thread::spawn(move || manager.read_loop(app, session_id, reader));
+        let read_app = app.clone();
+        let read_session_id = session_id.clone();
+        thread::spawn(move || manager.read_loop(read_app, read_session_id, reader));
+
+        let manager = self.clone();
+        thread::spawn(move || manager.wait_for_exit(app, session_id, child));
 
         Ok(snapshot)
     }
@@ -193,11 +200,15 @@ impl SessionManager {
             let session = inner.sessions.get_mut(session_id).ok_or_else(|| {
                 AppError::no_active_session("The selected session is no longer available.")
             })?;
-            let mut resources = session.resources.take().ok_or_else(|| {
+            let resources = session.resources.take().ok_or_else(|| {
                 AppError::no_active_session("The selected session is already closed.")
             })?;
 
-            let _ = resources.child.kill();
+            let _ = resources
+                .child
+                .lock()
+                .expect("session child mutex poisoned")
+                .kill();
             session.snapshot.status = SessionStatus::Disconnected;
             session.snapshot.message = Some("Session closed.".into());
             session.snapshot.clone()
@@ -220,7 +231,11 @@ impl SessionManager {
         };
 
         if let Some(resources) = session.resources.as_mut() {
-            let _ = resources.child.kill();
+            let _ = resources
+                .child
+                .lock()
+                .expect("session child mutex poisoned")
+                .kill();
         }
 
         self.emit_removed(&app, session_id)
@@ -258,6 +273,37 @@ impl SessionManager {
                     let text = String::from_utf8_lossy(&buffer[..bytes_read]).to_string();
                     self.handle_output(&app, &session_id, text);
                 }
+                Err(error) => {
+                    self.finish_session(
+                        &app,
+                        &session_id,
+                        SessionStatus::Error,
+                        &format!("SSH session error: {error}"),
+                    );
+                    break;
+                }
+            }
+        }
+    }
+
+    fn wait_for_exit(
+        &self,
+        app: AppHandle,
+        session_id: String,
+        child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
+    ) {
+        loop {
+            let exit_status = {
+                let mut child = child.lock().expect("session child mutex poisoned");
+                child.try_wait()
+            };
+
+            match exit_status {
+                Ok(Some(_)) => {
+                    self.finish_session_after_exit(&app, &session_id);
+                    break;
+                }
+                Ok(None) => thread::sleep(Duration::from_millis(500)),
                 Err(error) => {
                     self.finish_session(
                         &app,
@@ -337,18 +383,7 @@ impl SessionManager {
                 return;
             };
 
-            if resources.connected {
-                (SessionStatus::Disconnected, String::from("Session closed."))
-            } else if let Some(error_message) =
-                detect_connection_error_message(&resources.recent_output)
-            {
-                (SessionStatus::Error, error_message)
-            } else {
-                (
-                    SessionStatus::Error,
-                    String::from("SSH connection failed before the remote shell became available."),
-                )
-            }
+            classify_exit_status(resources.connected, &resources.recent_output)
         };
 
         self.finish_session(app, session_id, status, &message);
@@ -396,5 +431,43 @@ impl SessionManager {
                 error.to_string(),
             )
         })
+    }
+}
+
+fn classify_exit_status(connected: bool, recent_output: &str) -> (SessionStatus, String) {
+    if connected {
+        (SessionStatus::Disconnected, String::from("Session closed."))
+    } else if let Some(error_message) = detect_connection_error_message(recent_output) {
+        (SessionStatus::Error, error_message)
+    } else {
+        (
+            SessionStatus::Error,
+            String::from("SSH connection failed before the remote shell became available."),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_exit_status;
+    use crate::models::SessionStatus;
+
+    #[test]
+    fn classifies_connected_session_exit_as_disconnect() {
+        let (status, message) = classify_exit_status(true, "Connection to host example.com closed.");
+
+        assert_eq!(status, SessionStatus::Disconnected);
+        assert_eq!(message, "Session closed.");
+    }
+
+    #[test]
+    fn classifies_pre_shell_exit_with_ssh_error_as_error() {
+        let (status, message) = classify_exit_status(
+            false,
+            "ssh: connect to host example.com port 22: Connection refused\r\n",
+        );
+
+        assert_eq!(status, SessionStatus::Error);
+        assert_eq!(message, "ssh: connect to host example.com port 22: Connection refused");
     }
 }

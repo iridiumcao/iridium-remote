@@ -112,6 +112,8 @@ Payload:
 - `status`
 - `message?`
 
+The backend emits this event both for terminal-output-driven transitions such as `connecting -> connected` and for direct SSH-process exit transitions such as `connected -> disconnected` after a remote shutdown.
+
 ### `session-removed`
 
 Payload:
