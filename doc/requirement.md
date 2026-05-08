@@ -6,8 +6,9 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 
 ## Target platform
 
-- Primary target: Windows desktop
-- Future goal: cross-platform support without redesigning the product model
+- Product-design priority: Windows desktop
+- Release distribution targets: Windows, macOS, and Linux
+- Linux release assets must cover Ubuntu-oriented installs with `.deb` or `.AppImage`, and Red Hat-oriented installs with `.rpm`
 
 ## Core user flows
 
@@ -133,6 +134,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - Prefer stable, simple behavior over advanced customization.
 - Preserve fast startup and fast connect behavior.
 - Avoid separate console windows in release builds on Windows.
+- GitHub Actions should be able to build and publish desktop release bundles from version tags.
 - Browser-only development mode should keep working through the mock frontend client.
 - The desktop runtime should prefer a single running instance. Launching the app again should activate the existing main window instead of leaving multiple desktop instances open.
 

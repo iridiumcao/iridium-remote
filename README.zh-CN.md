@@ -14,6 +14,8 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 - 在同一应用中完成 SFTP 文件上传和下载
 - 持久化主题、语言、侧边栏布局等用户偏好
 
+产品方向仍以 **Windows 优先** 为主，但现在会通过 GitHub Actions 发布 **Windows**、**macOS** 与 **Linux** 的安装构建产物。
+
 ## 功能总览
 
 | 模块 | 功能说明 |
@@ -118,9 +120,18 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 | 检查 Rust 后端 | `cargo check --manifest-path src-tauri\Cargo.toml` |
 | 构建桌面应用 | `npm run tauri -- build` |
 
+## 发布
+
+- 跨平台发布流程定义在 `.github\workflows\release.yml`。
+- 推送类似 `v0.1.0` 的版本标签会触发 GitHub Actions 发布流水线。
+- 发布产物包括：
+  - Windows：NSIS 安装包与 MSI 安装包
+  - macOS：Apple Silicon 与 Intel 的 app / DMG 安装产物
+  - Linux：面向 Ubuntu 的 `.deb`、通用 `.AppImage`，以及面向 Red Hat 的 `.rpm`
+
 ## 说明
 
-- 当前产品重点是 **Windows 优先**。
+- 当前产品重点仍是 **Windows 优先**，只是发布构建已经覆盖多个桌面平台。
 - 为了便于 UI 开发，浏览器模式下仍提供 mock 前端客户端。
 - Windows 下的调试构建可能会显示控制台窗口；发布构建会隐藏控制台窗口。
 - 发布安装包可通过 `npm run tauri -- build` 生成。

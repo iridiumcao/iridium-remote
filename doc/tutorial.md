@@ -172,6 +172,15 @@ npm run build
 cargo check --manifest-path src-tauri\Cargo.toml
 ```
 
+## How releases are published
+
+- Cross-platform releases are built by GitHub Actions in `.github\workflows\release.yml`.
+- Push a version tag such as `v0.1.0` when `package.json`, `src-tauri\tauri.conf.json`, and `src-tauri\Cargo.toml` already agree on the same version.
+- The workflow first runs lint, test, frontend build, and Rust backend checks, then publishes:
+  - Windows installers
+  - macOS Apple Silicon and Intel bundles
+  - Linux `.deb`, `.AppImage`, and `.rpm` bundles for Ubuntu-style and Red Hat-style installs
+
 ## First code-reading path
 
 If you want to understand the app without reading everything:
