@@ -152,8 +152,8 @@ The desktop runtime uses `tauri-plugin-log`.
 ## Release automation
 
 - Cross-platform releases are published by GitHub Actions through `.github\workflows\release.yml`.
-- The workflow is driven by version tags such as `v0.1.0`, and it verifies that the Git tag, `package.json`, `src-tauri\tauri.conf.json`, and `src-tauri\Cargo.toml` all use the same app version before publishing.
-- An Ubuntu release job publishes `.deb`, `.AppImage`, and `.rpm` bundles so Linux users can install on Ubuntu-style and Red Hat-style systems from the same release.
+- The workflow is driven by version tags such as `v0.1.1`, and it verifies that the Git tag, `package.json`, `src-tauri\tauri.conf.json`, and `src-tauri\Cargo.toml` all use the same app version before publishing.
+- An Ubuntu release job publishes `.deb` and `.AppImage` bundles.
 - Windows release jobs publish the standard Tauri Windows bundles, and macOS release jobs publish separate Apple Silicon and Intel artifacts.
 
 ## Windows behavior

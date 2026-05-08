@@ -7,8 +7,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 ## Target platform
 
 - Product-design priority: Windows desktop
-- Release distribution targets: Windows, macOS, and Linux
-- Linux release assets must cover Ubuntu-oriented installs with `.deb` or `.AppImage`, and Red Hat-oriented installs with `.rpm`
+- Release distribution targets: Windows, macOS, and Ubuntu
+- Ubuntu release assets must cover `.deb` or `.AppImage`
 
 ## Core user flows
 

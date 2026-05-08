@@ -14,7 +14,7 @@ Iridium Remote is designed for a practical desktop workflow:
 - transfer files with SFTP from the same app
 - persist user preferences such as theme, language, and sidebar layout
 
-The product remains **Windows-first** in day-to-day UX focus, but release automation now publishes installable builds for **Windows**, **macOS**, and **Linux**.
+The product remains **Windows-first** in day-to-day UX focus, but release automation now publishes installable builds for **Windows**, **macOS**, and **Ubuntu**.
 
 ## Feature Summary
 
@@ -126,15 +126,15 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 ## Releases
 
 - Cross-platform release publishing is defined in `.github\workflows\release.yml`.
-- Push a version tag such as `v0.1.0` to trigger the GitHub Actions release pipeline.
+- Push a version tag such as `v0.1.1` to trigger the GitHub Actions release pipeline.
 - Published assets cover:
   - Windows: NSIS installer and MSI package
   - macOS: Apple Silicon and Intel app / DMG bundles
-  - Linux: `.deb` and `.AppImage` for Ubuntu-oriented installs, plus `.rpm` for Red Hat-oriented installs
+  - Ubuntu: `.deb` and `.AppImage`
 
 ## Notes
 
-- The current product focus is still **Windows-first**, even though release packaging is published for multiple desktop platforms.
+- The current product focus is still **Windows-first**, even though release packaging is published for Windows, macOS, and Ubuntu.
 - Browser-only development mode remains available for UI work through the mock frontend client.
 - Debug builds on Windows may show a console window; release builds hide it.
 - Release installers are produced by `npm run tauri -- build`.

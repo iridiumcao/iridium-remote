@@ -43,7 +43,7 @@ The intended primary flow is:
 ### Scope and prioritization
 
 - Build for a usable, stable desktop client first; prefer simpler implementations over feature-rich designs
-- The current target is **Windows-first**, with future cross-platform support
+- The current target is **Windows-first**, with release support for Windows, macOS, and Ubuntu
 - Keep the main UI simple: grouped connection list on the left, tabbed terminal workspace on the right, and lightweight top-bar controls
 - The current implementation supports multiple active sessions through terminal tabs
 - The left sidebar supports real-time search, collapsible groups, and compact/normal display modes

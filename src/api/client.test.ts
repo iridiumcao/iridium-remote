@@ -176,8 +176,8 @@ describe('appClient.saveExportConnections', () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        tag_name: 'v0.1.1',
-        html_url: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+        tag_name: 'v0.1.2',
+        html_url: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.2',
       }),
     })
 
@@ -193,20 +193,20 @@ describe('appClient.saveExportConnections', () => {
       },
     )
     expect(result).toEqual({
-      currentVersion: '0.1.0',
-      latestVersion: '0.1.1',
+      currentVersion: '0.1.1',
+      latestVersion: '0.1.2',
       updateAvailable: true,
-      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.2',
     })
   })
 
   it('uses the Tauri backend update command inside the desktop runtime', async () => {
     ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
     invokeMock.mockResolvedValueOnce({
-      currentVersion: '0.1.0',
-      latestVersion: '0.1.1',
+      currentVersion: '0.1.1',
+      latestVersion: '0.1.2',
       updateAvailable: true,
-      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.2',
     })
 
     const { appClient } = await import('./client')
@@ -215,10 +215,10 @@ describe('appClient.saveExportConnections', () => {
     expect(invokeMock).toHaveBeenCalledWith('check_for_updates')
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result).toEqual({
-      currentVersion: '0.1.0',
-      latestVersion: '0.1.1',
+      currentVersion: '0.1.1',
+      latestVersion: '0.1.2',
       updateAvailable: true,
-      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.1',
+      downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.2',
     })
   })
 
@@ -235,7 +235,7 @@ describe('appClient.saveExportConnections', () => {
     const result = await appClient.checkForUpdates()
 
     expect(result).toEqual({
-      currentVersion: '0.1.0',
+      currentVersion: '0.1.1',
       latestVersion: '0.1.0',
       updateAvailable: false,
       downloadUrl: 'https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.0',
