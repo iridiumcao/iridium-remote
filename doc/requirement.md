@@ -32,6 +32,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - optional password saved to the system keyring
 - In the connection form, the `Group` field should suggest existing groups while still allowing users to type a new group name.
 - The sidebar must support:
+  - a branding block at the top of the left sidebar
   - collapsible groups
   - a real-time search box that matches connection name, host, and username
   - normal display mode
@@ -137,6 +138,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The UI supports English, Simplified Chinese, and Traditional Chinese.
 - The UI supports light and dark themes.
 - Desktop Language and Theme selection must live under the Settings menu and follow the active locale/theme labels.
+- Browser-only fallback mode may keep Language and Theme as inline controls near the top of the left sidebar because it does not have the native desktop app menu.
 - Theme and language selections persist between app launches.
 - The language selector always shows locale names in their native forms: `English`, `简体中文`, and `繁體中文`.
 

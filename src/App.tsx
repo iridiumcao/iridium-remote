@@ -754,6 +754,43 @@ function App() {
     })
   }
 
+  const sidebarTopContent = (
+    <div className="space-y-4">
+      <div>
+        <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isDark ? 'text-cyan-300' : 'text-cyan-600'}`}>
+          {t.appTagline}
+        </p>
+        <h1 className={`mt-2 text-2xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          {t.appTitle}
+        </h1>
+      </div>
+
+      {!isTauriRuntime ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <ToolbarSelect
+            isDark={isDark}
+            label={t.language}
+            onChange={(value) => {
+              handleSelectLocale(value as AppSettings['locale'])
+            }}
+            options={languageOptions}
+            value={settings.locale}
+          />
+
+          <ToolbarSelect
+            isDark={isDark}
+            label={t.theme}
+            onChange={(value) => {
+              handleSelectTheme(value as AppSettings['theme'])
+            }}
+            options={themeOptions}
+            value={settings.theme}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+
   return (
     <main className={`h-screen overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
       <input
@@ -767,45 +804,6 @@ function App() {
       />
 
       <div className="mx-auto flex h-full max-w-[1800px] min-h-0 flex-col overflow-hidden">
-        <header
-          className={`flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4 sm:px-6 ${
-            isDark ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div>
-            <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isDark ? 'text-cyan-300' : 'text-cyan-600'}`}>
-              {t.appTagline}
-            </p>
-            <h1 className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {t.appTitle}
-            </h1>
-          </div>
-
-          {!isTauriRuntime ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <ToolbarSelect
-                isDark={isDark}
-                label={t.language}
-                onChange={(value) => {
-                  handleSelectLocale(value as AppSettings['locale'])
-                }}
-                options={languageOptions}
-                value={settings.locale}
-              />
-
-              <ToolbarSelect
-                isDark={isDark}
-                label={t.theme}
-                onChange={(value) => {
-                  handleSelectTheme(value as AppSettings['theme'])
-                }}
-                options={themeOptions}
-                value={settings.theme}
-              />
-            </div>
-          ) : null}
-        </header>
-
         {error ? (
           <div
             className={`border-b px-5 py-3 text-sm sm:px-6 ${
@@ -879,6 +877,7 @@ function App() {
             onToggleGroup={handleToggleGroup}
             searchQuery={searchQuery}
             selectedConnectionId={selectedConnectionId}
+            topContent={sidebarTopContent}
             t={t}
             theme={settings.theme}
           />

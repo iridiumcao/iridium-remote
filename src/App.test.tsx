@@ -1,5 +1,6 @@
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { appClient } from './api/client'
@@ -71,12 +72,15 @@ vi.mock('./components/ConnectionList', () => ({
     connections,
     onSelect,
     selectedConnectionId,
+    topContent,
   }: {
     connections: ConnectionRecord[]
     onSelect: (connectionId: string) => void
     selectedConnectionId: string | null
+    topContent?: ReactNode
   }) => (
-    <div>
+    <aside data-testid="connection-list">
+      {topContent}
       <div data-testid="selected-connection">{selectedConnectionId ?? 'none'}</div>
       {connections.map((connection) => (
         <button
@@ -87,7 +91,7 @@ vi.mock('./components/ConnectionList', () => ({
           Select {connection.name}
         </button>
       ))}
-    </div>
+    </aside>
   ),
 }))
 
@@ -196,7 +200,8 @@ describe('App', () => {
   it('renders the shell and empty connection state', async () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'Iridium Remote' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('connection-list')).getByRole('heading', { name: 'Iridium Remote' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('connection-list')).getByText('Another Remote Tool')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
@@ -301,7 +306,7 @@ describe('App', () => {
     expect(screen.getByRole('option', { name: '繁體中文' })).toBeInTheDocument()
   })
 
-  it('keeps toolbar dropdown menus aligned with the active theme', async () => {
+  it('keeps browser-mode sidebar dropdown menus aligned with the active theme', async () => {
     const user = userEvent.setup()
     render(<App />)
 

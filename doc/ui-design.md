@@ -4,20 +4,19 @@
 
 The main window uses a two-column layout:
 
-- **Left sidebar:** connection search, display controls, grouped connection list
-- **Right workspace:** top toolbar, terminal tabs, terminal surface, session actions
+- **Left sidebar:** product branding, browser-only settings controls, connection search, display controls, grouped connection list
+- **Right workspace:** terminal tabs, terminal surface, session actions
 
 The window itself should not scroll. The sidebar scrolls independently, uses scrollbar styling that matches the active light or dark theme, and terminal scroll stays inside the xterm viewport.
 
-## Top toolbar
+## Sidebar top area
 
-The toolbar contains:
+The top of the left sidebar contains:
 
+- app tagline
 - app title
 
-In desktop builds, Language and Theme are not shown in the top toolbar. Browser-only fallback mode may keep inline controls because there is no desktop application menu there.
-
-The About action is not shown here.
+In desktop builds, Language and Theme are not shown here because they live in the top-level Settings menu. Browser-only fallback mode may keep inline controls under the branding block because there is no desktop application menu there.
 
 ## Application menu
 
@@ -49,14 +48,20 @@ Selecting external-link items opens the user’s browser. Selecting About opens 
 
 ## Sidebar design
 
-The sidebar contains four layers in order:
+The sidebar contains these layers in order:
 
-1. **Search field**
+1. **Branding block**
+   - app tagline and app title
+2. **Browser-only settings controls**
+   - shown only outside the desktop runtime
+   - language selector
+   - theme selector
+3. **Search field**
    - filters in real time by connection name, host, and username
-2. **Display mode control**
+4. **Display mode control**
    - normal mode
    - compact mode
-3. **Grouped connection list**
+5. **Grouped connection list**
    - collapsible group headers
    - ungrouped connections appear in an `Ungrouped` section
 
@@ -151,4 +156,4 @@ The project URL is an actionable link or button.
 
 - Light and dark themes apply consistently across sidebar surfaces, sidebar scrollbars, terminal tab-strip scrollbars, dialogs, themed popup menus, and terminal shell framing.
 - Language switching updates visible labels without changing layout structure.
-- Notices for import/export results, settings changes, and operational errors appear inline near the main workspace header.
+- Notices for import/export results, settings changes, and operational errors appear inline near the top of the main window content.

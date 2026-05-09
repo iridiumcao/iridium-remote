@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle } from '../lib/format'
 import type { AppTheme, ConnectionListDisplayMode, ConnectionRecord } from '../lib/types'
@@ -9,6 +16,7 @@ type ConnectionListProps = {
   connections: ConnectionRecord[]
   isLoading: boolean
   selectedConnectionId: string | null
+  topContent?: ReactNode
   activeConnectionCounts: Record<string, number>
   collapsedGroups: string[]
   displayMode: ConnectionListDisplayMode
@@ -43,6 +51,7 @@ export const ConnectionList = ({
   onToggleGroup,
   searchQuery,
   selectedConnectionId,
+  topContent,
   theme,
   t,
 }: ConnectionListProps) => {
@@ -257,6 +266,16 @@ export const ConnectionList = ({
         isDark ? 'border-white/10 bg-slate-900/60' : 'border-slate-200 bg-white/90'
       }`}
     >
+      {topContent ? (
+        <div
+          className={`border-b px-5 py-4 ${
+            isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50/80'
+          }`}
+        >
+          {topContent}
+        </div>
+      ) : null}
+
       <div
         className={`border-b px-5 py-4 ${
           isDark ? 'border-white/10' : 'border-slate-200'

@@ -25,12 +25,14 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform.
-In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Language and Theme submenus. Browser-only mock mode keeps inline Language and Theme controls because it does not have the native desktop application menu available.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Language and Theme submenus. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
 
 `src\components\ConnectionList.tsx` renders:
 
+- the product branding block at the top of the sidebar
+- browser-only fallback settings controls supplied by the parent
 - search query state from the parent
 - display mode switch
 - collapsible grouped connections
