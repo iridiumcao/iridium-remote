@@ -18,6 +18,8 @@ The toolbar contains:
 - theme switcher
 - new connection action
 
+The language switcher always lists locales by their native names: `English`, `简体中文`, and `繁體中文`.
+
 The About action is not shown here.
 
 ## Application menu

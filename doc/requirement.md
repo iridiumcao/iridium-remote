@@ -120,6 +120,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The UI supports English, Simplified Chinese, and Traditional Chinese.
 - The UI supports light and dark themes.
 - Theme and language selections persist between app launches.
+- The language selector always shows locale names in their native forms: `English`, `简体中文`, and `繁體中文`.
 
 ### Preferences and settings
 

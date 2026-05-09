@@ -146,6 +146,7 @@ describe('App', () => {
 
   afterEach(() => {
     cleanup()
+    window.localStorage.clear()
   })
 
   it('renders the shell and empty connection state', async () => {
@@ -224,5 +225,29 @@ describe('App', () => {
     fireEvent(terminal, event)
 
     expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('keeps native locale names in the language selector after switching languages', async () => {
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText('No saved connections yet')).toBeInTheDocument()
+    })
+
+    const languageSelect = screen.getAllByRole('combobox')[0]
+
+    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '简体中文' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '繁體中文' })).toBeInTheDocument()
+
+    fireEvent.change(languageSelect, { target: { value: 'zh-CN' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('语言')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '简体中文' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '繁體中文' })).toBeInTheDocument()
   })
 })

@@ -525,4 +525,12 @@ const dictionaries: Record<Locale, Dictionary> = {
   },
 }
 
+const localeDisplayNames: Record<Locale, string> = {
+  en: 'English',
+  'zh-CN': '简体中文',
+  'zh-TW': '繁體中文',
+}
+
 export const getTranslations = (locale: Locale) => dictionaries[locale]
+
+export const getLocaleDisplayName = (locale: Locale) => localeDisplayNames[locale]

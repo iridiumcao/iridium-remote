@@ -7,7 +7,7 @@ import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { TransferDialog } from './components/TransferDialog'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
-import { getTranslations } from './lib/i18n'
+import { getLocaleDisplayName, getTranslations } from './lib/i18n'
 import type {
   AppError,
   AppSettings,
@@ -663,9 +663,9 @@ function App() {
                 }
                 value={settings.locale}
               >
-                <option value="en">{t.english}</option>
-                <option value="zh-CN">{t.simplifiedChinese}</option>
-                <option value="zh-TW">{t.traditionalChinese}</option>
+                <option value="en">{getLocaleDisplayName('en')}</option>
+                <option value="zh-CN">{getLocaleDisplayName('zh-CN')}</option>
+                <option value="zh-TW">{getLocaleDisplayName('zh-TW')}</option>
               </select>
             </label>
 
