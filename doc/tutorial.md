@@ -176,7 +176,7 @@ cargo check --manifest-path src-tauri\Cargo.toml
 ## How releases are published
 
 - Cross-platform releases are built by GitHub Actions in `.github\workflows\release.yml`.
-- Push a version tag such as `v0.1.1` when `package.json`, `src-tauri\tauri.conf.json`, and `src-tauri\Cargo.toml` already agree on the same version.
+- Push a version tag such as `v0.1.2` when `package.json`, `src-tauri\tauri.conf.json`, and `src-tauri\Cargo.toml` already agree on the same version.
 - The workflow first runs lint, test, frontend build, and Rust backend checks, then publishes:
   - Windows installers
   - macOS Apple Silicon and Intel bundles

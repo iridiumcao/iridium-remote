@@ -130,7 +130,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 ## Releases
 
 - Cross-platform release publishing is defined in `.github\workflows\release.yml`.
-- Push a version tag such as `v0.1.1` to trigger the GitHub Actions release pipeline.
+- Push a version tag such as `v0.1.2` to trigger the GitHub Actions release pipeline.
 - Published assets cover:
   - Windows: NSIS installer and MSI package
   - macOS: Apple Silicon and Intel app / DMG bundles
