@@ -3164,6 +3164,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "keyring",
+ "keyring-core",
  "log",
  "portable-pty",
  "regex",

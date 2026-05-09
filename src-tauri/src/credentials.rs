@@ -181,7 +181,7 @@ mod platform {
 mod platform {
     use std::sync::OnceLock;
 
-    use keyring::Entry;
+    use keyring_core::{Entry, Error};
 
     use crate::errors::{AppError, AppResult};
 
@@ -222,7 +222,7 @@ mod platform {
 
         match entry.get_password() {
             Ok(password) => Ok(Some(password)),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(Error::NoEntry) => Ok(None),
             Err(error) => Err(AppError::keyring(
                 "Failed to load the password from the keyring.",
                 error.to_string(),
@@ -236,7 +236,7 @@ mod platform {
         })?;
 
         match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Ok(()) | Err(Error::NoEntry) => Ok(()),
             Err(error) => Err(AppError::keyring(
                 "Failed to delete the password from the keyring.",
                 error.to_string(),
