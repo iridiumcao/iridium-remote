@@ -99,6 +99,7 @@ Iridium Remote 面向日常遠端維運與開發流程，重點提供：
 | `doc\technical-design.md` | 執行架構與實作細節 |
 | `doc\data-model.md` | 持久化模型與備份格式 |
 | `doc\frontend-backend-contracts.md` | Tauri 命令與執行期事件約定 |
+| `doc\development-setup.md` | 跨平台開發環境設定指南 |
 | `doc\tutorial.md` | 程式碼庫導覽 |
 
 ## 開發

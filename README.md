@@ -102,6 +102,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 | `doc\technical-design.md` | Runtime architecture and implementation behavior |
 | `doc\data-model.md` | Persistence model and backup format |
 | `doc\frontend-backend-contracts.md` | Tauri commands and runtime events |
+| `doc\development-setup.md` | Cross-platform development environment setup guide |
 | `doc\tutorial.md` | Codebase walkthrough |
 
 ## Development
