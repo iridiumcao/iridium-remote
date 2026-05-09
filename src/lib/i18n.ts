@@ -56,6 +56,7 @@ type Dictionary = {
   darkTheme: string
   lightTheme: string
   menuFile: string
+  menuSettings: string
   menuHelp: string
   menuCheckForUpdate: string
   menuStarOnGitHub: string
@@ -181,6 +182,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     darkTheme: 'Dark',
     lightTheme: 'Light',
     menuFile: 'File',
+    menuSettings: 'Settings',
     menuHelp: 'Help',
     menuCheckForUpdate: 'Check for Update...',
     menuStarOnGitHub: '❤️ Star on GitHub',
@@ -317,6 +319,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     darkTheme: '深色',
     lightTheme: '浅色',
     menuFile: '文件',
+    menuSettings: '设置',
     menuHelp: '帮助',
     menuCheckForUpdate: '检查更新...',
     menuStarOnGitHub: '❤️ 在 GitHub 上点赞',
@@ -448,6 +451,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     lightTheme: '淺色',
     darkTheme: '深色',
     menuFile: '檔案',
+    menuSettings: '設定',
     menuNewConnection: '新增連線...',
     menuHelp: '說明',
     menuCheckForUpdate: '檢查更新...',

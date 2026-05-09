@@ -34,6 +34,8 @@ type NoticeState = {
 
 const NOTICE_AUTO_DISMISS_MS = 5_000
 const NOTICE_EXIT_TRANSITION_MS = 300
+const formatMenuSelectionLabel = (label: string, selected: boolean) =>
+  selected ? `✓ ${label}` : label
 
 const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
   const existing = sessions.find((session) => session.sessionId === nextState.sessionId)
@@ -63,6 +65,7 @@ const findOpenSessionForConnection = (
 }
 
 function App() {
+  const isTauriRuntime = appClient.isTauriRuntime()
   const [settings, setSettings] = useState<AppSettings>(defaultAppSettings)
   const [connections, setConnections] = useState<ConnectionRecord[]>([])
   const [sessions, setSessions] = useState<SessionState[]>([])
@@ -82,6 +85,7 @@ function App() {
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
+  const settingsRef = useRef(settings)
   const t = useMemo(() => getTranslations(settings.locale), [settings.locale])
   const isDark = settings.theme === 'dark'
 
@@ -159,6 +163,10 @@ function App() {
         : null,
     )
   }, [])
+
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
@@ -321,7 +329,7 @@ function App() {
     }
   }, [showNotice, t])
 
-  const saveSettings = async (nextSettings: AppSettings) => {
+  const saveSettings = useCallback(async (nextSettings: AppSettings) => {
     try {
       setError(null)
       const savedSettings = await appClient.updateAppSettings(nextSettings)
@@ -329,12 +337,15 @@ function App() {
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
-  }
+  }, [])
 
-  const updateSettings = (producer: (current: AppSettings) => AppSettings) => {
-    const nextSettings = producer(settings)
-    void saveSettings(nextSettings)
-  }
+  const updateSettings = useCallback(
+    (producer: (current: AppSettings) => AppSettings) => {
+      const nextSettings = producer(settingsRef.current)
+      void saveSettings(nextSettings)
+    },
+    [saveSettings],
+  )
 
   const refreshConnections = async () => {
     const loadedConnections = await appClient.listConnections()
@@ -532,8 +543,22 @@ function App() {
     importInputRef.current?.click()
   }, [])
 
+  const handleSelectLocale = useCallback(
+    (locale: AppSettings['locale']) => {
+      updateSettings((current) => ({ ...current, locale }))
+    },
+    [updateSettings],
+  )
+
+  const handleSelectTheme = useCallback(
+    (theme: AppSettings['theme']) => {
+      updateSettings((current) => ({ ...current, theme }))
+    },
+    [updateSettings],
+  )
+
   useEffect(() => {
-    if (!appClient.isTauriRuntime()) {
+    if (!isTauriRuntime) {
       return
     }
 
@@ -582,6 +607,35 @@ function App() {
                     void handleExitApp()
                   }
                 },
+              },
+            ],
+          },
+          {
+            text: t.menuSettings,
+            items: [
+              {
+                text: t.language,
+                items: languageOptions.map((option) => ({
+                  id: `settings-locale-${option.value}`,
+                  text: formatMenuSelectionLabel(option.label, settings.locale === option.value),
+                  action: () => {
+                    if (!disposed) {
+                      handleSelectLocale(option.value as AppSettings['locale'])
+                    }
+                  },
+                })),
+              },
+              {
+                text: t.theme,
+                items: themeOptions.map((option) => ({
+                  id: `settings-theme-${option.value}`,
+                  text: formatMenuSelectionLabel(option.label, settings.theme === option.value),
+                  action: () => {
+                    if (!disposed) {
+                      handleSelectTheme(option.value as AppSettings['theme'])
+                    }
+                  },
+                })),
               },
             ],
           },
@@ -642,9 +696,16 @@ function App() {
     handleExitApp,
     handleExportConnections,
     handleImportConnections,
+    handleSelectLocale,
+    handleSelectTheme,
+    isTauriRuntime,
+    languageOptions,
     openCreateDialog,
     openExternalUrl,
+    settings.locale,
+    settings.theme,
     t,
+    themeOptions,
   ])
 
   const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -720,35 +781,29 @@ function App() {
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <ToolbarSelect
-              isDark={isDark}
-              label={t.language}
-              onChange={(value) => {
-                updateSettings((current) => ({ ...current, locale: value as AppSettings['locale'] }))
-              }}
-              options={languageOptions}
-              value={settings.locale}
-            />
+          {!isTauriRuntime ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <ToolbarSelect
+                isDark={isDark}
+                label={t.language}
+                onChange={(value) => {
+                  handleSelectLocale(value as AppSettings['locale'])
+                }}
+                options={languageOptions}
+                value={settings.locale}
+              />
 
-            <ToolbarSelect
-              isDark={isDark}
-              label={t.theme}
-              onChange={(value) => {
-                updateSettings((current) => ({ ...current, theme: value as AppSettings['theme'] }))
-              }}
-              options={themeOptions}
-              value={settings.theme}
-            />
-
-            <button
-              type="button"
-              className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-              onClick={openCreateDialog}
-            >
-              {t.newConnection}
-            </button>
-          </div>
+              <ToolbarSelect
+                isDark={isDark}
+                label={t.theme}
+                onChange={(value) => {
+                  handleSelectTheme(value as AppSettings['theme'])
+                }}
+                options={themeOptions}
+                value={settings.theme}
+              />
+            </div>
+          ) : null}
         </header>
 
         {error ? (

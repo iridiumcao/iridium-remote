@@ -25,7 +25,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform.
-The top-toolbar Language and Theme controls use custom in-app dropdown menus rather than native browser selects so their opened menus stay aligned with the active light/dark theme on Linux and Ubuntu webviews.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Language and Theme submenus. Browser-only mock mode keeps inline Language and Theme controls because it does not have the native desktop application menu available.
 
 ### Sidebar
 
@@ -63,7 +63,7 @@ The workspace header itself is intentionally minimal: it shows only the active S
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
-In packaged Tauri builds, the File menu also exposes new connection, import, export, and exit actions alongside the in-window controls.
+In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/exit actions, while Settings owns Language and Theme selection.
 
 ## Backend architecture
 

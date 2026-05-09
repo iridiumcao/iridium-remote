@@ -14,12 +14,8 @@ The window itself should not scroll. The sidebar scrolls independently, uses scr
 The toolbar contains:
 
 - app title
-- language switcher
-- theme switcher
-- new connection action
 
-The language switcher always lists locales by their native names: `English`, `简体中文`, and `繁體中文`.
-The Language and Theme controls use custom in-app dropdown menus so the opened menu follows the active app theme instead of the host OS default dropdown theme.
+In desktop builds, Language and Theme are not shown in the top toolbar. Browser-only fallback mode may keep inline controls because there is no desktop application menu there.
 
 The About action is not shown here.
 
@@ -38,6 +34,16 @@ The About action is not shown here.
 - Report Issue
 - Check for Update...
 - About
+
+### Settings
+
+- Language
+  - English
+  - 简体中文
+  - 繁體中文
+- Theme
+  - Dark
+  - Light
 
 Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog. Selecting Check for Update checks the latest GitHub release and shows an in-app status message; when a newer version exists, that message includes an actionable release download link. The status banner auto-dismisses after about 5 seconds with a smooth fade-out.
 

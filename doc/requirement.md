@@ -99,6 +99,20 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The app should suppress the default browser-like context menu across the main window.
 - Right-clicking inside the terminal workspace should open a localized, theme-aware terminal menu instead of the browser menu.
 
+#### Settings menu
+
+- The Settings menu must contain:
+  - `Language`
+  - `Theme`
+- `Language` contains:
+  - `English`
+  - `简体中文`
+  - `繁體中文`
+- `Theme` contains:
+  - `Dark`
+  - `Light`
+- Desktop builds should expose Language and Theme through the top-level Settings menu instead of top-toolbar controls.
+
 #### Help menu
 
 - The Help menu must contain:
@@ -122,7 +136,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 
 - The UI supports English, Simplified Chinese, and Traditional Chinese.
 - The UI supports light and dark themes.
-- The Language and Theme switchers must use theme-aware in-app menus that follow the active light/dark theme, including Ubuntu desktop builds.
+- Desktop Language and Theme selection must live under the Settings menu and follow the active locale/theme labels.
 - Theme and language selections persist between app launches.
 - The language selector always shows locale names in their native forms: `English`, `简体中文`, and `繁體中文`.
 

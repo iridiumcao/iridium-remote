@@ -21,6 +21,7 @@ const tauriMenuMocks = vi.hoisted(() => ({
 
 type MenuItemMock = {
   id?: string
+  text?: string
   items?: MenuItemMock[]
   action?: () => void
 }
@@ -200,6 +201,8 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
     })
+
+    expect(screen.queryByRole('button', { name: 'New Connection' })).not.toBeInTheDocument()
   })
 
   it('switches to an existing session tab when its connection is single-clicked', async () => {
@@ -358,5 +361,47 @@ describe('App', () => {
     })
 
     expect(screen.queryByTestId('app-notice')).not.toBeInTheDocument()
+  })
+
+  it('moves language and theme into a top-level settings menu for desktop runtime', async () => {
+    vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(tauriMenuMocks.menuSetAsAppMenuMock).toHaveBeenCalled()
+    })
+
+    expect(tauriMenuMocks.lastMenuItems.some((item) => item.text === 'Settings')).toBe(true)
+    expect(screen.queryByRole('combobox', { name: 'Language' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Theme' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New Connection' })).not.toBeInTheDocument()
+
+    const selectLanguageAction = findMenuAction(tauriMenuMocks.lastMenuItems, 'settings-locale-zh-CN')
+    expect(selectLanguageAction).not.toBeNull()
+
+    await act(async () => {
+      selectLanguageAction?.()
+      await Promise.resolve()
+    })
+
+    expect(appClient.updateAppSettings).toHaveBeenCalledWith({
+      ...defaultAppSettings,
+      locale: 'zh-CN',
+    })
+
+    const selectThemeAction = findMenuAction(tauriMenuMocks.lastMenuItems, 'settings-theme-light')
+    expect(selectThemeAction).not.toBeNull()
+
+    await act(async () => {
+      selectThemeAction?.()
+      await Promise.resolve()
+    })
+
+    expect(appClient.updateAppSettings).toHaveBeenLastCalledWith({
+      ...defaultAppSettings,
+      locale: 'zh-CN',
+      theme: 'light',
+    })
   })
 })
