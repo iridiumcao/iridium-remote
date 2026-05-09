@@ -38,7 +38,7 @@ The About action is not shown here.
 - Check for Update...
 - About
 
-Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog. Selecting Check for Update checks the latest GitHub release and shows an in-app status message; when a newer version exists, that message includes an actionable release download link.
+Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog. Selecting Check for Update checks the latest GitHub release and shows an in-app status message; when a newer version exists, that message includes an actionable release download link. The status banner auto-dismisses after about 5 seconds with a smooth fade-out.
 
 ## Sidebar design
 

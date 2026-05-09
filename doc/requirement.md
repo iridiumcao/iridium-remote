@@ -106,6 +106,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - `About`
 - `Check for Update...` checks the latest GitHub release and tells the user whether an update is available.
 - When an update is available, the result must include the release download page link.
+- The update-check status banner appears in the main window, stays visible for about 5 seconds, and then dismisses with a smooth fade-out.
 - `❤️ Star on GitHub` opens `https://github.com/iridiumcao/iridium-remote`
 - `Report Issue` opens `https://github.com/iridiumcao/iridium-remote/issues`
 - The About entry appears only in the Help menu.

@@ -61,7 +61,7 @@ The workspace header itself is intentionally minimal: it shows only the active S
 - Tauri mode calls backend commands
 - browser mode uses a mock implementation for UI-only development
 
-The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available.
+The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
 In packaged Tauri builds, the File menu also exposes new connection, import, export, and exit actions alongside the in-window controls.
 
 ## Backend architecture

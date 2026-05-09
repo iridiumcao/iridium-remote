@@ -1,7 +1,8 @@
-import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { appClient } from './api/client'
 import { defaultAppSettings } from './lib/types'
 import type { ConnectionRecord, SessionState } from './lib/types'
 
@@ -11,6 +12,28 @@ const appClientMocks = vi.hoisted(() => ({
   getAppSettingsMock: vi.fn<() => Promise<typeof defaultAppSettings>>(),
   onSessionStateMock: vi.fn(),
   onSessionRemovedMock: vi.fn(),
+}))
+
+const tauriMenuMocks = vi.hoisted(() => ({
+  lastMenuItems: [] as MenuItemMock[],
+  menuSetAsAppMenuMock: vi.fn(),
+}))
+
+type MenuItemMock = {
+  id?: string
+  items?: MenuItemMock[]
+  action?: () => void
+}
+
+vi.mock('@tauri-apps/api/menu', () => ({
+  Menu: {
+    new: vi.fn(async ({ items }: { items: MenuItemMock[] }) => {
+      tauriMenuMocks.lastMenuItems = items
+      return {
+        setAsAppMenu: tauriMenuMocks.menuSetAsAppMenuMock,
+      }
+    }),
+  },
 }))
 
 vi.mock('./api/client', () => ({
@@ -93,6 +116,23 @@ vi.mock('./components/TerminalWorkspace', () => ({
   ),
 }))
 
+const findMenuAction = (items: MenuItemMock[], id: string): (() => void) | null => {
+  for (const item of items) {
+    if (item.id === id && item.action) {
+      return item.action
+    }
+
+    if (item.items) {
+      const nestedAction = findMenuAction(item.items, id)
+      if (nestedAction) {
+        return nestedAction
+      }
+    }
+  }
+
+  return null
+}
+
 const connections: ConnectionRecord[] = [
   {
     id: 'connection-1',
@@ -137,15 +177,18 @@ const sessionBeta: SessionState = {
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useRealTimers()
     appClientMocks.listConnectionsMock.mockResolvedValue(connections)
     appClientMocks.getSessionStatesMock.mockResolvedValue([])
     appClientMocks.getAppSettingsMock.mockResolvedValue(defaultAppSettings)
     appClientMocks.onSessionStateMock.mockResolvedValue(() => {})
     appClientMocks.onSessionRemovedMock.mockResolvedValue(() => {})
+    vi.mocked(appClient.updateAppSettings).mockImplementation(async (settings) => settings)
   })
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     window.localStorage.clear()
   })
 
@@ -231,7 +274,7 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText('No saved connections yet')).toBeInTheDocument()
+      expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
     })
 
     const languageSelect = screen.getAllByRole('combobox')[0]
@@ -249,5 +292,46 @@ describe('App', () => {
     expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '简体中文' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '繁體中文' })).toBeInTheDocument()
+  })
+
+  it('auto-dismisses the update notice after a short delay and plays the exit transition', async () => {
+    vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
+    vi.mocked(appClient.checkForUpdates).mockResolvedValue({
+      currentVersion: '0.1.1',
+      latestVersion: '0.1.1',
+      updateAvailable: false,
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(tauriMenuMocks.menuSetAsAppMenuMock).toHaveBeenCalled()
+    })
+
+    const checkForUpdateAction = findMenuAction(tauriMenuMocks.lastMenuItems, 'check-for-update')
+    expect(checkForUpdateAction).not.toBeNull()
+
+    vi.useFakeTimers()
+
+    await act(async () => {
+      checkForUpdateAction?.()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('You are up to date. Current version: v0.1.1.')).toBeInTheDocument()
+    const notice = screen.getByTestId('app-notice')
+    expect(notice).toHaveClass('opacity-100')
+
+    act(() => {
+      vi.advanceTimersByTime(5_000)
+    })
+
+    expect(screen.getByTestId('app-notice')).toHaveClass('opacity-0')
+
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+
+    expect(screen.queryByTestId('app-notice')).not.toBeInTheDocument()
   })
 })

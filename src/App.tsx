@@ -22,12 +22,17 @@ import type {
 import { defaultAppSettings } from './lib/types'
 
 type NoticeState = {
+  isVisible: boolean
   message: string
   link?: {
     href: string
     label: string
   }
+  autoDismissMs?: number
 }
+
+const NOTICE_AUTO_DISMISS_MS = 5_000
+const NOTICE_EXIT_TRANSITION_MS = 300
 
 const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
   const existing = sessions.find((session) => session.sessionId === nextState.sessionId)
@@ -121,6 +126,24 @@ function App() {
 
   const noticeLink = notice?.link ?? null
 
+  const showNotice = useCallback((nextNotice: Omit<NoticeState, 'isVisible'>) => {
+    setNotice({
+      ...nextNotice,
+      isVisible: true,
+    })
+  }, [])
+
+  const hideNotice = useCallback(() => {
+    setNotice((current) =>
+      current
+        ? {
+            ...current,
+            isVisible: false,
+          }
+        : null,
+    )
+  }, [])
+
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
       event.preventDefault()
@@ -131,6 +154,34 @@ function App() {
       document.removeEventListener('contextmenu', handleContextMenu)
     }
   }, [])
+
+  useEffect(() => {
+    if (!notice?.autoDismissMs || !notice.isVisible) {
+      return
+    }
+
+    const dismissTimer = window.setTimeout(() => {
+      hideNotice()
+    }, notice.autoDismissMs)
+
+    return () => {
+      window.clearTimeout(dismissTimer)
+    }
+  }, [hideNotice, notice])
+
+  useEffect(() => {
+    if (!notice || notice.isVisible) {
+      return
+    }
+
+    const removeTimer = window.setTimeout(() => {
+      setNotice((current) => (current === notice ? null : current))
+    }, NOTICE_EXIT_TRANSITION_MS)
+
+    return () => {
+      window.clearTimeout(removeTimer)
+    }
+  }, [notice])
 
   useEffect(() => {
     let active = true
@@ -224,21 +275,25 @@ function App() {
   const handleCheckForUpdates = useCallback(async () => {
     try {
       setError(null)
-      setNotice({ message: t.checkingForUpdates })
+      showNotice({ message: t.checkingForUpdates })
 
       const result = await appClient.checkForUpdates()
       if (result.updateAvailable && result.downloadUrl) {
-        setNotice({
+        showNotice({
           message: t.updateAvailable(result.latestVersion, result.currentVersion),
           link: {
             href: result.downloadUrl,
             label: t.downloadUpdate(result.latestVersion),
           },
+          autoDismissMs: NOTICE_AUTO_DISMISS_MS,
         })
         return
       }
 
-      setNotice({ message: t.updateUpToDate(result.currentVersion) })
+      showNotice({
+        message: t.updateUpToDate(result.currentVersion),
+        autoDismissMs: NOTICE_AUTO_DISMISS_MS,
+      })
     } catch (cause) {
       const normalized = appClient.normalizeError(cause)
       setNotice(null)
@@ -248,7 +303,7 @@ function App() {
         details: normalized.message,
       })
     }
-  }, [t])
+  }, [showNotice, t])
 
   const saveSettings = async (nextSettings: AppSettings) => {
     try {
@@ -434,7 +489,7 @@ function App() {
         connectionId: activeConnection.id,
         ...input,
       })
-      setNotice({ message: result.message })
+      showNotice({ message: result.message })
     } catch (cause) {
       const normalized = appClient.normalizeError(cause)
       throw new Error(normalized.message, { cause })
@@ -450,12 +505,12 @@ function App() {
       if (!saved) {
         return
       }
-      setNotice({ message: t.exportConnectionsSuccess })
+      showNotice({ message: t.exportConnectionsSuccess })
     } catch (cause) {
       setError(appClient.normalizeError(cause))
-      setNotice({ message: t.exportConnectionsFailed })
+      showNotice({ message: t.exportConnectionsFailed })
     }
-  }, [t.exportConnectionsFailed, t.exportConnectionsSuccess])
+  }, [showNotice, t.exportConnectionsFailed, t.exportConnectionsSuccess])
 
   const handleImportConnections = useCallback(() => {
     importInputRef.current?.click()
@@ -592,7 +647,7 @@ function App() {
       await refreshConnections()
       const nextSettings = await appClient.getAppSettings()
       setSettings(nextSettings)
-      setNotice(
+      showNotice(
         {
           message: getTranslations(nextSettings.locale).importConnectionsSuccess(
             result.imported,
@@ -716,26 +771,34 @@ function App() {
 
         {!error && notice ? (
           <div
-            className={`border-b px-5 py-3 text-sm sm:px-6 ${
-              isDark
-                ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-100'
-                : 'border-cyan-200 bg-cyan-50 text-cyan-700'
+            aria-live="polite"
+            className={`overflow-hidden transition-all duration-300 ease-out ${
+              notice.isVisible ? 'max-h-24 translate-y-0 opacity-100' : 'max-h-0 -translate-y-2 opacity-0'
             }`}
+            data-testid="app-notice"
           >
-            <span>{notice.message}</span>
-            {noticeLink ? (
-              <button
-                type="button"
-                className={`ml-3 font-semibold underline underline-offset-2 ${
-                  isDark ? 'text-cyan-200 hover:text-cyan-100' : 'text-cyan-700 hover:text-cyan-900'
-                }`}
-                onClick={() => {
-                  void openExternalUrl(noticeLink.href)
-                }}
-              >
-                {noticeLink.label}
-              </button>
-            ) : null}
+            <div
+              className={`border-b px-5 py-3 text-sm sm:px-6 ${
+                isDark
+                  ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-100'
+                  : 'border-cyan-200 bg-cyan-50 text-cyan-700'
+              }`}
+            >
+              <span>{notice.message}</span>
+              {noticeLink ? (
+                <button
+                  type="button"
+                  className={`ml-3 font-semibold underline underline-offset-2 ${
+                    isDark ? 'text-cyan-200 hover:text-cyan-100' : 'text-cyan-700 hover:text-cyan-900'
+                  }`}
+                  onClick={() => {
+                    void openExternalUrl(noticeLink.href)
+                  }}
+                >
+                  {noticeLink.label}
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
