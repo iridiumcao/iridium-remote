@@ -89,6 +89,7 @@ The keyring stores:
 - passwords only
 
 This rule is important: **passwords never go into SQLite and never go into exported backups**.
+On Linux and Ubuntu desktop builds, the backend explicitly uses the Secret Service system keyring path for saved passwords.
 
 ## Understanding recent product features
 

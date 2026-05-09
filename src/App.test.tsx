@@ -271,27 +271,52 @@ describe('App', () => {
   })
 
   it('keeps native locale names in the language selector after switching languages', async () => {
+    const user = userEvent.setup()
     render(<App />)
 
     await waitFor(() => {
       expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
     })
 
-    const languageSelect = screen.getAllByRole('combobox')[0]
+    await user.click(screen.getByRole('combobox', { name: 'Language' }))
 
+    expect(screen.getByRole('listbox')).toHaveClass('bg-slate-900')
     expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '简体中文' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '繁體中文' })).toBeInTheDocument()
 
-    fireEvent.change(languageSelect, { target: { value: 'zh-CN' } })
+    await user.click(screen.getByRole('option', { name: '简体中文' }))
 
     await waitFor(() => {
       expect(screen.getByText('语言')).toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole('combobox', { name: '语言' }))
+
     expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '简体中文' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '繁體中文' })).toBeInTheDocument()
+  })
+
+  it('keeps toolbar dropdown menus aligned with the active theme', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
+    })
+
+    await user.click(screen.getByRole('combobox', { name: 'Theme' }))
+    expect(screen.getByRole('listbox')).toHaveClass('bg-slate-900')
+
+    await user.click(screen.getByRole('option', { name: 'Light' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Iridium Remote' }).closest('main')).toHaveClass('bg-slate-100')
+    })
+
+    await user.click(screen.getByRole('combobox', { name: 'Theme' }))
+    expect(screen.getByRole('listbox')).toHaveClass('bg-white')
   })
 
   it('auto-dismisses the update notice after a short delay and plays the exit transition', async () => {

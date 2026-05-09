@@ -50,6 +50,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The application uses the system `ssh` client.
 - Password entry through terminal prompts must work without any custom password dialog.
 - Passwords may be entered in the connection form and stored in the system keyring.
+- Ubuntu and Linux desktop builds must store saved passwords through the desktop system keyring / Secret Service integration.
 - Passwords must never be stored in SQLite.
 - Passwords must never be included in export files.
 - Keyring entries use:
@@ -61,6 +62,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The application supports multiple active sessions at the same time.
 - Each active session is represented by a terminal tab.
 - Session output and input must remain isolated per tab.
+- When the remote shell becomes available, the tab status must switch from `connecting` to `connected` promptly and the connecting overlay must disappear, including for common themed shell prompts.
 - Disconnects and session exits should be surfaced clearly without crashing the app.
 - The terminal area should be the only vertically scrolling area on the right side of the window.
 
@@ -120,6 +122,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 
 - The UI supports English, Simplified Chinese, and Traditional Chinese.
 - The UI supports light and dark themes.
+- The Language and Theme switchers must use theme-aware in-app menus that follow the active light/dark theme, including Ubuntu desktop builds.
 - Theme and language selections persist between app launches.
 - The language selector always shows locale names in their native forms: `English`, `简体中文`, and `繁體中文`.
 

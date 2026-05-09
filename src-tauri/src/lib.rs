@@ -256,7 +256,7 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
     let database = Database::new(app_data_dir.join("iridium-remote.db"));
     database.initialize()?;
 
-    let credentials = credentials::CredentialStore::new();
+    let credentials = credentials::CredentialStore::new()?;
     let sessions = SessionManager::new();
 
     Ok(Arc::new(AppState {

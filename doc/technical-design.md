@@ -25,6 +25,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform.
+The top-toolbar Language and Theme controls use custom in-app dropdown menus rather than native browser selects so their opened menus stay aligned with the active light/dark theme on Linux and Ubuntu webviews.
 
 ### Sidebar
 
@@ -102,8 +103,12 @@ Responsibilities:
 
 Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
 When a saved password exists, the session manager queues it and writes it back into the PTY after detecting a password prompt in the terminal output stream.
-The same output stream is inspected for immediate OpenSSH connection failures so a failed session can switch from `connecting` to `error` quickly and surface the SSH error text instead of leaving the loading state running.
+The same output stream is inspected for immediate OpenSSH connection failures so a failed session can switch from `connecting` to `error` quickly and surface the SSH error text instead of leaving the loading state running. The prompt detector also recognizes a wider range of shell prompt endings, including common themed Unicode prompts, so successful logins do not remain stuck in the `connecting` state after the shell becomes interactive.
 The backend also watches the SSH child-process lifecycle directly instead of relying only on PTY reads, so a tab can switch from `connected` to `disconnected` promptly when the remote host shuts down and the SSH process exits without delivering more terminal output through the PTY stream.
+
+### Credentials
+
+`src-tauri\src\credentials.rs` routes password storage to the operating system keyring. Windows builds use Credential Manager directly, while non-Windows builds initialize the `keyring` crate against the desktop native store and force Linux/Ubuntu builds onto the Secret Service backend instead of the kernel keyutils store so saved passwords behave like a normal desktop keyring feature.
 
 ### File transfer
 

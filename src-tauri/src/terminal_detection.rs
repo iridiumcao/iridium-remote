@@ -58,7 +58,9 @@ fn ansi_escape_re() -> &'static Regex {
 
 fn shell_prompt_re() -> &'static Regex {
     static SHELL_PROMPT_RE: OnceLock<Regex> = OnceLock::new();
-    SHELL_PROMPT_RE.get_or_init(|| Regex::new(r"(?m)(?:^|[\r\n])[^\r\n]*[\$#>%]\s*$").unwrap())
+    SHELL_PROMPT_RE.get_or_init(|| {
+        Regex::new(r"(?m)(?:^|[\r\n])[^\r\n]*(?:[\$#>%]|[❯➜➤❱›»λ])\s*$").unwrap()
+    })
 }
 
 fn connection_error_re() -> &'static Regex {
@@ -101,6 +103,15 @@ mod tests {
         let mut recent_output = String::new();
         append_recent_output(&mut recent_output, "Last login: today\r\n");
         append_recent_output(&mut recent_output, "user@host:~$ ");
+
+        assert!(contains_shell_prompt(&recent_output));
+    }
+
+    #[test]
+    fn detects_themed_shell_prompts_with_ansi_sequences() {
+        let mut recent_output = String::new();
+        append_recent_output(&mut recent_output, "\u{1b}]0;user@host: ~\u{7}");
+        append_recent_output(&mut recent_output, "\u{1b}[?2004h❯ ");
 
         assert!(contains_shell_prompt(&recent_output));
     }

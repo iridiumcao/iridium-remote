@@ -21,9 +21,9 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 | Area | What it includes |
 | --- | --- |
 | **Connection management** | Create, edit, duplicate, delete, group, search, import, and export saved SSH connections |
-| **Terminal sessions** | PTY-backed system `ssh`, multiple concurrent tabs, per-tab isolated I/O, tab switching without replaying unwanted input |
+| **Terminal sessions** | PTY-backed system `ssh`, multiple concurrent tabs, per-tab isolated I/O, tab switching without replaying unwanted input, prompt detection that clears the connecting state for common shell themes |
 | **Connection UX** | Collapsible groups, normal/compact sidebar modes, right-click actions in compact mode, double-click to open a new session |
-| **Authentication** | Optional password saving in the OS keyring, terminal-native password prompts, support for non-interactive SSH key auth when system SSH config allows it |
+| **Authentication** | Optional password saving in the OS keyring, terminal-native password prompts, Linux Secret Service keyring support, and non-interactive SSH key auth when system SSH config allows it |
 | **File transfer** | Upload/download files and directories, local file/folder pickers, remote SFTP path browser |
 | **Preferences** | Light/dark theme, English / Simplified Chinese / Traditional Chinese, persisted sidebar state and display mode |
 | **Reliability** | Clear session status updates, immediate connection failure feedback, disconnect detection when the SSH process exits, session cleanup on close, single-instance desktop behavior |
@@ -53,12 +53,14 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 - Double-click a connection row to open a fresh session tab
 - Use a localized terminal context menu for copy, paste, and select-all
 - Stop the connecting state immediately when OpenSSH reports a startup failure
+- Detect common shell prompt styles so a successful login switches the tab from `Connecting` to `Connected` promptly
 
 ### Authentication and security
 
 - Use the system OpenSSH `ssh` client for terminal sessions
 - Keep password prompts inside the terminal instead of showing a custom password dialog
 - Optionally save passwords in the system keyring
+- Use the desktop Secret Service keyring backend for saved passwords on Linux and Ubuntu builds
 - Support saved-password auth and non-interactive SSH-key auth where available
 
 ### File transfer
@@ -72,6 +74,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 ### Desktop UX
 
 - Light and dark themes across the app UI
+- Theme-aware in-app toolbar dropdown menus for language and theme selection
 - Theme-aware sidebar scrollbar styling
 - English, Simplified Chinese, and Traditional Chinese UI
 - Manual update checks from **Help -> Check for Update...** against the latest GitHub release, with a release-page download link when a newer version exists and an in-app banner that auto-dismisses after about 5 seconds

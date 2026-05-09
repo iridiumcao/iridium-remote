@@ -6,8 +6,9 @@ const SERVICE_NAME: &str = "iridium-remote";
 pub struct CredentialStore;
 
 impl CredentialStore {
-    pub fn new() -> Self {
-        Self
+    pub fn new() -> AppResult<Self> {
+        platform::initialize()?;
+        Ok(Self)
     }
 
     pub fn get_for_connection(&self, connection: &ConnectionRecord) -> AppResult<Option<String>> {
@@ -58,6 +59,10 @@ mod platform {
     use crate::errors::{AppError, AppResult};
 
     use super::SERVICE_NAME;
+
+    pub fn initialize() -> AppResult<()> {
+        Ok(())
+    }
 
     pub fn set_by_account(account: &str, password: &str) -> AppResult<()> {
         let mut target_name = utf16_null_terminated(&target_name(account));
@@ -174,11 +179,28 @@ mod platform {
 
 #[cfg(not(target_os = "windows"))]
 mod platform {
+    use std::sync::OnceLock;
+
     use keyring::Entry;
 
     use crate::errors::{AppError, AppResult};
 
     use super::SERVICE_NAME;
+
+    pub fn initialize() -> AppResult<()> {
+        static INIT_RESULT: OnceLock<AppResult<()>> = OnceLock::new();
+
+        INIT_RESULT
+            .get_or_init(|| {
+                keyring::use_native_store(true).map_err(|error| {
+                    AppError::keyring(
+                        "Failed to initialize the Linux system keyring.",
+                        error.to_string(),
+                    )
+                })
+            })
+            .clone()
+    }
 
     pub fn set_by_account(account: &str, password: &str) -> AppResult<()> {
         let entry = Entry::new(SERVICE_NAME, account).map_err(|error| {
@@ -231,7 +253,7 @@ mod tests {
 
     #[test]
     fn windows_credentials_round_trip() {
-        let store = CredentialStore::new();
+        let store = CredentialStore::new().unwrap();
         let account = format!("test-user-{}@example.com", Uuid::new_v4());
         let password = "round-trip-secret";
 

@@ -5,6 +5,7 @@ import { ConnectionFormDialog } from './components/ConnectionFormDialog'
 import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
+import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
 import { getLocaleDisplayName, getTranslations } from './lib/i18n'
@@ -125,6 +126,21 @@ function App() {
   )
 
   const noticeLink = notice?.link ?? null
+  const languageOptions = useMemo(
+    () => [
+      { value: 'en', label: getLocaleDisplayName('en') },
+      { value: 'zh-CN', label: getLocaleDisplayName('zh-CN') },
+      { value: 'zh-TW', label: getLocaleDisplayName('zh-TW') },
+    ],
+    [],
+  )
+  const themeOptions = useMemo(
+    () => [
+      { value: 'dark', label: t.darkTheme },
+      { value: 'light', label: t.lightTheme },
+    ],
+    [t.darkTheme, t.lightTheme],
+  )
 
   const showNotice = useCallback((nextNotice: Omit<NoticeState, 'isVisible'>) => {
     setNotice({
@@ -705,42 +721,25 @@ function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              <span className="mr-2">{t.language}</span>
-              <select
-                className={`rounded-lg border px-3 py-2 ${
-                  isDark
-                    ? 'border-white/10 bg-slate-900 text-slate-100'
-                    : 'border-slate-200 bg-white text-slate-900'
-                }`}
-                onChange={(event) =>
-                  updateSettings((current) => ({ ...current, locale: event.target.value as AppSettings['locale'] }))
-                }
-                value={settings.locale}
-              >
-                <option value="en">{getLocaleDisplayName('en')}</option>
-                <option value="zh-CN">{getLocaleDisplayName('zh-CN')}</option>
-                <option value="zh-TW">{getLocaleDisplayName('zh-TW')}</option>
-              </select>
-            </label>
+            <ToolbarSelect
+              isDark={isDark}
+              label={t.language}
+              onChange={(value) => {
+                updateSettings((current) => ({ ...current, locale: value as AppSettings['locale'] }))
+              }}
+              options={languageOptions}
+              value={settings.locale}
+            />
 
-            <label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              <span className="mr-2">{t.theme}</span>
-              <select
-                className={`rounded-lg border px-3 py-2 ${
-                  isDark
-                    ? 'border-white/10 bg-slate-900 text-slate-100'
-                    : 'border-slate-200 bg-white text-slate-900'
-                }`}
-                onChange={(event) =>
-                  updateSettings((current) => ({ ...current, theme: event.target.value as AppSettings['theme'] }))
-                }
-                value={settings.theme}
-              >
-                <option value="dark">{t.darkTheme}</option>
-                <option value="light">{t.lightTheme}</option>
-              </select>
-            </label>
+            <ToolbarSelect
+              isDark={isDark}
+              label={t.theme}
+              onChange={(value) => {
+                updateSettings((current) => ({ ...current, theme: value as AppSettings['theme'] }))
+              }}
+              options={themeOptions}
+              value={settings.theme}
+            />
 
             <button
               type="button"

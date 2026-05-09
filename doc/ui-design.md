@@ -19,6 +19,7 @@ The toolbar contains:
 - new connection action
 
 The language switcher always lists locales by their native names: `English`, `简体中文`, and `繁體中文`.
+The Language and Theme controls use custom in-app dropdown menus so the opened menu follows the active app theme instead of the host OS default dropdown theme.
 
 The About action is not shown here.
 
@@ -103,7 +104,7 @@ The right side contains:
 - active terminal area
 - empty state when no session is active
 
-Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session.
+Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session. When the remote shell is ready, the tab status changes to `Connected` and the connecting overlay disappears even for common themed prompt styles.
 
 ## Dialogs
 
