@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release workflows must run from a version tag like v0.1.2."
+            echo "Release workflows must run from a version tag like v0.1.3."
             exit 1
           fi
 

@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn extracts_release_tag_from_redirect_url() {
         assert_eq!(
-            release_tag_from_url("https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.2"),
-            Some("v0.1.2")
+            release_tag_from_url("https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.3"),
+            Some("v0.1.3")
         );
     }
 
@@ -162,14 +162,14 @@ mod tests {
     fn ignores_query_parameters_when_extracting_release_tag() {
         assert_eq!(
             release_tag_from_url(
-                "https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.2?source=app"
+                "https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.3?source=app"
             ),
-            Some("v0.1.2")
+            Some("v0.1.3")
         );
     }
 
     #[test]
     fn normalizes_semver_release_tags() {
-        assert_eq!(normalize_version("v0.1.2"), Some(String::from("0.1.2")));
+        assert_eq!(normalize_version("v0.1.3"), Some(String::from("0.1.3")));
     }
 }
