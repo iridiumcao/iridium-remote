@@ -78,6 +78,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
 - The file transfer dialog should support browsing for local file paths and local directory paths with native pickers.
 - The file transfer dialog should support browsing remote files and folders through a lightweight SFTP-backed picker.
 - Remote browsing should work with non-interactive SSH authentication such as configured SSH keys, not only with saved passwords.
+- The remote file browser should hide hidden files and folders whose names start with `.` by default.
 - Download rules:
   - Remote Path accepts files and directories.
   - Local Path defaults to a directory.

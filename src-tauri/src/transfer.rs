@@ -189,6 +189,7 @@ pub async fn list_remote_directory(
             .map_err(|error| {
                 AppError::internal("Failed to list the remote path.", error.to_string())
             })?
+            .filter(|entry| is_visible_remote_entry(&entry.file_name()))
             .map(|entry| RemotePathEntry {
                 name: entry.file_name(),
                 path: join_remote_path(&current_path, &entry.file_name()),
@@ -786,9 +787,15 @@ fn join_remote_path(base: &str, name: &str) -> String {
     }
 }
 
+fn is_visible_remote_entry(name: &str) -> bool {
+    !name.starts_with('.')
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{default_identity_files, join_remote_path, remote_path_file_name};
+    use super::{
+        default_identity_files, is_visible_remote_entry, join_remote_path, remote_path_file_name,
+    };
 
     #[test]
     fn joins_remote_paths_from_root() {
@@ -820,5 +827,12 @@ mod tests {
         for path in default_identity_files() {
             assert!(path.to_string_lossy().contains(".ssh"));
         }
+    }
+
+    #[test]
+    fn hides_dot_prefixed_remote_entries() {
+        assert!(is_visible_remote_entry("notes.txt"));
+        assert!(!is_visible_remote_entry(".ssh"));
+        assert!(!is_visible_remote_entry(".env"));
     }
 }

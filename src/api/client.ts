@@ -732,6 +732,8 @@ const normalizeMockRemotePath = (path?: string) => {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
 }
 
+const isVisibleRemoteEntry = (entry: RemotePathListing['entries'][number]) => !entry.name.startsWith('.')
+
 const getMockRemoteEntries = (path: string): RemotePathListing['entries'] => {
   const normalized = normalizeMockRemotePath(path)
 
@@ -740,23 +742,27 @@ const getMockRemoteEntries = (path: string): RemotePathListing['entries'] => {
       return [
         { name: 'home', path: '/home', isDirectory: true },
         { name: 'var', path: '/var', isDirectory: true },
+        { name: '.ssh', path: '/.ssh', isDirectory: true },
         { name: 'README.txt', path: '/README.txt', isDirectory: false },
-      ]
+      ].filter(isVisibleRemoteEntry)
     case '/home':
       return [
         { name: 'demo', path: '/home/demo', isDirectory: true },
+        { name: '.bashrc', path: '/home/.bashrc', isDirectory: false },
         { name: 'notes.txt', path: '/home/notes.txt', isDirectory: false },
-      ]
+      ].filter(isVisibleRemoteEntry)
     case '/home/demo':
       return [
+        { name: '.env', path: '/home/demo/.env', isDirectory: false },
         { name: 'deploy.sh', path: '/home/demo/deploy.sh', isDirectory: false },
         { name: 'logs', path: '/home/demo/logs', isDirectory: true },
-      ]
+      ].filter(isVisibleRemoteEntry)
     case '/var':
       return [
         { name: 'www', path: '/var/www', isDirectory: true },
+        { name: '.cache', path: '/var/.cache', isDirectory: true },
         { name: 'app.log', path: '/var/app.log', isDirectory: false },
-      ]
+      ].filter(isVisibleRemoteEntry)
     default:
       return []
   }

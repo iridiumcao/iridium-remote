@@ -99,7 +99,7 @@ Runs an upload or download through the backend `russh`-based SFTP client.
 
 ### `list_remote_directory(connectionId, path?) -> RemotePathListing`
 
-Lists remote files and folders for the lightweight SFTP-backed remote path browser used by the transfer dialog. The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for this lookup, and return an explicit error instead of hanging when the remote host cannot complete the listing.
+Lists remote files and folders for the lightweight SFTP-backed remote path browser used by the transfer dialog. Entries whose names start with `.` are omitted by default. The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for this lookup, and return an explicit error instead of hanging when the remote host cannot complete the listing.
 
 ## Runtime events
 

@@ -130,6 +130,7 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 - `src\components\TransferDialog.tsx` now includes separate local file/folder browse buttons plus the remote path browser.
 - Local browse uses Tauri's native open/save dialogs through `src\api\client.ts` so uploads can choose files or folders, and downloads can choose either a destination folder or a specific save-as file path.
 - Remote browse opens a lightweight picker backed by the `list_remote_directory` command in `src-tauri\src\transfer.rs`.
+- The remote picker hides dot-prefixed hidden files and folders by default so the transfer browser stays focused on regular visible paths.
 - Remote browse and transfers use the backend `russh` + `russh-sftp` client, supporting saved passwords and non-interactive SSH-key auth through standard SSH config and identity files.
 - The backend applies explicit timeouts so a slow remote host does not lock up the desktop window or spin forever in the loading state, verifies host keys against known_hosts unless SSH config disables strict checking for the host, and handles directory transfers recursively through the SFTP client.
 

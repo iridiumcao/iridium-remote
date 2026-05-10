@@ -172,6 +172,18 @@ describe('appClient.saveExportConnections', () => {
     ])
   })
 
+  it('hides dot-prefixed remote entries in browser mode', async () => {
+    const { appClient } = await import('./client')
+
+    const listing = await appClient.listRemoteDirectory('connection-1', '/')
+
+    expect(listing.entries).toEqual([
+      { name: 'home', path: '/home', isDirectory: true },
+      { name: 'var', path: '/var', isDirectory: true },
+      { name: 'README.txt', path: '/README.txt', isDirectory: false },
+    ])
+  })
+
   it('reports when the current version is already up to date', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
