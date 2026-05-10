@@ -145,3 +145,7 @@ Iridium Remote 面向日常遠端維運與開發流程，重點提供：
 ## 授權
 
 本專案採用 [Apache License 2.0](LICENSE) 授權。
+
+<p align="center">
+  <img src="doc/img/logo.png" alt="Iridium Remote logo" width="240" />
+</p>

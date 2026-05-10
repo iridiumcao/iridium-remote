@@ -31,7 +31,7 @@ In desktop builds, Language and Theme are not shown here because they live in th
 
 - ❤️ Star on GitHub
 - Report Issue
-- Check for Update...
+- Check for Updates...
 - About
 
 ### Settings
@@ -44,7 +44,7 @@ In desktop builds, Language and Theme are not shown here because they live in th
   - Dark
   - Light
 
-Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog. Selecting Check for Update checks the latest GitHub release and shows an in-app status message; when a newer version exists, that message includes an actionable release download link. The status banner auto-dismisses after about 5 seconds with a smooth fade-out.
+Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog. Selecting Check for Updates checks the latest GitHub release and shows an in-app status message; when a newer version exists, that message includes an actionable release download link. The status banner auto-dismisses after about 5 seconds with a smooth fade-out.
 
 ## Sidebar design
 

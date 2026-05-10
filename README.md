@@ -79,7 +79,7 @@ Iridium Remote is designed for a practical desktop workflow:
 - Desktop Settings menu for language and theme selection, with theme-aware in-app selectors in the left sidebar for browser-only fallback mode
 - Theme-aware sidebar scrollbar styling
 - English, Simplified Chinese, and Traditional Chinese UI
-- Manual update checks from **Help -> Check for Update...** against the latest GitHub release, with a release-page download link when a newer version exists and an in-app banner that auto-dismisses after about 5 seconds
+- Manual update checks from **Help -> Check for Updates...** against the latest GitHub release, with a release-page download link when a newer version exists and an in-app banner that auto-dismisses after about 5 seconds
 - Single-instance desktop behavior that focuses the existing window on relaunch
 - Application logging to the app log directory
 
@@ -148,3 +148,7 @@ Iridium Remote is designed for a practical desktop workflow:
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
+
+<p align="center">
+  <img src="doc/img/logo.png" alt="Iridium Remote logo" width="240" />
+</p>

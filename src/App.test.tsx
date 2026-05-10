@@ -409,4 +409,22 @@ describe('App', () => {
       theme: 'light',
     })
   })
+
+  it('uses the renamed Help update item', async () => {
+    vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(tauriMenuMocks.menuSetAsAppMenuMock).toHaveBeenCalled()
+    })
+
+    expect(
+      tauriMenuMocks.lastMenuItems.some(
+        (item) =>
+          item.text === 'Help' &&
+          item.items?.some((child) => child.id === 'check-for-update' && child.text === 'Check for Updates...'),
+      )
+    ).toBe(true)
+  })
 })

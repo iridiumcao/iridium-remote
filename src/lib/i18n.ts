@@ -184,7 +184,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuFile: 'File',
     menuSettings: 'Settings',
     menuHelp: 'Help',
-    menuCheckForUpdate: 'Check for Update...',
+    menuCheckForUpdate: 'Check for Updates...',
     menuStarOnGitHub: '❤️ Star on GitHub',
     menuReportIssue: 'Report Issue',
     menuAbout: 'About',
