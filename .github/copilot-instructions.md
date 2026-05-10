@@ -1,6 +1,6 @@
 # Copilot Instructions for `iridium-remote`
 
-This repository now contains a working Windows-first Tauri desktop app. `doc/requirement.md` remains the product source of truth for current scope, while the implementation lives in `src/` and `src-tauri/`.
+This repository now contains a working cross-platform Tauri desktop app with equal first-class support for Windows, Ubuntu, and macOS. `doc/requirement.md` remains the product source of truth for current scope, while the implementation lives in `src/` and `src-tauri/`.
 
 ## Build, test, and lint commands
 
@@ -43,7 +43,7 @@ The intended primary flow is:
 ### Scope and prioritization
 
 - Build for a usable, stable desktop client first; prefer simpler implementations over feature-rich designs
-- The current target is **Windows-first**, with release support for Windows, macOS, and Ubuntu
+- Windows, Ubuntu, and macOS are equal first-class supported platforms
 - Keep the main UI simple: grouped connection list on the left, tabbed terminal workspace on the right, and lightweight top-bar controls
 - The current implementation supports multiple active sessions through terminal tabs
 - The left sidebar supports real-time search, collapsible groups, and compact/normal display modes

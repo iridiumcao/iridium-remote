@@ -2,7 +2,9 @@
 
 English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
-Iridium Remote is a Windows-first desktop SSH client built with **Tauri**, **React**, and **Rust**. It combines saved connections, tabbed terminal sessions, optional keyring-backed passwords, and SFTP file transfer in a single desktop app.
+Iridium Remote is a desktop SSH client with equal first-class support for **Windows**, **Ubuntu (Linux)**, and **macOS**, built with **Tauri**, **React**, and **Rust**. It combines saved connections, tabbed terminal sessions, optional keyring-backed passwords, and SFTP file transfer in a single desktop app.
+
+![](doc/img/Pl4DWWhxtF.png)
 
 ## Overview
 
@@ -14,7 +16,7 @@ Iridium Remote is designed for a practical desktop workflow:
 - transfer files with SFTP from the same app
 - persist user preferences such as theme, language, and sidebar layout
 
-The product remains **Windows-first** in day-to-day UX focus, but release automation now publishes installable builds for **Windows**, **macOS**, and **Ubuntu**.
+**Windows**, **Ubuntu (Linux)**, and **macOS** are treated as equal first-class supported platforms, and release automation publishes installable builds for all three.
 
 ## Feature Summary
 
@@ -112,7 +114,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 - Node.js with npm
 - Rust toolchain
 - Tauri desktop development prerequisites
-- Windows desktop environment for the primary target workflow
+- A supported desktop environment on Windows, macOS, or Ubuntu
 
 ### Commands
 
@@ -138,7 +140,7 @@ The product remains **Windows-first** in day-to-day UX focus, but release automa
 
 ## Notes
 
-- The current product focus is still **Windows-first**, even though release packaging is published for Windows, macOS, and Ubuntu.
+- **Windows**, **Ubuntu (Linux)**, and **macOS** are equal first-class supported platforms.
 - Browser-only development mode remains available for UI work through the mock frontend client.
 - Debug builds on Windows may show a console window; release builds hide it.
 - Release installers are produced by `npm run tauri -- build`.

@@ -2,12 +2,12 @@
 
 ## Product goal
 
-Iridium Remote is a desktop SSH client for users who want a lightweight Windows-first remote terminal with saved connections, terminal tabs, and essential file transfer support.
+Iridium Remote is a desktop SSH client for users who want a lightweight cross-platform remote terminal with saved connections, terminal tabs, and essential file transfer support.
 
 ## Target platform
 
-- Product-design priority: Windows desktop
-- Release distribution targets: Windows, macOS, and Ubuntu
+- First-class supported platforms: Windows, Ubuntu (Linux), and macOS
+- Release distribution targets: Windows, Ubuntu (Linux), and macOS
 - Ubuntu release assets must cover `.deb` or `.AppImage`
 
 ## Core user flows

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Iridium Remote is a Windows-first desktop SSH client built using the Tauri framework. It provides a comprehensive GUI for managing SSH connections, tabbed terminal sessions, optional keyring-backed passwords, and basic SFTP file transfers.
+Iridium Remote is a cross-platform desktop SSH client with equal first-class support for Windows, Ubuntu, and macOS, built using the Tauri framework. It provides a comprehensive GUI for managing SSH connections, tabbed terminal sessions, optional keyring-backed passwords, and basic SFTP file transfers.
 
 **Architecture & Technologies:**
 *   **Desktop Shell:** Tauri

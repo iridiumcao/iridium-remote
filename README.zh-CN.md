@@ -2,7 +2,9 @@
 
 [English](README.md) | 简体中文 | [繁體中文](README.zh-TW.md)
 
-Iridium Remote 是一个以 **Windows 优先** 为目标的桌面 SSH 客户端，基于 **Tauri**、**React** 和 **Rust** 构建。它把已保存连接、标签式终端会话、可选的系统钥匙串密码存储，以及 SFTP 文件传输整合到同一个桌面应用中。
+Iridium Remote 是一个桌面 SSH 客户端，将 **Windows**、**Ubuntu（Linux）** 和 **macOS** 作为同等的一线支持平台，基于 **Tauri**、**React** 和 **Rust** 构建。它把已保存连接、标签式终端会话、可选的系统钥匙串密码存储，以及 SFTP 文件传输整合到同一个桌面应用中。
+
+![](doc/img/Pl4DWWhxtF.png)
 
 ## 项目简介
 
@@ -14,7 +16,7 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 - 在同一应用中完成 SFTP 文件上传和下载
 - 持久化主题、语言、侧边栏布局等用户偏好
 
-产品方向仍以 **Windows 优先** 为主，但现在会通过 GitHub Actions 发布 **Windows**、**macOS** 与 **Ubuntu** 的安装构建产物。
+现在将 **Windows**、**Ubuntu（Linux）** 和 **macOS** 视为同等的一线支持平台，并通过 GitHub Actions 为这三个平台发布安装构建产物。
 
 ## 功能总览
 
@@ -109,7 +111,7 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 - Node.js 与 npm
 - Rust 工具链
 - Tauri 桌面开发依赖
-- 以 Windows 桌面环境为主的开发/运行场景
+- 任一受支持平台的桌面环境：Windows、macOS 或 Ubuntu
 
 ### 常用命令
 
@@ -135,7 +137,7 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 
 ## 说明
 
-- 当前产品重点仍是 **Windows 优先**，只是发布构建已经覆盖 Windows、macOS 与 Ubuntu。
+- **Windows**、**Ubuntu（Linux）** 和 **macOS** 现在都是同等的一线支持平台。
 - 为了便于 UI 开发，浏览器模式下仍提供 mock 前端客户端。
 - Windows 下的调试构建可能会显示控制台窗口；发布构建会隐藏控制台窗口。
 - 发布安装包可通过 `npm run tauri -- build` 生成。
