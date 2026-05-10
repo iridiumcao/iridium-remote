@@ -6,6 +6,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
+import { normalizeCollapsedGroups, normalizeGroupName } from '../lib/groups'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle } from '../lib/format'
 import type { AppTheme, ConnectionListDisplayMode, ConnectionRecord } from '../lib/types'
@@ -57,6 +58,10 @@ export const ConnectionList = ({
 }: ConnectionListProps) => {
   const isDark = theme === 'dark'
   const normalizedSearch = searchQuery.trim().toLowerCase()
+  const normalizedCollapsedGroupKeys = useMemo(
+    () => normalizeCollapsedGroups(collapsedGroups),
+    [collapsedGroups],
+  )
   const [openMenuConnectionId, setOpenMenuConnectionId] = useState<string | null>(null)
   const openMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -99,8 +104,9 @@ export const ConnectionList = ({
     const grouped = new Map<string, { label: string; connections: ConnectionRecord[] }>()
 
     for (const connection of filteredConnections) {
-      const groupLabel = connection.groupName ?? t.ungrouped
-      const groupKey = connection.groupName ?? UNGROUPED_KEY
+      const normalizedGroupName = normalizeGroupName(connection.groupName)
+      const groupLabel = normalizedGroupName ?? t.ungrouped
+      const groupKey = normalizedGroupName ?? UNGROUPED_KEY
 
       const bucket = grouped.get(groupKey)
       if (bucket) {
@@ -400,7 +406,7 @@ export const ConnectionList = ({
 
         <div className="space-y-4">
           {groups.map(({ connections: groupConnections, groupKey, groupLabel }) => {
-            const isCollapsed = !normalizedSearch && collapsedGroups.includes(groupKey)
+            const isCollapsed = !normalizedSearch && normalizedCollapsedGroupKeys.includes(groupKey)
 
             return (
               <section key={groupKey}>

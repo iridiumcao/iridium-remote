@@ -103,9 +103,9 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 
 ### Connection form group suggestions
 
-- `src\App.tsx` derives the unique saved group names from the current connection list.
+- `src\App.tsx` derives the unique saved group names from the current connection list and normalizes them case-insensitively.
 - `src\components\ConnectionFormDialog.tsx` shows those groups in a themed suggestion popup.
-- Users can still type a new group name instead of picking an existing one.
+- Users can still type a new group name instead of picking an existing one, but the saved value is canonicalized to Title Case so `home` and `Home` stay in one group.
 
 ### Context menus
 

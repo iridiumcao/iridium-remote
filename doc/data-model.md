@@ -15,7 +15,7 @@ Connection metadata is stored in SQLite.
 | `host` | text | SSH host |
 | `port` | integer | SSH port |
 | `username` | text | Login username |
-| `group_name` | text nullable | Optional folder/group |
+| `group_name` | text nullable | Optional folder/group stored in Title Case |
 | `created_at` | text | ISO timestamp |
 | `updated_at` | text | ISO timestamp |
 
@@ -117,5 +117,6 @@ Rules:
 - app settings are included when exporting from the current app
 - passwords are never included
 - imports skip duplicates
+- group names are case-insensitive and normalized to Title Case on save/import
 - imports may restore settings when the backup contains them
 - unknown future fields should be ignored when practical

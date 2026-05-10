@@ -8,6 +8,7 @@ import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
+import { collectGroupNames } from './lib/groups'
 import { getLocaleDisplayName, getTranslations } from './lib/i18n'
 import type {
   AppError,
@@ -118,14 +119,7 @@ function App() {
   }, [sessions])
 
   const existingGroups = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          connections
-            .map((connection) => connection.groupName?.trim())
-            .filter((groupName): groupName is string => Boolean(groupName)),
-        ),
-      ).sort((left, right) => left.localeCompare(right)),
+    () => collectGroupNames(connections.map((connection) => connection.groupName)),
     [connections],
   )
 

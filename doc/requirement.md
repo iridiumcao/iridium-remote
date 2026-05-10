@@ -28,9 +28,10 @@ Iridium Remote is a desktop SSH client for users who want a lightweight Windows-
   - host
   - port
   - username
-  - optional group name
+  - optional group name stored in Title Case
   - optional password saved to the system keyring
 - In the connection form, the `Group` field should suggest existing groups while still allowing users to type a new group name.
+- Group names are case-insensitive. Values that differ only by letter case are treated as the same group, stored in Title Case, and displayed through the existing uppercase group-header styling.
 - The sidebar must support:
   - a branding block at the top of the left sidebar
   - collapsible groups

@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { getTranslations } from '../lib/i18n'
+import { normalizeGroupName } from '../lib/groups'
 import type {
   AppTheme,
   ConnectionFormSeed,
@@ -154,7 +155,7 @@ export const ConnectionFormDialog = ({
 
   const handleSubmit = async () => {
     const name = formState.name.trim()
-    const groupName = formState.groupName.trim()
+    const groupName = normalizeGroupName(formState.groupName)
     const host = formState.host.trim()
     const username = formState.username.trim()
     const password = formState.password.trim()
@@ -178,7 +179,7 @@ export const ConnectionFormDialog = ({
         await onSave({
           id: connection.id,
           name,
-          groupName: groupName || null,
+          groupName,
           host,
           port,
           username,
@@ -188,7 +189,7 @@ export const ConnectionFormDialog = ({
       } else {
         await onSave({
           name,
-          groupName: groupName || null,
+          groupName,
           host,
           port,
           username,

@@ -24,7 +24,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - import/export flow
 - notice/error banners
 
-It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform.
+It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform. Group names are normalized case-insensitively into a shared Title Case form before they are stored or grouped in the UI.
 In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Language and Theme submenus. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
@@ -39,6 +39,7 @@ In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu th
 - per-connection actions
 
 Collapsed groups are persisted through app settings rather than local-only UI state.
+Collapsed group keys use the same normalized group name format so saved collapse preferences still match after case-only edits.
 The independently scrolling sidebar list uses theme-aware scrollbar styling so light and dark mode stay visually consistent even when the host OS default scrollbar colors differ from the app theme.
 Filtering is done in the frontend in real time against connection name, host, and username. Double-clicking a connection row opens a fresh session tab for that saved host. Single-click selection is coordinated in `src\App.tsx`: when the clicked connection already has an open session, the app activates that tab; otherwise it only changes the sidebar highlight. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
 

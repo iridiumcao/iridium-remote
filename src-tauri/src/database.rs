@@ -52,6 +52,7 @@ impl Database {
                     AppError::database("Failed to update the database schema.", error.to_string())
                 })?;
         }
+        Self::normalize_stored_group_names(&connection)?;
         Ok(())
     }
 
@@ -399,6 +400,50 @@ impl Database {
 
         Ok(false)
     }
+
+    fn normalize_stored_group_names(connection: &Connection) -> AppResult<()> {
+        let mut statement = connection
+            .prepare("SELECT id, group_name FROM connections WHERE group_name IS NOT NULL")
+            .map_err(|error| {
+                AppError::database("Failed to prepare group normalization.", error.to_string())
+            })?;
+
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+            })
+            .map_err(|error| {
+                AppError::database("Failed to load stored groups.", error.to_string())
+            })?;
+
+        let updates = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| {
+                AppError::database("Failed to decode stored groups.", error.to_string())
+            })?
+            .into_iter()
+            .filter_map(|(id, group_name)| {
+                let normalized = normalize_group_name(group_name.as_deref());
+                (normalized != group_name).then_some((id, normalized))
+            })
+            .collect::<Vec<_>>();
+
+        for (id, group_name) in updates {
+            connection
+                .execute(
+                    "UPDATE connections SET group_name = ?2 WHERE id = ?1",
+                    params![id, group_name],
+                )
+                .map_err(|error| {
+                    AppError::database(
+                        "Failed to normalize a stored group name.",
+                        error.to_string(),
+                    )
+                })?;
+        }
+
+        Ok(())
+    }
 }
 
 struct NormalizedConnectionInput {
@@ -417,10 +462,7 @@ fn normalize_input(
     username: &str,
 ) -> AppResult<NormalizedConnectionInput> {
     let name = name.trim();
-    let group_name = group_name
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string);
+    let group_name = normalize_group_name(group_name);
     let host = host.trim();
     let username = username.trim();
 
@@ -460,8 +502,7 @@ fn normalize_app_settings(settings: AppSettings) -> AppResult<AppSettings> {
     let mut collapsed_groups = settings
         .collapsed_groups
         .into_iter()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+        .filter_map(|value| normalize_group_name(Some(value.as_str())))
         .collect::<Vec<_>>();
     collapsed_groups.sort();
     collapsed_groups.dedup();
@@ -495,4 +536,65 @@ fn normalized_signature(connection: &NormalizedConnectionInput) -> String {
         connection.port,
         connection.username.to_ascii_lowercase()
     )
+}
+
+fn normalize_group_name(group_name: Option<&str>) -> Option<String> {
+    group_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(title_case)
+}
+
+fn title_case(value: &str) -> String {
+    let mut normalized = String::with_capacity(value.len());
+    let mut should_uppercase = true;
+
+    for character in value.chars() {
+        if should_uppercase {
+            normalized.extend(character.to_uppercase());
+        } else {
+            normalized.extend(character.to_lowercase());
+        }
+
+        should_uppercase = is_group_word_separator(character);
+    }
+
+    normalized
+}
+
+fn is_group_word_separator(character: char) -> bool {
+    character.is_whitespace()
+        || matches!(
+            character,
+            '-' | '_' | '/' | '\\' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ','
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_app_settings, normalize_group_name};
+    use crate::models::{AppSettings, ConnectionListDisplayMode};
+
+    #[test]
+    fn normalize_group_name_merges_case_variants() {
+        assert_eq!(normalize_group_name(Some("home")), Some("Home".into()));
+        assert_eq!(
+            normalize_group_name(Some("HOME OFFICE")),
+            Some("Home Office".into())
+        );
+    }
+
+    #[test]
+    fn normalize_app_settings_canonicalizes_collapsed_groups() {
+        let settings = AppSettings {
+            locale: "en".into(),
+            theme: "dark".into(),
+            connection_list_display_mode: ConnectionListDisplayMode::Normal,
+            collapsed_groups: vec!["home".into(), "Home".into(), "Work".into()],
+        };
+
+        let normalized = normalize_app_settings(settings).expect("settings should normalize");
+
+        assert_eq!(normalized.collapsed_groups, vec!["Home", "Work"]);
+    }
 }

@@ -270,3 +270,57 @@ describe('appClient.saveExportConnections', () => {
     })
   })
 })
+
+describe('appClient group normalization', () => {
+  afterEach(() => {
+    delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('stores created groups in title case in browser mode', async () => {
+    const { appClient } = await import('./client')
+
+    const created = await appClient.createConnection({
+      name: 'Home Lab',
+      groupName: 'hOME',
+      host: '192.168.1.10',
+      port: 22,
+      username: 'tester',
+    })
+
+    expect(created.groupName).toBe('Home')
+  })
+
+  it('skips imported duplicates when the group only differs by case', async () => {
+    const { appClient } = await import('./client')
+
+    await appClient.createConnection({
+      name: 'Home Lab',
+      groupName: 'home',
+      host: '192.168.1.10',
+      port: 22,
+      username: 'tester',
+    })
+
+    const result = await appClient.importConnections({
+      version: 1,
+      exportedAt: '2026-05-05T01:02:03.456Z',
+      connections: [
+        {
+          name: 'Home Lab',
+          groupName: 'Home',
+          host: '192.168.1.10',
+          port: 22,
+          username: 'tester',
+        },
+      ],
+    })
+
+    expect(result).toEqual({
+      imported: 0,
+      skipped: 1,
+      settingsApplied: false,
+    })
+  })
+})

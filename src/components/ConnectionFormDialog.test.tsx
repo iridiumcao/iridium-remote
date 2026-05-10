@@ -95,4 +95,35 @@ describe('ConnectionFormDialog', () => {
       password: undefined,
     })
   })
+
+  it('normalizes typed group names to title case before saving', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ConnectionFormDialog
+        connection={null}
+        existingGroups={['Home']}
+        onClose={vi.fn()}
+        onSave={onSave}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Test Only')
+    await user.type(screen.getByRole('combobox', { name: 'Group' }), 'hOME')
+    await user.type(screen.getByRole('textbox', { name: 'Host' }), '192.168.1.10')
+    await user.type(screen.getByRole('textbox', { name: 'Username' }), 'tester')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onSave).toHaveBeenCalledWith({
+      name: 'Test Only',
+      groupName: 'Home',
+      host: '192.168.1.10',
+      port: 22,
+      username: 'tester',
+      password: undefined,
+    })
+  })
 })

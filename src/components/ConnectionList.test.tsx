@@ -31,11 +31,38 @@ const connections: ConnectionRecord[] = [
   },
 ]
 
+const caseVariantConnections: ConnectionRecord[] = [
+  {
+    id: '1',
+    name: 'Alpha',
+    groupName: 'home',
+    host: '192.168.1.10',
+    port: 22,
+    username: 'root',
+    hasPassword: false,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: '2',
+    name: 'Beta',
+    groupName: 'Home',
+    host: '10.0.0.2',
+    port: 22,
+    username: 'deploy',
+    hasPassword: false,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+]
+
 const TestConnectionList = ({
+  connectionsOverride = connections,
   initialDisplayMode = 'normal',
   onConnect = vi.fn(),
   theme = 'dark',
 }: {
+  connectionsOverride?: ConnectionRecord[]
   initialDisplayMode?: ConnectionListDisplayMode
   onConnect?: (connection: ConnectionRecord) => void
   theme?: 'dark' | 'light'
@@ -46,7 +73,7 @@ const TestConnectionList = ({
     <ConnectionList
       activeConnectionCounts={{}}
       collapsedGroups={[]}
-      connections={connections}
+      connections={connectionsOverride}
       displayMode={initialDisplayMode}
       isLoading={false}
       onConnect={onConnect}
@@ -141,5 +168,13 @@ describe('ConnectionList', () => {
 
     expect(scrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-light')
     expect(scrollRegion).not.toHaveClass('themed-scrollbar-dark')
+  })
+
+  it('merges groups that differ only by letter case', () => {
+    render(<TestConnectionList connectionsOverride={caseVariantConnections} />)
+
+    expect(screen.getAllByText('Home')).toHaveLength(1)
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByText('Beta')).toBeInTheDocument()
   })
 })

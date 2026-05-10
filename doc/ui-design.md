@@ -64,6 +64,7 @@ The sidebar contains these layers in order:
 5. **Grouped connection list**
    - collapsible group headers
    - ungrouped connections appear in an `Ungrouped` section
+   - groups that differ only by letter case are merged together
 
 ### Normal mode
 
@@ -132,7 +133,7 @@ Fields:
 - username
 - password (optional)
 
-When saved groups exist, the group field uses a theme-aware suggestion list that lets the user pick an existing group or type a brand new one.
+When saved groups exist, the group field uses a theme-aware suggestion list that lets the user pick an existing group or type a brand new one. Group names are normalized case-insensitively, stored in Title Case, and shown through the existing uppercase group-header presentation.
 
 Password entry here is for optional keyring storage, not for runtime prompt handling.
 

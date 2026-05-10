@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { APP_VERSION, LATEST_RELEASE_API_URL } from '../lib/appInfo'
+import { normalizeCollapsedGroups, normalizeGroupName } from '../lib/groups'
 import { defaultAppSettings } from '../lib/types'
 import type {
   AppSettings,
@@ -53,10 +54,10 @@ const loadMockSettings = (): AppSettings => {
       return defaultAppSettings
     }
 
-    return {
+    return normalizeMockSettings({
       ...defaultAppSettings,
       ...(JSON.parse(raw) as Partial<AppSettings>),
-    }
+    })
   } catch {
     return defaultAppSettings
   }
@@ -69,6 +70,11 @@ const persistMockSettings = (settings: AppSettings) => {
 
   window.localStorage.setItem(MOCK_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
 }
+
+const normalizeMockSettings = (settings: AppSettings): AppSettings => ({
+  ...settings,
+  collapsedGroups: normalizeCollapsedGroups(settings.collapsedGroups),
+})
 
 const mockStore: MockStore = {
   settings: loadMockSettings(),
@@ -121,11 +127,6 @@ const getRemoteFileName = (path: string) => {
 const getExportFileName = (payload: ConnectionsExportPayload) => {
   const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
   return `iridium-remote-backup-${timestamp}.json`
-}
-
-const normalizeGroup = (value?: string | null) => {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : null
 }
 
 const randomId = () => crypto.randomUUID()
@@ -318,7 +319,7 @@ export const appClient = {
 
   async getAppSettings() {
     if (!isTauriRuntime()) {
-      return mockStore.settings
+      return normalizeMockSettings(mockStore.settings)
     }
 
     return invoke<AppSettings>('get_app_settings')
@@ -326,9 +327,10 @@ export const appClient = {
 
   async updateAppSettings(settings: AppSettings) {
     if (!isTauriRuntime()) {
-      mockStore.settings = settings
-      persistMockSettings(settings)
-      return settings
+      const normalized = normalizeMockSettings(settings)
+      mockStore.settings = normalized
+      persistMockSettings(normalized)
+      return normalized
     }
 
     return invoke<AppSettings>('update_app_settings', { settings })
@@ -340,7 +342,7 @@ export const appClient = {
       const created: ConnectionRecord = {
         id: randomId(),
         name: input.name.trim(),
-        groupName: normalizeGroup(input.groupName),
+        groupName: normalizeGroupName(input.groupName),
         host: input.host.trim(),
         port: input.port ?? 22,
         username: input.username.trim(),
@@ -363,7 +365,7 @@ export const appClient = {
           ? {
               ...connection,
               ...input,
-              groupName: normalizeGroup(input.groupName),
+              groupName: normalizeGroupName(input.groupName),
               hasPassword: input.clearSavedPassword
                 ? false
                 : input.password?.trim()
@@ -557,6 +559,7 @@ export const appClient = {
           ...defaultAppSettings,
           ...payload.settings,
         }
+        mockStore.settings = normalizeMockSettings(mockStore.settings)
         persistMockSettings(mockStore.settings)
         settingsApplied = true
       }
@@ -564,7 +567,7 @@ export const appClient = {
       const existing = new Set(
         mockStore.connections.map(
           (connection) =>
-            `${connection.groupName ?? ''}|${connection.name.toLowerCase()}|${connection.host.toLowerCase()}|${connection.port}|${connection.username.toLowerCase()}`,
+            `${normalizeGroupName(connection.groupName) ?? ''}|${connection.name.toLowerCase()}|${connection.host.toLowerCase()}|${connection.port}|${connection.username.toLowerCase()}`,
         ),
       )
 
@@ -572,7 +575,7 @@ export const appClient = {
       let skipped = 0
 
       for (const entry of payload.connections) {
-        const signature = `${entry.groupName ?? ''}|${entry.name.toLowerCase()}|${entry.host.toLowerCase()}|${entry.port}|${entry.username.toLowerCase()}`
+        const signature = `${normalizeGroupName(entry.groupName) ?? ''}|${entry.name.toLowerCase()}|${entry.host.toLowerCase()}|${entry.port}|${entry.username.toLowerCase()}`
         if (existing.has(signature)) {
           skipped += 1
           continue
@@ -582,11 +585,11 @@ export const appClient = {
         imported += 1
         mockStore.connections = [
           ...mockStore.connections,
-          {
-            id: randomId(),
-            name: entry.name,
-            groupName: normalizeGroup(entry.groupName),
-            host: entry.host,
+            {
+              id: randomId(),
+              name: entry.name,
+              groupName: normalizeGroupName(entry.groupName),
+              host: entry.host,
             port: entry.port,
             username: entry.username,
             hasPassword: false,
