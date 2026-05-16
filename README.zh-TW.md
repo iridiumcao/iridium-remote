@@ -92,6 +92,24 @@ Iridium Remote 面向日常遠端維運與開發流程，重點提供：
 | **終端傳輸** | 系統 OpenSSH `ssh` |
 | **檔案傳輸** | `russh` + `russh-sftp` |
 
+## 資料存放位置
+
+桌面安裝版會把不同類型的資料放在作業系統建議的位置。安裝目錄會隨安裝包格式改變；應用程式專屬的資料目錄與日誌目錄則由套件識別碼 `com.iridiumcao.iridiumremote` 推導出來。
+
+| 資料類型 | Windows | macOS | Ubuntu / Linux | 說明 |
+| --- | --- | --- | --- | --- |
+| **軟體安裝目錄** | 通常為 `C:\Program Files\Iridium Remote\` | 通常為 `/Applications/Iridium Remote.app` | `.deb` 安裝到系統套件管理的位置；`.AppImage` 直接從檔案所在目錄執行 | 實際安裝位置取決於發佈格式與使用者選擇。 |
+| **SQLite 資料庫** | `%APPDATA%\com.iridiumcao.iridiumremote\iridium-remote.db` | `~/Library/Application Support/com.iridiumcao.iridiumremote/iridium-remote.db` | `~/.local/share/com.iridiumcao.iridiumremote/iridium-remote.db` | 儲存已保存連線、軟體設定與連線歷史資料。 |
+| **軟體設定** | 與上面的 SQLite 檔案相同 | 同上 | 同上 | 設定保存在 `app_settings` 資料表中，不另外建立設定檔。 |
+| **連線歷史 / 使用統計** | 與上面的 SQLite 檔案相同 | 同上 | 同上 | 資料保存在 `connection_history_sessions` 與 `connection_history_rollups` 資料表中。 |
+| **軟體執行日誌** | `%LOCALAPPDATA%\com.iridiumcao.iridiumremote\logs\` | `~/Library/Logs/com.iridiumcao.iridiumremote/` | `~/.local/share/com.iridiumcao.iridiumremote/logs/` | Rust 後端執行日誌寫在這裡，檔名前綴為 `iridium-remote`。 |
+| **使用者操作日誌 / 工作階段錄製檔（`.irlog`）** | 預設 `%LOCALAPPDATA%\Iridium Remote\SessionLogs\` | 預設 `~/Library/Application Support/Iridium Remote/SessionLogs/` | 預設 `~/.local/share/Iridium Remote/SessionLogs/` | 對應 **File -> Session Logs**。可在 **Settings -> Session Recording** 中改成自訂目錄。 |
+| **已儲存密碼** | Windows Credential Manager | macOS Keychain | Secret Service 金鑰圈 | 不會寫入 SQLite，也不會出現在匯出備份中。 |
+| **匯出的備份檔 / 匯出的工作階段日誌文字檔** | 使用者自行選擇的儲存路徑 | 使用者自行選擇的儲存路徑 | 使用者自行選擇的儲存路徑 | JSON 備份與解密後的 `.txt` 匯出檔只會寫到儲存對話框中選定的位置。 |
+| **檔案下載目標位置** | 使用者自行選擇的本機路徑 | 使用者自行選擇的本機路徑 | 使用者自行選擇的本機路徑 | 上傳會讀取使用者指定的本機檔案；下載會寫入使用者指定的本機目錄或檔案。 |
+
+如果你在找的是「使用者操作日誌」這類資料，目前主要有兩種：一種是 SQLite 內的連線歷史與使用統計，另一種是啟用工作階段錄製後產生的加密 `.irlog` 檔案。
+
 ## 儲存庫文件導覽
 
 | 路徑 | 說明 |

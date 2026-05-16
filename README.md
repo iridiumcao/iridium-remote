@@ -122,6 +122,24 @@ Iridium Remote is designed for a practical desktop workflow:
 | **Terminal transport** | System OpenSSH `ssh` |
 | **File transfer transport** | `russh` + `russh-sftp` |
 
+## Data Locations
+
+Packaged desktop builds keep different kinds of data in OS-appropriate locations. The exact install path depends on the bundle format, while the app-scoped data and log directories are derived from the bundle identifier `com.iridiumcao.iridiumremote`.
+
+| Data | Windows | macOS | Ubuntu / Linux | Notes |
+| --- | --- | --- | --- | --- |
+| **Installed application** | Usually `C:\Program Files\Iridium Remote\` | Usually `/Applications/Iridium Remote.app` | `.deb` installs into system-managed package locations; `.AppImage` runs from whichever folder contains the file | The exact install location depends on the release format and user choice. |
+| **SQLite database** | `%APPDATA%\com.iridiumcao.iridiumremote\iridium-remote.db` | `~/Library/Application Support/com.iridiumcao.iridiumremote/iridium-remote.db` | `~/.local/share/com.iridiumcao.iridiumremote/iridium-remote.db` | Stores saved connections, app settings, and connection-history data. |
+| **App settings** | Same SQLite file as above | Same | Same | Stored in the `app_settings` table rather than a separate config file. |
+| **Connection history / usage statistics** | Same SQLite file as above | Same | Same | Stored in the `connection_history_sessions` and `connection_history_rollups` tables. |
+| **Application runtime logs** | `%LOCALAPPDATA%\com.iridiumcao.iridiumremote\logs\` | `~/Library/Logs/com.iridiumcao.iridiumremote/` | `~/.local/share/com.iridiumcao.iridiumremote/logs/` | Rust backend logs are written here with the `iridium-remote` file name prefix. |
+| **Session recording files (`.irlog`)** | `%LOCALAPPDATA%\Iridium Remote\SessionLogs\` by default | `~/Library/Application Support/Iridium Remote/SessionLogs/` by default | `~/.local/share/Iridium Remote/SessionLogs/` by default | Used by **File -> Session Logs** and can be overridden in **Settings -> Session Recording**. |
+| **Saved passwords** | Windows Credential Manager | macOS Keychain | Secret Service keyring | Passwords are not stored in SQLite or export backups. |
+| **Exported backups / exported session-log text files** | User-chosen save path | User-chosen save path | User-chosen save path | JSON backups and decrypted `.txt` exports are written only to the destination chosen in the save dialog. |
+| **Transfer download target** | User-chosen local path | User-chosen local path | User-chosen local path | Uploads read from a chosen local path; downloads write to a chosen local path. |
+
+If you are specifically looking for user operation records, there are two main places to check: connection-history data in SQLite and optional encrypted session-recording files in the session-log directory.
+
 ## Repository Guide
 
 | Path | Purpose |

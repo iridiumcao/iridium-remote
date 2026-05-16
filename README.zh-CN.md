@@ -92,6 +92,24 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 | **终端传输** | 系统 OpenSSH `ssh` |
 | **文件传输** | `russh` + `russh-sftp` |
 
+## 数据存放位置
+
+桌面安装版会把不同类型的数据分别放在操作系统推荐的位置。安装目录会随安装包格式而变化；应用专属的数据目录和日志目录则由包标识符 `com.iridiumcao.iridiumremote` 推导出来。
+
+| 数据类型 | Windows | macOS | Ubuntu / Linux | 说明 |
+| --- | --- | --- | --- | --- |
+| **软件安装目录** | 通常为 `C:\Program Files\Iridium Remote\` | 通常为 `/Applications/Iridium Remote.app` | `.deb` 安装到系统包管理的位置；`.AppImage` 直接从文件所在目录运行 | 实际安装位置取决于发布格式和用户选择。 |
+| **SQLite 数据库** | `%APPDATA%\com.iridiumcao.iridiumremote\iridium-remote.db` | `~/Library/Application Support/com.iridiumcao.iridiumremote/iridium-remote.db` | `~/.local/share/com.iridiumcao.iridiumremote/iridium-remote.db` | 保存已存连接、软件配置和连接历史数据。 |
+| **软件配置** | 与上面的 SQLite 文件相同 | 同上 | 同上 | 配置保存在 `app_settings` 表中，不单独生成配置文件。 |
+| **连接历史 / 使用统计** | 与上面的 SQLite 文件相同 | 同上 | 同上 | 数据保存在 `connection_history_sessions` 和 `connection_history_rollups` 表中。 |
+| **软件运行日志** | `%LOCALAPPDATA%\com.iridiumcao.iridiumremote\logs\` | `~/Library/Logs/com.iridiumcao.iridiumremote/` | `~/.local/share/com.iridiumcao.iridiumremote/logs/` | Rust 后端运行日志写在这里，文件名前缀为 `iridium-remote`。 |
+| **用户操作日志 / 会话录制文件（`.irlog`）** | 默认 `%LOCALAPPDATA%\Iridium Remote\SessionLogs\` | 默认 `~/Library/Application Support/Iridium Remote/SessionLogs/` | 默认 `~/.local/share/Iridium Remote/SessionLogs/` | 对应 **File -> Session Logs**。可在 **Settings -> Session Recording** 里改成自定义目录。 |
+| **已保存密码** | Windows Credential Manager | macOS Keychain | Secret Service 钥匙串 | 不会写入 SQLite，也不会进入导出备份。 |
+| **导出的备份文件 / 导出的会话日志文本** | 用户自己选择的保存路径 | 用户自己选择的保存路径 | 用户自己选择的保存路径 | JSON 备份和解密后的 `.txt` 导出文件只会写到保存对话框里选定的位置。 |
+| **文件下载目标位置** | 用户自己选择的本地路径 | 用户自己选择的本地路径 | 用户自己选择的本地路径 | 上传读取用户指定的本地文件；下载写入用户指定的本地目录或文件。 |
+
+如果你关心的是“用户操作日志”这一类数据，当前主要有两类：一类是 SQLite 里的连接历史与使用统计，另一类是启用会话录制后生成的加密 `.irlog` 文件。
+
 ## 仓库文档导览
 
 | 路径 | 说明 |

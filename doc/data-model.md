@@ -4,6 +4,27 @@
 
 The desktop app stores local data in SQLite.
 
+## Storage locations
+
+Iridium Remote uses the Tauri bundle identifier `com.iridiumcao.iridiumremote` for app-scoped data and log directories. Session recording uses a separate default directory so `.irlog` files stay in a user-visible local-data location and can also be redirected through `AppSettings.sessionRecording.logDirectory`.
+
+| Category | Windows | macOS | Ubuntu / Linux | Notes |
+| --- | --- | --- | --- | --- |
+| **Installed application** | Usually `C:\Program Files\Iridium Remote\` | Usually `/Applications/Iridium Remote.app` | `.deb` installs into system-managed package locations; `.AppImage` runs from whichever folder contains the file | This is packaging-specific rather than part of the persistent app data model. |
+| **App data root** | `%APPDATA%\com.iridiumcao.iridiumremote\` | `~/Library/Application Support/com.iridiumcao.iridiumremote/` | `~/.local/share/com.iridiumcao.iridiumremote/` | This is the Tauri `app_data_dir()` base used by the backend. |
+| **SQLite database** | `%APPDATA%\com.iridiumcao.iridiumremote\iridium-remote.db` | `~/Library/Application Support/com.iridiumcao.iridiumremote/iridium-remote.db` | `~/.local/share/com.iridiumcao.iridiumremote/iridium-remote.db` | Stores connections, app settings, and connection history. |
+| **App log directory** | `%LOCALAPPDATA%\com.iridiumcao.iridiumremote\logs\` | `~/Library/Logs/com.iridiumcao.iridiumremote/` | `~/.local/share/com.iridiumcao.iridiumremote/logs/` | Runtime logs use Tauri's recommended per-app log directory. |
+| **Default session-log directory** | `%LOCALAPPDATA%\Iridium Remote\SessionLogs\` | `~/Library/Application Support/Iridium Remote/SessionLogs/` | `~/.local/share/Iridium Remote/SessionLogs/` | Used for encrypted `.irlog` files unless `sessionRecording.logDirectory` overrides it. |
+| **Saved passwords** | Windows Credential Manager | macOS Keychain | Secret Service keyring | Passwords are stored outside SQLite and outside export files. |
+| **Exported backups / exported decrypted session logs** | User-chosen save path | User-chosen save path | User-chosen save path | The app writes these files only to the path selected in the save dialog. |
+
+Additional persistence notes:
+
+- App settings are stored in the `app_settings` table inside the SQLite database, not in a separate config file.
+- Connection history and usage statistics are stored in the `connection_history_sessions` and `connection_history_rollups` tables inside the same SQLite database.
+- Session recording files are the main user-operation log artifact on disk. They are optional and exist only when session recording is enabled.
+- The session-recording password is runtime-only and is never stored on disk.
+
 ## `connections` table
 
 Connection metadata is stored in SQLite.
