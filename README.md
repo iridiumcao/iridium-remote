@@ -183,6 +183,17 @@ If you are specifically looking for user operation records, there are two main p
   - macOS: Apple Silicon and Intel app / DMG bundles
   - Ubuntu: `.deb` and `.AppImage`
 
+## Install notes for current unsigned releases
+
+Current GitHub release bundles are **not code-signed on Windows** and are **not signed / notarized on macOS** yet.
+
+| Platform | What you may see | Why it happens | What to do | Can Iridium Remote customize it? |
+| --- | --- | --- | --- | --- |
+| **Windows** | SmartScreen warns before the installer opens | The installer is unsigned, so Windows cannot establish publisher trust | Download only from the official GitHub release page. If you trust the build, click **More info** -> **Run anyway**. | No. SmartScreen appears before the installer can run. |
+| **macOS upgrade** | Finder says an older `Iridium Remote.app` already exists in `/Applications` | Replacing the app bundle during a drag-install is a Finder-managed copy action | Choose **Replace**. Your app data in `~/Library/Application Support/com.iridiumcao.iridiumremote/` and saved passwords in Keychain stay in place. | No. Finder owns that dialog text and buttons. |
+| **macOS first launch** | `"Iridium Remote.app" is damaged and can't be opened.` | The downloaded unsigned app keeps the browser quarantine attribute and is not notarized | Click **Cancel**, run `xattr -cr /Applications/Iridium\ Remote.app` in Terminal, then relaunch the app. The durable fix is shipping a signed and notarized macOS release. | No. Gatekeeper blocks the app before it starts. |
+| **macOS saved passwords** | Keychain asks whether Iridium Remote may use confidential information in `iridium-remote` | Saved passwords live in the macOS Keychain, so macOS asks for permission the first time the app needs them | Choose **Allow** or **Always Allow** if you want saved-password autofill; choose **Deny** if you prefer typing passwords manually in the terminal. Startup no longer probes Keychain just to render the main window, so this prompt should appear only when a saved password is actually used. | Partly. The prompt is macOS-owned, but the app now avoids triggering it during startup. |
+
 ## Notes
 
 - **Windows**, **Ubuntu (Linux)**, and **macOS** are equal first-class supported platforms.

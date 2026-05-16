@@ -264,11 +264,14 @@ pub struct SessionLogPreview {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum ConnectionHistoryDateRange {
+    #[serde(rename = "last_7_days", alias = "last7_days")]
     Last7Days,
+    #[serde(rename = "last_30_days", alias = "last30_days")]
     Last30Days,
+    #[serde(rename = "last_90_days", alias = "last90_days")]
     Last90Days,
+    #[serde(rename = "all_time")]
     AllTime,
 }
 
@@ -334,6 +337,53 @@ pub struct ConnectionHistoryDailyHostUsage {
     pub deleted: bool,
     pub connection_count: u64,
     pub total_duration_seconds: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{from_str, to_string};
+
+    use super::ConnectionHistoryDateRange;
+
+    #[test]
+    fn connection_history_date_range_accepts_frontend_range_values() {
+        assert_eq!(
+            from_str::<ConnectionHistoryDateRange>(r#""last_7_days""#).unwrap(),
+            ConnectionHistoryDateRange::Last7Days
+        );
+        assert_eq!(
+            from_str::<ConnectionHistoryDateRange>(r#""last_30_days""#).unwrap(),
+            ConnectionHistoryDateRange::Last30Days
+        );
+        assert_eq!(
+            from_str::<ConnectionHistoryDateRange>(r#""last_90_days""#).unwrap(),
+            ConnectionHistoryDateRange::Last90Days
+        );
+        assert_eq!(
+            from_str::<ConnectionHistoryDateRange>(r#""all_time""#).unwrap(),
+            ConnectionHistoryDateRange::AllTime
+        );
+    }
+
+    #[test]
+    fn connection_history_date_range_serializes_with_expected_names() {
+        assert_eq!(
+            to_string(&ConnectionHistoryDateRange::Last7Days).unwrap(),
+            r#""last_7_days""#
+        );
+        assert_eq!(
+            to_string(&ConnectionHistoryDateRange::Last30Days).unwrap(),
+            r#""last_30_days""#
+        );
+        assert_eq!(
+            to_string(&ConnectionHistoryDateRange::Last90Days).unwrap(),
+            r#""last_90_days""#
+        );
+        assert_eq!(
+            to_string(&ConnectionHistoryDateRange::AllTime).unwrap(),
+            r#""all_time""#
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

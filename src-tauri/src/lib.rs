@@ -36,7 +36,7 @@ struct AppState {
 fn list_connections(state: State<'_, Arc<AppState>>) -> AppResult<Vec<ConnectionRecord>> {
     let connections = state.database.list_connections()?;
     log::info!("Loaded {} saved connections.", connections.len());
-    enrich_connections(&state, connections)
+    Ok(connections)
 }
 
 #[tauri::command]
@@ -46,15 +46,16 @@ fn create_connection(
     input: CreateConnectionInput,
 ) -> AppResult<ConnectionRecord> {
     let password = normalized_password(input.password.clone());
-    let connection = state.database.create_connection(input)?;
+    let mut connection = state.database.create_connection(input)?;
 
     if let Some(password) = password {
+        state.credentials.set_for_connection(&connection, &password)?;
         state
-            .credentials
-            .set_for_connection(&connection, &password)?;
+            .database
+            .set_connection_has_password(&connection.id, true)?;
+        connection.has_password = true;
     }
 
-    let connection = enrich_connection(&state, connection)?;
     log::info!("Created connection '{}'.", connection.name);
     emit_connection_list_changed(&app, "created", &connection.id)?;
     Ok(connection)
@@ -69,11 +70,14 @@ fn update_connection(
     let existing = state.database.get_connection(&input.id)?;
     let password = normalized_password(input.password.clone());
     let clear_saved_password = input.clear_saved_password;
-    let updated = state.database.update_connection(input)?;
+    let mut updated = state.database.update_connection(input)?;
 
-    handle_updated_credentials(&state, &existing, &updated, password, clear_saved_password)?;
+    updated.has_password =
+        handle_updated_credentials(&state, &existing, &updated, password, clear_saved_password)?;
+    state
+        .database
+        .set_connection_has_password(&updated.id, updated.has_password)?;
 
-    let updated = enrich_connection(&state, updated)?;
     log::info!("Updated connection '{}'.", updated.name);
     emit_connection_list_changed(&app, "updated", &updated.id)?;
     Ok(updated)
@@ -97,7 +101,7 @@ fn connect_session(
     connection_id: String,
 ) -> AppResult<SessionStatePayload> {
     let connection = state.database.get_connection(&connection_id)?;
-    let saved_password = state.credentials.get_for_connection(&connection)?;
+    let saved_password = load_saved_password_for_connection(&state, &connection)?;
     log::info!("Connecting to '{}'.", connection.name);
     state.sessions.connect(app, &connection, saved_password)
 }
@@ -170,7 +174,7 @@ async fn transfer_file(
     input: FileTransferInput,
 ) -> AppResult<FileTransferResult> {
     let connection = state.database.get_connection(&input.connection_id)?;
-    let saved_password = state.credentials.get_for_connection(&connection)?;
+    let saved_password = load_saved_password_for_connection(&state, &connection)?;
     log::info!(
         "Starting {:?} transfer for '{}'.",
         input.direction,
@@ -186,7 +190,7 @@ async fn list_remote_directory(
     path: Option<String>,
 ) -> AppResult<RemotePathListing> {
     let connection = state.database.get_connection(&connection_id)?;
-    let saved_password = state.credentials.get_for_connection(&connection)?;
+    let saved_password = load_saved_password_for_connection(&state, &connection)?;
     transfer::list_remote_directory(&connection, saved_password, path).await
 }
 
@@ -451,22 +455,20 @@ fn resolve_session_logs_dir() -> AppResult<std::path::PathBuf> {
     ))
 }
 
-fn enrich_connections(
+fn load_saved_password_for_connection(
     state: &AppState,
-    connections: Vec<ConnectionRecord>,
-) -> AppResult<Vec<ConnectionRecord>> {
-    connections
-        .into_iter()
-        .map(|connection| enrich_connection(state, connection))
-        .collect()
-}
+    connection: &ConnectionRecord,
+) -> AppResult<Option<String>> {
+    let saved_password = state.credentials.get_for_connection(connection)?;
+    let has_password = saved_password.is_some();
 
-fn enrich_connection(
-    state: &AppState,
-    mut connection: ConnectionRecord,
-) -> AppResult<ConnectionRecord> {
-    connection.has_password = state.credentials.get_for_connection(&connection)?.is_some();
-    Ok(connection)
+    if connection.has_password != has_password {
+        state
+            .database
+            .set_connection_has_password(&connection.id, has_password)?;
+    }
+
+    Ok(saved_password)
 }
 
 fn handle_updated_credentials(
@@ -475,7 +477,7 @@ fn handle_updated_credentials(
     updated: &ConnectionRecord,
     password: Option<String>,
     clear_saved_password: bool,
-) -> AppResult<()> {
+) -> AppResult<bool> {
     let old_account = state.credentials.account_for_connection(existing);
     let new_account = state.credentials.account_for_connection(updated);
 
@@ -484,7 +486,7 @@ fn handle_updated_credentials(
             state.credentials.delete_for_connection(existing)?;
         }
         state.credentials.delete_for_connection(updated)?;
-        return Ok(());
+        return Ok(false);
     }
 
     if let Some(password) = password {
@@ -492,7 +494,7 @@ fn handle_updated_credentials(
             state.credentials.delete_for_connection(existing)?;
         }
         state.credentials.set_for_connection(updated, &password)?;
-        return Ok(());
+        return Ok(true);
     }
 
     if old_account != new_account {
@@ -501,10 +503,12 @@ fn handle_updated_credentials(
                 .credentials
                 .set_for_connection(updated, &existing_password)?;
             state.credentials.delete_for_connection(existing)?;
+            return Ok(true);
         }
+        return Ok(false);
     }
 
-    Ok(())
+    Ok(existing.has_password)
 }
 
 fn normalized_password(password: Option<String>) -> Option<String> {

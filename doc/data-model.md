@@ -37,6 +37,7 @@ Connection metadata is stored in SQLite.
 | `port` | integer | SSH port |
 | `username` | text | Login username |
 | `group_name` | text nullable | Optional folder/group stored in Title Case |
+| `has_password` | integer | Non-secret `0/1` flag mirroring whether the app currently expects a saved password for this connection |
 | `created_at` | text | ISO timestamp |
 | `updated_at` | text | ISO timestamp |
 
@@ -106,7 +107,7 @@ Passwords are stored only in the system keyring.
 - **service:** `iridium-remote`
 - **account:** `username@host`
 
-`has_password` is not persisted in SQLite; the backend enriches returned connection records by checking the keyring when it serves connection data.
+`has_password` is persisted in SQLite as non-secret metadata only. The actual password still lives only in the system keyring, and the backend now avoids probing the keyring just to list connections during startup.
 
 ## Runtime models
 

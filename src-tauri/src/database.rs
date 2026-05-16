@@ -43,6 +43,7 @@ impl Database {
                     host TEXT NOT NULL,
                     port INTEGER NOT NULL DEFAULT 22,
                     username TEXT NOT NULL,
+                    has_password INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -121,6 +122,16 @@ impl Database {
                     AppError::database("Failed to update the database schema.", error.to_string())
                 })?;
         }
+        if !Self::has_column(&connection, "connections", "has_password")? {
+            connection
+                .execute(
+                    "ALTER TABLE connections ADD COLUMN has_password INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )
+                .map_err(|error| {
+                    AppError::database("Failed to update the database schema.", error.to_string())
+                })?;
+        }
         Self::normalize_stored_group_names(&connection)?;
         Ok(())
     }
@@ -174,6 +185,7 @@ impl Database {
         let mut statement = connection
             .prepare(
                 "SELECT id, name, group_name, host, port, username, created_at, updated_at
+                 , has_password
                  FROM connections
                  ORDER BY
                    CASE
@@ -206,6 +218,7 @@ impl Database {
         let record = connection
             .query_row(
                 "SELECT id, name, group_name, host, port, username, created_at, updated_at
+                 , has_password
                  FROM connections
                  WHERE id = ?1",
                 [id],
@@ -243,8 +256,8 @@ impl Database {
 
         connection
             .execute(
-                "INSERT INTO connections (id, name, group_name, host, port, username, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO connections (id, name, group_name, host, port, username, has_password, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     &record.id,
                     &record.name,
@@ -252,6 +265,7 @@ impl Database {
                     &record.host,
                     i64::from(record.port),
                     &record.username,
+                    0_i64,
                     &record.created_at,
                     &record.updated_at
                 ],
@@ -312,6 +326,22 @@ impl Database {
                 AppError::database("Failed to delete the connection.", error.to_string())
             })?;
         Ok(existing)
+    }
+
+    pub fn set_connection_has_password(&self, id: &str, has_password: bool) -> AppResult<()> {
+        let connection = self.connect()?;
+        connection
+            .execute(
+                "UPDATE connections SET has_password = ?2 WHERE id = ?1",
+                params![id, if has_password { 1_i64 } else { 0_i64 }],
+            )
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to update the saved-password state.",
+                    error.to_string(),
+                )
+            })?;
+        Ok(())
     }
 
     pub fn export_connections(&self) -> AppResult<ConnectionsExportPayload> {
@@ -393,8 +423,8 @@ impl Database {
             let now = Utc::now().to_rfc3339();
             transaction
                 .execute(
-                    "INSERT INTO connections (id, name, group_name, host, port, username, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    "INSERT INTO connections (id, name, group_name, host, port, username, has_password, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     params![
                         Uuid::new_v4().to_string(),
                         normalized.name,
@@ -402,6 +432,7 @@ impl Database {
                         normalized.host,
                         i64::from(normalized.port),
                         normalized.username,
+                        0_i64,
                         &now,
                         &now
                     ],
@@ -1012,9 +1043,9 @@ impl Database {
             host: row.get(3)?,
             port: row.get(4)?,
             username: row.get(5)?,
-            has_password: false,
             created_at: row.get(6)?,
             updated_at: row.get(7)?,
+            has_password: row.get::<_, i64>(8)? != 0,
         })
     }
 
@@ -2167,7 +2198,7 @@ mod tests {
         SessionRecordingMode, SessionRecordingSettings,
     };
     use chrono::{Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
-    use rusqlite::params;
+    use rusqlite::{Connection, params};
     use uuid::Uuid;
 
     fn test_database() -> Database {
@@ -2326,5 +2357,90 @@ mod tests {
             .expect("all-time history should still include the session");
         assert_eq!(all_time.host.total_connection_count, 1);
         assert_eq!(all_time.host.total_duration_seconds, 120);
+    }
+
+    #[test]
+    fn connection_password_presence_round_trips_in_sqlite() {
+        let database = test_database();
+        let connection = database
+            .create_connection(CreateConnectionInput {
+                name: "Alpha".into(),
+                group_name: None,
+                host: "192.168.1.10".into(),
+                port: Some(22),
+                username: "root".into(),
+                password: None,
+            })
+            .expect("connection should be created");
+
+        assert!(!database
+            .get_connection(&connection.id)
+            .expect("connection should load")
+            .has_password);
+
+        database
+            .set_connection_has_password(&connection.id, true)
+            .expect("password flag should update");
+
+        assert!(database
+            .get_connection(&connection.id)
+            .expect("connection should load")
+            .has_password);
+        assert!(database
+            .list_connections()
+            .expect("connections should list")
+            .into_iter()
+            .any(|item| item.id == connection.id && item.has_password));
+    }
+
+    #[test]
+    fn initialize_migrates_legacy_connections_without_password_metadata() {
+        let path =
+            std::env::temp_dir().join(format!("iridium-remote-test-{}.sqlite", Uuid::new_v4()));
+        let connection = Connection::open(&path).expect("legacy database should open");
+        connection
+            .execute_batch(
+                "CREATE TABLE connections (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    host TEXT NOT NULL,
+                    port INTEGER NOT NULL DEFAULT 22,
+                    username TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );",
+            )
+            .expect("legacy schema should be created");
+        let now = Utc::now().to_rfc3339();
+        connection
+            .execute(
+                "INSERT INTO connections (id, name, host, port, username, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    Uuid::new_v4().to_string(),
+                    "Legacy",
+                    "legacy.example.com",
+                    22_i64,
+                    "root",
+                    &now,
+                    &now
+                ],
+            )
+            .expect("legacy row should insert");
+        drop(connection);
+
+        let database = Database::new(path);
+        database.initialize().expect("migration should succeed");
+
+        let connections = database
+            .list_connections()
+            .expect("migrated connections should list");
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].group_name, None);
+        assert!(!connections[0].has_password);
     }
 }

@@ -166,6 +166,12 @@ jobs:
             - Windows: NSIS installer and MSI package
             - macOS: app bundle and DMG package
             - Ubuntu: DEB and AppImage bundles
+
+            Important install notes for the current unsigned release:
+            - Windows: the installer is not code-signed yet, so SmartScreen may warn before the installer starts. Download only from this GitHub release and, if you trust it, click `More info` -> `Run anyway`.
+            - macOS upgrades: if Finder asks whether to replace an existing `Iridium Remote.app`, choose `Replace`.
+            - macOS first launch: current macOS builds are not signed / notarized yet, so Gatekeeper may show a damaged-app warning. After copying to `/Applications`, click `Cancel`, run `xattr -cr /Applications/Iridium\ Remote.app`, then relaunch.
+            - macOS saved passwords: the first real use of a saved password may trigger a Keychain permission prompt because credentials are stored in `iridium-remote`.
           generateReleaseNotes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           releaseDraft: false

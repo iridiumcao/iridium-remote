@@ -8,7 +8,7 @@ The React frontend communicates with the Tauri backend through typed commands an
 
 ### `list_connections() -> ConnectionRecord[]`
 
-Returns all saved connections.
+Returns all saved connections. The `hasPassword` field comes from persisted non-secret metadata, so listing connections does not require a live keyring lookup.
 
 ### `create_connection(input) -> ConnectionRecord`
 

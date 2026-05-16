@@ -135,7 +135,7 @@ Responsibilities:
 
 ### Credentials
 
-`src-tauri\src\credentials.rs` routes password storage to the operating system keyring. Windows builds use Credential Manager directly, while non-Windows builds initialize the `keyring` crate against the desktop native store and force Linux/Ubuntu builds onto the Secret Service backend instead of the kernel keyutils store so saved passwords behave like a normal desktop keyring feature.
+`src-tauri\src\credentials.rs` routes password storage to the operating system keyring. Windows builds use Credential Manager directly, while non-Windows builds initialize the `keyring` crate against the desktop native store and force Linux/Ubuntu builds onto the Secret Service backend instead of the kernel keyutils store so saved passwords behave like a normal desktop keyring feature. Connection rows also persist a non-secret `has_password` flag in SQLite so startup and connection-list rendering do not need to read the keyring; actual keyring reads are deferred until a password is saved, removed, or actively used for connect / transfer work.
 
 ### File transfer
 

@@ -153,6 +153,17 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
   - macOS：Apple Silicon 与 Intel 的 app / DMG 安装产物
   - Ubuntu：`.deb` 与 `.AppImage`
 
+## 当前未签名发布包的安装说明
+
+当前 GitHub Releases 提供的构建产物，在 **Windows 上还没有代码签名证书**，在 **macOS 上也还没有签名 / 公证**。
+
+| 平台 | 你可能看到什么 | 原因 | 应对方式 | Iridium Remote 能否自定义这个提示？ |
+| --- | --- | --- | --- | --- |
+| **Windows** | 安装程序启动前弹出 SmartScreen 警告 | 安装包未签名，Windows 无法建立发布者信任 | 只从官方 GitHub Releases 页面下载安装包。确认来源可信后，点击 **More info** -> **Run anyway**。 | 不能。SmartScreen 发生在安装程序真正启动之前。 |
+| **macOS 升级安装** | Finder 提示 `/Applications` 里已存在旧的 `Iridium Remote.app` | 从 DMG 拖拽覆盖应用时，复制流程由 Finder 接管 | 请选择 **Replace**。`~/Library/Application Support/com.iridiumcao.iridiumremote/` 里的应用数据，以及 Keychain 中的已保存密码都会保留。 | 不能。这个对话框的文案和按钮由 Finder 决定。 |
+| **macOS 首次启动** | `"Iridium Remote.app" is damaged and can't be opened.` | 下载得到的未签名应用仍带有浏览器写入的 quarantine 属性，而且没有完成 notarization | 点击 **Cancel**，在 Terminal 里运行 `xattr -cr /Applications/Iridium\ Remote.app`，然后重新打开应用。根本解决方案仍然是发布带签名且已公证的 macOS 版本。 | 不能。Gatekeeper 会在应用启动前直接拦截。 |
+| **macOS 已保存密码** | Keychain 询问是否允许 Iridium Remote 访问 `iridium-remote` 中的机密信息 | 已保存密码存放在 macOS Keychain，应用第一次真正需要读取它们时，系统会请求授权 | 如果你希望自动填充已保存密码，请点 **Allow** 或 **Always Allow**；如果你更愿意每次在终端里手动输入密码，可以点 **Deny**。现在应用启动时不会为了渲染主窗口而主动探测 Keychain，因此这个提示应该只会在真正使用已保存密码时出现。 | 部分可以。提示框本身由 macOS 控制，但应用现在会避免在启动阶段触发它。 |
+
 ## 说明
 
 - **Windows**、**Ubuntu（Linux）** 和 **macOS** 现在都是同等的一线支持平台。
