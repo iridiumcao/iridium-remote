@@ -17,7 +17,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 3. Interact with remote hosts directly inside the terminal, including password prompts and `sudo` prompts.
 4. Upload and download files with SFTP from the active session context.
 5. Configure optional encrypted session recording and review exported session logs.
-6. Adjust preferences such as theme, language, and connection list display mode and keep them across restarts.
+6. Review per-host connection history and aggregated connection statistics.
+7. Adjust preferences such as theme, language, and connection list display mode and keep them across restarts.
 
 ## Functional requirements
 
@@ -86,6 +87,18 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - Old log files must be deleted automatically when they exceed the configured retention period or total storage cap.
 - Users can open one or more encrypted `.irlog` files, decrypt them with the recording password, preview them, and export them as `.txt`.
 
+### Connection history
+
+- The app should provide a `Connection History` entry in the File menu.
+- The connection-history dialog title should be `Connection History & Statistics`.
+- The feature should show per-host historical sessions including start time, end time, duration, and close status.
+- The feature should show per-host aggregate totals including connection count and total connected duration.
+- The feature should include simple pie charts for cross-host duration share, cross-host connection count share, and selected-host duration distribution by duration bucket.
+- History should be recorded as soon as a session starts so abnormal shutdowns do not lose the entire record.
+- The app should track a throttled `last_activity_at` timestamp and recover unfinished rows on next startup as abnormal, estimated sessions.
+- History retention should bound database growth by keeping recent detail rows and older aggregate rollups.
+- Deleting a saved connection should not delete its historical records by default; history must remain readable from host snapshots.
+
 ### File transfer
 
 - Users can upload files to the remote host with SFTP.
@@ -116,8 +129,10 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
   - `New Connection`
   - `Import`
   - `Export`
+  - `Connection History`
   - `Session Logs`
   - `Exit`
+- `Connection History` appears after `Export` and before `Session Logs`.
 - The app should suppress the default browser-like context menu across the main window.
 - Right-clicking inside the terminal workspace should open a localized, theme-aware terminal menu instead of the browser menu.
 
