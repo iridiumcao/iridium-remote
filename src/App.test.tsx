@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { appClient } from './api/client'
 import { defaultAppSettings } from './lib/types'
-import type { ConnectionRecord, SessionState } from './lib/types'
+import type {
+  ConnectionHistoryDateRange,
+  ConnectionHistoryHostSummary,
+  ConnectionRecord,
+  SessionState,
+} from './lib/types'
 
 const appClientMocks = vi.hoisted(() => ({
   listConnectionsMock: vi.fn<() => Promise<ConnectionRecord[]>>(),
@@ -499,5 +504,73 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: 'Connection History & Statistics' })).toBeInTheDocument()
     expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('last_30_days')
+  })
+
+  it('keeps all-time history hosts visible when the selected range has no sessions', async () => {
+    vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
+    const allTimeHost: ConnectionHistoryHostSummary = {
+      historyKey: 'history-1',
+      connectionId: 'connection-1',
+      connectionName: 'Alpha',
+      host: '192.168.1.10',
+      port: 22,
+      username: 'root',
+      deleted: false,
+      latestConnectionAt: '2026-01-01T00:00:00Z',
+      totalConnectionCount: 2,
+      totalDurationSeconds: 120,
+    }
+
+    appClientMocks.getConnectionHistoryOverviewMock.mockImplementation(
+      async (range: ConnectionHistoryDateRange) => ({
+        hosts: range === 'all_time' ? [allTimeHost] : [],
+      }),
+    )
+    appClientMocks.getConnectionHistoryHostDetailsMock.mockImplementation(
+      async (_historyKey: string, range: ConnectionHistoryDateRange) => ({
+        host:
+          range === 'all_time'
+            ? allTimeHost
+            : {
+                ...allTimeHost,
+                latestConnectionAt: null,
+                totalConnectionCount: 0,
+                totalDurationSeconds: 0,
+              },
+        sessions: [],
+        durationBuckets: [
+          { bucket: 'under_5_minutes', sessionCount: 0 },
+          { bucket: 'between_5_and_30_minutes', sessionCount: 0 },
+          { bucket: 'between_30_minutes_and_2_hours', sessionCount: 0 },
+          { bucket: 'over_2_hours', sessionCount: 0 },
+        ],
+        summarizedSessionCount: 0,
+        summarizedDurationSeconds: 0,
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(tauriMenuMocks.menuSetAsAppMenuMock).toHaveBeenCalled()
+    })
+
+    const openConnectionHistory = findMenuAction(tauriMenuMocks.lastMenuItems, 'connection-history')
+    await act(async () => {
+      openConnectionHistory?.()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('all_time')
+      expect(appClient.getConnectionHistoryHostDetails).toHaveBeenCalledWith('history-1', 'last_30_days')
+      expect(appClient.getConnectionHistoryHostDetails).toHaveBeenCalledWith('history-1', 'all_time')
+    })
+
+    expect(screen.getByRole('heading', { name: 'Connection History & Statistics' })).toBeInTheDocument()
+    expect(screen.getAllByText('root@192.168.1.10').length).toBeGreaterThan(0)
+    expect(screen.getByText('Total connections')).toBeInTheDocument()
+    expect(screen.getAllByText('2').length).toBeGreaterThan(0)
+    expect(screen.queryByText('No connection history yet.')).not.toBeInTheDocument()
   })
 })

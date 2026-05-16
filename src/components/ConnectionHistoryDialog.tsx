@@ -65,6 +65,27 @@ const durationBucketLabel = (
     over_2_hours: t.connectionHistoryBucketOver2Hours,
   })[bucket]
 
+const getConnectionHistoryErrorMessage = (cause: unknown, fallback: string) => {
+  if (cause instanceof Error) {
+    return cause.message
+  }
+
+  if (typeof cause === 'string' && cause.trim()) {
+    return cause
+  }
+
+  if (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'message' in cause &&
+    typeof cause.message === 'string'
+  ) {
+    return cause.message
+  }
+
+  return fallback
+}
+
 const PieChartCard = ({
   data,
   emptyText,
@@ -189,11 +210,54 @@ export const ConnectionHistoryDialog = ({
   const [range, setRange] = useState<ConnectionHistoryDateRange>('last_30_days')
   const [searchQuery, setSearchQuery] = useState('')
   const [overview, setOverview] = useState<ConnectionHistoryOverview | null>(null)
+  const [hostListOverview, setHostListOverview] = useState<ConnectionHistoryOverview | null>(null)
   const [details, setDetails] = useState<ConnectionHistoryHostDetails | null>(null)
+  const [allTimeDetails, setAllTimeDetails] = useState<ConnectionHistoryHostDetails | null>(null)
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isDark = theme === 'dark'
   const visibleDetails = details && details.host.historyKey === selectedHistoryKey ? details : null
+  const visibleAllTimeDetails =
+    allTimeDetails && allTimeDetails.host.historyKey === selectedHistoryKey ? allTimeDetails : null
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    let active = true
+
+    void onLoadOverview('all_time')
+      .then((nextOverview) => {
+        if (!active) {
+          return
+        }
+
+        setError(null)
+        setHostListOverview(nextOverview)
+        if (range === 'all_time') {
+          setOverview(nextOverview)
+        }
+        setSelectedHistoryKey((current) =>
+          current && nextOverview.hosts.some((host) => host.historyKey === current)
+            ? current
+            : nextOverview.hosts[0]?.historyKey ?? null,
+        )
+      })
+      .catch((cause) => {
+        if (active) {
+          setHostListOverview(null)
+          setDetails(null)
+          setAllTimeDetails(null)
+          setSelectedHistoryKey(null)
+          setError(getConnectionHistoryErrorMessage(cause, t.connectionHistoryNoHosts))
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [open, onLoadOverview, range, t.connectionHistoryNoHosts])
 
   useEffect(() => {
     if (!open) {
@@ -210,18 +274,14 @@ export const ConnectionHistoryDialog = ({
 
         setError(null)
         setOverview(nextOverview)
-        setSelectedHistoryKey((current) =>
-          current && nextOverview.hosts.some((host) => host.historyKey === current)
-            ? current
-            : nextOverview.hosts[0]?.historyKey ?? null,
-        )
+        if (range === 'all_time') {
+          setHostListOverview(nextOverview)
+        }
       })
       .catch((cause) => {
         if (active) {
           setOverview(null)
-          setDetails(null)
-          setSelectedHistoryKey(null)
-          setError(cause instanceof Error ? cause.message : t.connectionHistoryNoHosts)
+          setError(getConnectionHistoryErrorMessage(cause, t.connectionHistoryNoHosts))
         }
       })
 
@@ -237,28 +297,110 @@ export const ConnectionHistoryDialog = ({
 
     let active = true
 
-    void onLoadHostDetails(selectedHistoryKey, range)
-      .then((nextDetails) => {
-        if (active) {
-          setError(null)
-          setDetails(nextDetails)
-        }
-      })
-      .catch((cause) => {
-        if (active) {
-          setDetails(null)
-          setError(cause instanceof Error ? cause.message : t.connectionHistoryNoSessions)
-        }
-      })
+    const loadDetails = async () => {
+      const nextDetails = await onLoadHostDetails(selectedHistoryKey, range)
+      if (!active) {
+        return
+      }
+
+      setError(null)
+      setDetails(nextDetails)
+
+      if (range === 'all_time') {
+        setAllTimeDetails(nextDetails)
+        return
+      }
+
+      if (nextDetails.host.totalConnectionCount > 0) {
+        setAllTimeDetails(null)
+        return
+      }
+
+      const nextAllTimeDetails = await onLoadHostDetails(selectedHistoryKey, 'all_time')
+      if (active) {
+        setAllTimeDetails(nextAllTimeDetails)
+      }
+    }
+
+    void loadDetails().catch((cause) => {
+      if (!active) {
+        return
+      }
+
+      if (range !== 'all_time') {
+        void onLoadHostDetails(selectedHistoryKey, 'all_time')
+          .then((nextAllTimeDetails) => {
+            if (active) {
+              setError(null)
+              setDetails(null)
+              setAllTimeDetails(nextAllTimeDetails)
+            }
+          })
+          .catch((fallbackCause) => {
+            if (active) {
+              setDetails(null)
+              setAllTimeDetails(null)
+              setError(getConnectionHistoryErrorMessage(fallbackCause, t.connectionHistoryNoSessions))
+            }
+          })
+        return
+      }
+
+      setDetails(null)
+      setAllTimeDetails(null)
+      setError(getConnectionHistoryErrorMessage(cause, t.connectionHistoryNoSessions))
+    })
 
     return () => {
       active = false
     }
   }, [open, onLoadHostDetails, range, selectedHistoryKey, t.connectionHistoryNoSessions])
 
+  const chartOverview = useMemo(() => {
+    if (overview?.hosts.length) {
+      return overview
+    }
+
+    return hostListOverview
+  }, [hostListOverview, overview])
+
+  const selectedHostSummary = useMemo(() => {
+    if (!selectedHistoryKey) {
+      return null
+    }
+
+    return hostListOverview?.hosts.find((host) => host.historyKey === selectedHistoryKey) ?? null
+  }, [hostListOverview?.hosts, selectedHistoryKey])
+
+  const displayedDetails = useMemo(() => {
+    if (!visibleDetails && !visibleAllTimeDetails) {
+      return null
+    }
+
+    if (
+      visibleDetails &&
+      (visibleDetails.host.totalConnectionCount > 0 || range === 'all_time')
+    ) {
+      return visibleDetails
+    }
+
+    if (visibleAllTimeDetails) {
+      return visibleAllTimeDetails
+    }
+
+    if (!visibleDetails || !selectedHostSummary) {
+      return visibleDetails
+    }
+
+    return {
+      ...visibleDetails,
+      host: selectedHostSummary,
+    }
+  }, [range, selectedHostSummary, visibleAllTimeDetails, visibleDetails])
+
   const filteredHosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const hosts = overview?.hosts ?? []
+    const hosts = hostListOverview?.hosts ?? []
     if (!query) {
       return hosts
     }
@@ -268,7 +410,7 @@ export const ConnectionHistoryDialog = ({
         value.toLowerCase().includes(query),
       ),
     )
-  }, [overview?.hosts, searchQuery])
+  }, [hostListOverview?.hosts, searchQuery])
 
   const durationUnits = useMemo(
     () => ({
@@ -282,22 +424,22 @@ export const ConnectionHistoryDialog = ({
 
   const durationShareData = useMemo(
     () =>
-      (overview?.hosts ?? []).map((host) => ({
+      (chartOverview?.hosts ?? []).map((host) => ({
         label: host.connectionName,
         secondaryLabel: formatHistorySubtitle(host),
         value: host.totalDurationSeconds,
       })),
-    [overview?.hosts],
+    [chartOverview?.hosts],
   )
 
   const countShareData = useMemo(
     () =>
-      (overview?.hosts ?? []).map((host) => ({
+      (chartOverview?.hosts ?? []).map((host) => ({
         label: host.connectionName,
         secondaryLabel: formatHistorySubtitle(host),
         value: host.totalConnectionCount,
       })),
-    [overview?.hosts],
+    [chartOverview?.hosts],
   )
 
   const selectedHostDistribution = useMemo(
@@ -355,7 +497,6 @@ export const ConnectionHistoryDialog = ({
               onClick={() => {
                 setError(null)
                 setDetails(null)
-                setSelectedHistoryKey(null)
                 setRange(option)
               }}
             >
@@ -396,7 +537,7 @@ export const ConnectionHistoryDialog = ({
               isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
             }`}
           >
-            {filteredHosts.length === 0 ? (
+            {hostListOverview !== null && filteredHosts.length === 0 ? (
               <div className="rounded-xl border border-dashed px-4 py-6 text-sm">
                 <p className="font-medium">{t.connectionHistoryNoHosts}</p>
                 <p className={`mt-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -419,6 +560,8 @@ export const ConnectionHistoryDialog = ({
                         : 'border-slate-200 hover:bg-slate-100'
                   }`}
                   onClick={() => {
+                    setError(null)
+                    setDetails(null)
                     setSelectedHistoryKey(host.historyKey)
                   }}
                 >
@@ -455,13 +598,13 @@ export const ConnectionHistoryDialog = ({
           }`}
         >
           <div className="space-y-4">
-          {visibleDetails?.host ? (
+          {displayedDetails?.host ? (
             <>
               <div className={sectionClass}>
                 <div className="border-b px-4 py-4">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold">{visibleDetails.host.connectionName}</h3>
-                    {visibleDetails.host.deleted ? (
+                    <h3 className="text-lg font-semibold">{displayedDetails.host.connectionName}</h3>
+                    {displayedDetails.host.deleted ? (
                       <span
                         className={`rounded-full px-2 py-1 text-xs ${
                           isDark ? 'bg-amber-500/15 text-amber-100' : 'bg-amber-100 text-amber-700'
@@ -472,7 +615,7 @@ export const ConnectionHistoryDialog = ({
                     ) : null}
                   </div>
                   <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {formatHistorySubtitle(visibleDetails.host)}
+                    {formatHistorySubtitle(displayedDetails.host)}
                   </p>
                 </div>
 
@@ -481,14 +624,14 @@ export const ConnectionHistoryDialog = ({
                     <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                       {t.connectionHistoryTotalConnections}
                     </p>
-                    <p className="mt-2 text-2xl font-semibold">{visibleDetails.host.totalConnectionCount}</p>
+                    <p className="mt-2 text-2xl font-semibold">{displayedDetails.host.totalConnectionCount}</p>
                   </div>
                   <div className={summaryCardClass}>
                     <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                       {t.connectionHistoryTotalDuration}
                     </p>
                     <p className="mt-2 text-2xl font-semibold">
-                      {formatDurationSeconds(visibleDetails.host.totalDurationSeconds, durationUnits)}
+                      {formatDurationSeconds(displayedDetails.host.totalDurationSeconds, durationUnits)}
                     </p>
                   </div>
                   <div className={summaryCardClass}>
@@ -496,19 +639,19 @@ export const ConnectionHistoryDialog = ({
                       {t.connectionHistoryLatestConnection}
                     </p>
                     <p className="mt-2 text-base font-semibold">
-                      {formatDateTime(visibleDetails.host.latestConnectionAt, locale)}
+                      {formatDateTime(displayedDetails.host.latestConnectionAt, locale)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {visibleDetails.summarizedSessionCount > 0 ? (
+              {displayedDetails.summarizedSessionCount > 0 ? (
                 <p
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     isDark ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-200 bg-white text-slate-700'
                   }`}
                 >
-                  {t.connectionHistoryOlderSessionsSummarized(visibleDetails.summarizedSessionCount)}
+                  {t.connectionHistoryOlderSessionsSummarized(displayedDetails.summarizedSessionCount)}
                 </p>
               ) : null}
 
@@ -551,8 +694,8 @@ export const ConnectionHistoryDialog = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleDetails.sessions.length > 0 ? (
-                        visibleDetails.sessions.map((session) => (
+                      {displayedDetails.sessions.length > 0 ? (
+                        displayedDetails.sessions.map((session) => (
                           <tr
                             key={session.id}
                             className={isDark ? 'border-t border-white/10' : 'border-t border-slate-200'}
@@ -598,7 +741,7 @@ export const ConnectionHistoryDialog = ({
             </>
           ) : (
             <div className={`${sectionClass} p-6 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              {open && overview === null ? '…' : t.connectionHistoryNoHostsDescription}
+              {open && (overview === null || hostListOverview === null) ? '…' : t.connectionHistoryNoHostsDescription}
             </div>
           )}
           </div>

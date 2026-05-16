@@ -10,10 +10,9 @@ use crate::{
         AppSettings, ConnectionExportRecord, ConnectionHistoryCloseStatus,
         ConnectionHistoryDateRange, ConnectionHistoryDurationBucket,
         ConnectionHistoryDurationBucketKind, ConnectionHistoryHostDetails,
-        ConnectionHistoryHostSummary, ConnectionHistoryOverview,
-        ConnectionHistorySessionRecord, ConnectionRecord, ConnectionsExportPayload,
-        CreateConnectionInput, ImportConnectionsResult, SessionRecordingSettings,
-        UpdateConnectionInput,
+        ConnectionHistoryHostSummary, ConnectionHistoryOverview, ConnectionHistorySessionRecord,
+        ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput, ImportConnectionsResult,
+        SessionRecordingSettings, UpdateConnectionInput,
     },
 };
 
@@ -407,7 +406,10 @@ impl Database {
         })
     }
 
-    pub fn start_connection_history_session(&self, connection: &ConnectionRecord) -> AppResult<String> {
+    pub fn start_connection_history_session(
+        &self,
+        connection: &ConnectionRecord,
+    ) -> AppResult<String> {
         let db_connection = self.connect()?;
         let now = Utc::now().to_rfc3339();
         let session_id = Uuid::new_v4().to_string();
@@ -818,19 +820,31 @@ impl Database {
             .map(|connection| (connection.id.clone(), connection))
             .collect::<std::collections::HashMap<_, _>>();
         let aggregates = self.aggregate_connection_history(&range)?;
-        let aggregate = aggregates
-            .get(history_key)
-            .ok_or_else(|| AppError::not_found("Connection history host not found."))?;
+        let aggregate = match aggregates.get(history_key) {
+            Some(aggregate) => aggregate.clone(),
+            None if !matches!(range, ConnectionHistoryDateRange::AllTime) => self
+                .aggregate_connection_history(&ConnectionHistoryDateRange::AllTime)?
+                .get(history_key)
+                .cloned()
+                .map(HistoryHostAccumulator::without_totals)
+                .ok_or_else(|| AppError::not_found("Connection history host not found."))?,
+            None => return Err(AppError::not_found("Connection history host not found.")),
+        };
         let host = aggregate.clone().into_summary(&current_connections);
         let sessions = self.load_connection_history_sessions(history_key, &range)?;
-        let detail_duration_seconds = sessions.iter().map(|session| session.duration_seconds).sum::<u64>();
+        let detail_duration_seconds = sessions
+            .iter()
+            .map(|session| session.duration_seconds)
+            .sum::<u64>();
         let detail_session_count = sessions.len() as u64;
 
         Ok(ConnectionHistoryHostDetails {
             host,
             sessions,
             duration_buckets: aggregate.duration_buckets(),
-            summarized_session_count: aggregate.total_connection_count.saturating_sub(detail_session_count),
+            summarized_session_count: aggregate
+                .total_connection_count
+                .saturating_sub(detail_session_count),
             summarized_duration_seconds: aggregate
                 .total_duration_seconds
                 .saturating_sub(detail_duration_seconds),
@@ -914,14 +928,11 @@ impl Database {
                     error.to_string(),
                 )
             })?;
-            if cutoff
-                .as_ref()
-                .is_some_and(|cutoff| {
-                    parse_timestamp(&row.started_at)
-                        .map(|started_at| started_at < cutoff.clone())
-                        .unwrap_or(false)
-                })
-            {
+            if cutoff.as_ref().is_some_and(|cutoff| {
+                parse_timestamp(&row.started_at)
+                    .map(|started_at| started_at < cutoff.clone())
+                    .unwrap_or(false)
+            }) {
                 continue;
             }
             aggregates
@@ -1006,8 +1017,9 @@ impl Database {
     ) -> AppResult<Vec<ConnectionHistorySessionRecord>> {
         let connection = self.connect()?;
         let cutoff = history_range_cutoff(range);
-        let mut statement = connection.prepare(
-            "SELECT
+        let mut statement = connection
+            .prepare(
+                "SELECT
                 id,
                 started_at,
                 ended_at,
@@ -1017,12 +1029,13 @@ impl Database {
              FROM connection_history_sessions
              WHERE history_key = ?1
              ORDER BY started_at DESC",
-        ).map_err(|error| {
-            AppError::database(
-                "Failed to prepare the connection history detail query.",
-                error.to_string(),
             )
-        })?;
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to prepare the connection history detail query.",
+                    error.to_string(),
+                )
+            })?;
 
         let rows = statement
             .query_map([history_key], |row| {
@@ -1269,7 +1282,10 @@ impl HistoryHostAccumulator {
         .unwrap_or(0);
         self.total_connection_count += 1;
         self.total_duration_seconds += duration_seconds;
-        update_latest_timestamp(&mut self.latest_connection_at, Some(row.started_at.as_str()));
+        update_latest_timestamp(
+            &mut self.latest_connection_at,
+            Some(row.started_at.as_str()),
+        );
 
         match connection_history_duration_bucket(duration_seconds) {
             ConnectionHistoryDurationBucketKind::Under5Minutes => self.under_5_minutes_count += 1,
@@ -1294,6 +1310,17 @@ impl HistoryHostAccumulator {
         self.between_5_and_30_minutes_count += row.between_5_and_30_minutes_count;
         self.between_30_minutes_and_2_hours_count += row.between_30_minutes_and_2_hours_count;
         self.over_2_hours_count += row.over_2_hours_count;
+    }
+
+    fn without_totals(mut self) -> Self {
+        self.latest_connection_at = None;
+        self.total_connection_count = 0;
+        self.total_duration_seconds = 0;
+        self.under_5_minutes_count = 0;
+        self.between_5_and_30_minutes_count = 0;
+        self.between_30_minutes_and_2_hours_count = 0;
+        self.over_2_hours_count = 0;
+        self
     }
 
     fn duration_buckets(&self) -> Vec<ConnectionHistoryDurationBucket> {
@@ -1328,7 +1355,9 @@ impl HistoryHostAccumulator {
             .filter(|connection| {
                 connection.port == self.port_snapshot
                     && connection.host.eq_ignore_ascii_case(&self.host_snapshot)
-                    && connection.username.eq_ignore_ascii_case(&self.username_snapshot)
+                    && connection
+                        .username
+                        .eq_ignore_ascii_case(&self.username_snapshot)
             });
         let deleted = matching_connection.is_none();
 
@@ -1501,10 +1530,7 @@ fn history_close_status_to_db(status: &ConnectionHistoryCloseStatus) -> &'static
     }
 }
 
-fn history_close_status_from_db(
-    value: &str,
-    in_progress: bool,
-) -> ConnectionHistoryCloseStatus {
+fn history_close_status_from_db(value: &str, in_progress: bool) -> ConnectionHistoryCloseStatus {
     if in_progress {
         return ConnectionHistoryCloseStatus::InProgress;
     }
@@ -1595,10 +1621,22 @@ fn is_group_word_separator(character: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_app_settings, normalize_group_name};
+    use super::{history_subject_key, normalize_app_settings, normalize_group_name, Database};
     use crate::models::{
-        AppSettings, ConnectionListDisplayMode, SessionRecordingMode, SessionRecordingSettings,
+        AppSettings, ConnectionHistoryDateRange, ConnectionListDisplayMode, CreateConnectionInput,
+        SessionRecordingMode, SessionRecordingSettings,
     };
+    use chrono::{Duration as ChronoDuration, Utc};
+    use rusqlite::params;
+    use uuid::Uuid;
+
+    fn test_database() -> Database {
+        let path =
+            std::env::temp_dir().join(format!("iridium-remote-test-{}.sqlite", Uuid::new_v4()));
+        let database = Database::new(path);
+        database.initialize().expect("database should initialize");
+        database
+    }
 
     #[test]
     fn normalize_group_name_merges_case_variants() {
@@ -1644,6 +1682,90 @@ mod tests {
         let normalized = normalize_app_settings(settings).expect("settings should normalize");
 
         assert!(normalized.session_recording.enabled);
-        assert_eq!(normalized.session_recording.mode, SessionRecordingMode::Full);
+        assert_eq!(
+            normalized.session_recording.mode,
+            SessionRecordingMode::Full
+        );
+    }
+
+    #[test]
+    fn host_details_return_empty_range_summary_for_known_history_host() {
+        let database = test_database();
+        let connection = database
+            .create_connection(CreateConnectionInput {
+                name: "Alpha".into(),
+                group_name: None,
+                host: "192.168.1.10".into(),
+                port: Some(22),
+                username: "root".into(),
+                password: None,
+            })
+            .expect("connection should be created");
+        let history_key = history_subject_key(&connection);
+        let started_at = (Utc::now() - ChronoDuration::days(120)).to_rfc3339();
+        let ended_at =
+            (Utc::now() - ChronoDuration::days(120) + ChronoDuration::minutes(2)).to_rfc3339();
+        let now = Utc::now().to_rfc3339();
+
+        database
+            .connect()
+            .expect("database should open")
+            .execute(
+                "INSERT INTO connection_history_sessions (
+                    id,
+                    history_key,
+                    connection_id,
+                    connection_name_snapshot,
+                    host_snapshot,
+                    port_snapshot,
+                    username_snapshot,
+                    started_at,
+                    last_activity_at,
+                    ended_at,
+                    duration_seconds,
+                    close_status,
+                    is_estimated,
+                    created_at,
+                    updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'normal', 0, ?12, ?13)",
+                params![
+                    Uuid::new_v4().to_string(),
+                    &history_key,
+                    &connection.id,
+                    &connection.name,
+                    &connection.host,
+                    i64::from(connection.port),
+                    &connection.username,
+                    &started_at,
+                    &ended_at,
+                    &ended_at,
+                    120_i64,
+                    &now,
+                    &now
+                ],
+            )
+            .expect("history row should be inserted");
+
+        let details = database
+            .get_connection_history_host_details(
+                &history_key,
+                ConnectionHistoryDateRange::Last30Days,
+            )
+            .expect("known history host should not be treated as missing");
+
+        assert_eq!(details.host.connection_name, "Alpha");
+        assert_eq!(details.host.total_connection_count, 0);
+        assert_eq!(details.host.total_duration_seconds, 0);
+        assert_eq!(details.sessions.len(), 0);
+        assert!(details
+            .duration_buckets
+            .iter()
+            .all(|bucket| bucket.session_count == 0));
+
+        let all_time = database
+            .get_connection_history_host_details(&history_key, ConnectionHistoryDateRange::AllTime)
+            .expect("all-time history should still include the session");
+        assert_eq!(all_time.host.total_connection_count, 1);
+        assert_eq!(all_time.host.total_duration_seconds, 120);
     }
 }
