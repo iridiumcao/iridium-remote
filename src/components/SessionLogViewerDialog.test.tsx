@@ -20,7 +20,7 @@ const preview: SessionLogPreview = {
 
 describe('SessionLogViewerDialog', () => {
   it('keeps the preview scrollbar classes in sync with the active theme', async () => {
-    const { rerender } = render(
+    const { container, rerender } = render(
       <SessionLogViewerDialog
         onClose={vi.fn()}
         onExport={vi.fn(async () => true)}
@@ -33,6 +33,11 @@ describe('SessionLogViewerDialog', () => {
         theme="dark"
       />,
     )
+
+    const modalScrollRegion = container.querySelector('.modal-scroll-region')
+    expect(modalScrollRegion).not.toBeNull()
+    expect(modalScrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-dark')
+    expect(modalScrollRegion).not.toHaveClass('themed-scrollbar-light')
 
     const previewArea = screen.getByRole('textbox')
     expect(previewArea).toHaveClass('themed-scrollbar', 'themed-scrollbar-dark')
@@ -52,6 +57,8 @@ describe('SessionLogViewerDialog', () => {
       />,
     )
 
+    expect(modalScrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-light')
+    expect(modalScrollRegion).not.toHaveClass('themed-scrollbar-dark')
     expect(previewArea).toHaveClass('themed-scrollbar', 'themed-scrollbar-light')
     expect(previewArea).not.toHaveClass('themed-scrollbar-dark')
   })

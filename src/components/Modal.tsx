@@ -34,14 +34,14 @@ export const Modal = ({
       }`}
     >
       <div
-      className={`flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border p-6 shadow-2xl ${
-        widthClass
-      } ${
-        isDark
-          ? 'border-white/10 bg-slate-900 text-white shadow-black/40'
-          : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'
-      }`}
-    >
+        className={`flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border p-6 shadow-2xl ${
+          widthClass
+        } ${
+          isDark
+            ? 'border-white/10 bg-slate-900 text-white shadow-black/40'
+            : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'
+        }`}
+      >
         <div className="mb-5">
           <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
             {title}
@@ -53,7 +53,13 @@ export const Modal = ({
           ) : null}
         </div>
 
-        <div className={`min-h-0 flex-1 ${bodyClassName}`}>{children}</div>
+        <div
+          className={`modal-scroll-region themed-scrollbar min-h-0 flex-1 ${
+            isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
+          } ${bodyClassName}`}
+        >
+          {children}
+        </div>
 
         <div className="mt-6 flex justify-end gap-3">{footer}</div>
       </div>
