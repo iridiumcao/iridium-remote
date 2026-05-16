@@ -64,6 +64,34 @@ describe('SessionRecordingDialog', () => {
     )
     const passwordInput = document.querySelector('input[type="password"]')
     expect(passwordInput).toHaveAttribute('placeholder', '********')
-    expect(passwordInput).toHaveAttribute('placeholder', '********')
+  })
+
+  it('keeps the log-directory action buttons aligned with the input row', () => {
+    render(
+      <SessionRecordingDialog
+        onClose={vi.fn()}
+        onOpenFolder={vi.fn()}
+        onPickLogDirectory={vi.fn()}
+        onSave={vi.fn(async () => undefined)}
+        open
+        settings={{
+          enabled: true,
+          mode: 'input_only',
+          maxFileSizeMb: 100,
+          maxTotalStorageGb: 5,
+          retentionDays: 30,
+          logDirectory: null,
+        }}
+        status={baseStatus}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    const logDirectoryRow = screen
+      .getAllByDisplayValue('C:\\Users\\iridi\\AppData\\Local\\Iridium Remote\\SessionLogs')[0]
+      .closest('div')
+
+    expect(logDirectoryRow).toHaveClass('flex', 'flex-col', 'gap-3', 'sm:flex-row', 'sm:items-center')
   })
 })

@@ -229,10 +229,10 @@ export const SessionLogViewerDialog = ({
             ) : null}
           </div>
           <textarea
-            className={`mt-3 h-[420px] w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none ${
+            className={`themed-scrollbar mt-3 h-[420px] w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none ${
               isDark
-                ? 'border-white/10 bg-slate-950 text-slate-100'
-                : 'border-slate-200 bg-white text-slate-900'
+                ? 'border-white/10 bg-slate-950 text-slate-100 themed-scrollbar-dark'
+                : 'border-slate-200 bg-white text-slate-900 themed-scrollbar-light'
             }`}
             readOnly
             value={preview?.previewText ?? ''}

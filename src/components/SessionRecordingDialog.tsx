@@ -319,51 +319,50 @@ export const SessionRecordingDialog = ({
       </fieldset>
 
       <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <label className="block text-sm">
-              <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                {t.sessionRecordingLogDirectory}
-              </span>
-              <input
-                className={inputClass}
-                onChange={(event) => {
-                  setFormState((current) => ({ ...current, logDirectory: event.target.value }))
+        <label className="block text-sm">
+          <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+            {t.sessionRecordingLogDirectory}
+          </span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              className={`${inputClass} min-w-0 flex-1`}
+              onChange={(event) => {
+                setFormState((current) => ({ ...current, logDirectory: event.target.value }))
+              }}
+              value={formState.logDirectory}
+            />
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className={`rounded-lg border px-4 py-2 text-sm transition ${
+                  isDark
+                    ? 'border-white/10 text-slate-200 hover:bg-white/5'
+                    : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+                onClick={() => {
+                  void handlePickLogDirectory()
                 }}
-                value={formState.logDirectory}
-              />
-            </label>
+              >
+                {t.browseFolder}
+              </button>
+              <button
+                type="button"
+                className={`rounded-lg border px-4 py-2 text-sm transition ${
+                  isDark
+                    ? 'border-white/10 text-slate-200 hover:bg-white/5'
+                    : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+                onClick={onOpenFolder}
+              >
+                {t.openFolder}
+              </button>
+            </div>
+          </div>
+        </label>
+        <div className="mt-2">
             <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {t.sessionRecordingCurrentUsage}: {formatStorageBytes(status?.currentStorageBytes ?? 0)}
             </p>
-          </div>
-
-          <div className="flex shrink-0 flex-wrap gap-3">
-            <button
-              type="button"
-              className={`rounded-lg border px-4 py-2 text-sm transition ${
-                isDark
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-              onClick={() => {
-                void handlePickLogDirectory()
-              }}
-            >
-              {t.browseFolder}
-            </button>
-            <button
-              type="button"
-              className={`rounded-lg border px-4 py-2 text-sm transition ${
-                isDark
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-              onClick={onOpenFolder}
-            >
-              {t.openFolder}
-            </button>
-          </div>
         </div>
       </fieldset>
 

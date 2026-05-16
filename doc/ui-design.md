@@ -170,6 +170,7 @@ Shows:
 - open-folder action
 
 When recording is disabled, all dependent controls below the enable toggle are disabled and visually dimmed.
+The log-directory input and its browse/open actions should stay aligned on the same row in normal desktop widths.
 
 ### Session logs dialog
 
@@ -180,6 +181,8 @@ Shows:
 - preview area for decrypted text
 - export action for `.txt`
 - open-folder action for the recording directory
+
+The preview area's scrollbar should follow the active light or dark theme, just like the sidebar and terminal tab strip.
 
 ## Visual behavior
 

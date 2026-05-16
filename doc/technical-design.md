@@ -58,6 +58,7 @@ The layout uses `min-h-0` and overflow boundaries so the main window does not be
 The horizontally scrolling tab strip also uses theme-aware scrollbar styling so the right workspace stays visually aligned with the active light or dark theme.
 Per-session terminal history is buffered on the frontend for fast tab restoration, but replay-only buffers strip terminal status-query escape sequences so activating a tab does not send synthetic input back to the SSH session. Tab activation also updates the selected connection in the sidebar so the left panel stays synchronized with the active workspace session.
 The workspace header itself is intentionally minimal: it shows only the active SSH target in `username@host[:port]` format and does not repeat the saved connection name or render a separate status pill. When the active session is being recorded, the same header shows a compact recording badge so users always know when capture is active.
+The session-log preview textarea reuses the same theme-aware scrollbar classes as the sidebar and tab strip, and the session-recording dialog keeps the log-directory path plus browse/open actions on a single aligned input row at normal desktop widths.
 
 ### Frontend bridge
 
