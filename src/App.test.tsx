@@ -12,6 +12,8 @@ const appClientMocks = vi.hoisted(() => ({
   getSessionStatesMock: vi.fn<() => Promise<SessionState[]>>(),
   getAppSettingsMock: vi.fn<() => Promise<typeof defaultAppSettings>>(),
   getSessionRecordingStatusMock: vi.fn(),
+  getConnectionHistoryOverviewMock: vi.fn(),
+  getConnectionHistoryHostDetailsMock: vi.fn(),
   onSessionStateMock: vi.fn(),
   onSessionRemovedMock: vi.fn(),
 }))
@@ -46,6 +48,8 @@ vi.mock('./api/client', () => ({
     getSessionStates: appClientMocks.getSessionStatesMock,
     getAppSettings: appClientMocks.getAppSettingsMock,
     getSessionRecordingStatus: appClientMocks.getSessionRecordingStatusMock,
+    getConnectionHistoryOverview: appClientMocks.getConnectionHistoryOverviewMock,
+    getConnectionHistoryHostDetails: appClientMocks.getConnectionHistoryHostDetailsMock,
     onSessionState: appClientMocks.onSessionStateMock,
     onSessionRemoved: appClientMocks.onSessionRemovedMock,
     normalizeError: vi.fn((cause: unknown) => ({
@@ -200,6 +204,27 @@ describe('App', () => {
       canRecord: false,
       logDirectory: 'C:\\mock\\SessionLogs',
       currentStorageBytes: 0,
+    })
+    appClientMocks.getConnectionHistoryOverviewMock.mockResolvedValue({
+      hosts: [],
+    })
+    appClientMocks.getConnectionHistoryHostDetailsMock.mockResolvedValue({
+      host: {
+        historyKey: 'history-1',
+        connectionId: 'connection-1',
+        connectionName: 'Alpha',
+        host: '192.168.1.10',
+        port: 22,
+        username: 'root',
+        deleted: false,
+        latestConnectionAt: '2026-01-01T00:00:00Z',
+        totalConnectionCount: 1,
+        totalDurationSeconds: 60,
+      },
+      sessions: [],
+      durationBuckets: [],
+      summarizedSessionCount: 0,
+      summarizedDurationSeconds: 0,
     })
     appClientMocks.onSessionStateMock.mockResolvedValue(() => {})
     appClientMocks.onSessionRemovedMock.mockResolvedValue(() => {})
@@ -443,5 +468,36 @@ describe('App', () => {
           item.items?.some((child) => child.id === 'check-for-update' && child.text === 'Check for Updates...'),
       )
     ).toBe(true)
+  })
+
+  it('places Connection History in the File menu after Export and opens the dialog', async () => {
+    vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(tauriMenuMocks.menuSetAsAppMenuMock).toHaveBeenCalled()
+    })
+
+    const fileMenu = tauriMenuMocks.lastMenuItems.find((item) => item.text === 'File')
+    expect(fileMenu?.items?.map((item) => item.id)).toEqual([
+      'new-connection',
+      'import-connections',
+      'export-connections',
+      'connection-history',
+      'session-logs',
+      'exit',
+    ])
+
+    const openConnectionHistory = findMenuAction(tauriMenuMocks.lastMenuItems, 'connection-history')
+    expect(openConnectionHistory).not.toBeNull()
+
+    await act(async () => {
+      openConnectionHistory?.()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('heading', { name: 'Connection History & Statistics' })).toBeInTheDocument()
+    expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('last_30_days')
   })
 })

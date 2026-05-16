@@ -100,6 +100,46 @@ Each `SessionState` may also include:
 - `recordingActive`
 - `recordingMode?`
 
+## Connection history commands
+
+### `get_connection_history_overview(range) -> ConnectionHistoryOverview`
+
+Returns host-level connection-history summaries for the requested range:
+
+- `last_7_days`
+- `last_30_days`
+- `last_90_days`
+- `all_time`
+
+Each host summary includes:
+
+- `historyKey`
+- `connectionId`
+- `connectionName`
+- `host`
+- `port`
+- `username`
+- `deleted`
+- `latestConnectionAt`
+- `totalConnectionCount`
+- `totalDurationSeconds`
+
+### `get_connection_history_host_details(historyKey, range) -> ConnectionHistoryHostDetails`
+
+Returns the selected host summary plus:
+
+- `sessions`
+- `durationBuckets`
+- `summarizedSessionCount`
+- `summarizedDurationSeconds`
+
+`durationBuckets` uses these fixed bucket identifiers:
+
+- `under_5_minutes`
+- `between_5_and_30_minutes`
+- `between_30_minutes_and_2_hours`
+- `over_2_hours`
+
 ### `check_for_updates() -> UpdateCheckResult`
 
 Queries GitHub from the backend for the latest release and returns:
@@ -192,6 +232,7 @@ When the app is not running inside Tauri:
 - settings are persisted via browser storage
 - sessions are simulated
 - session recording settings and runtime password state are simulated in memory
+- connection history is simulated in memory and finalized when mock sessions close
 - import/export works against the mock store, including settings when present
 - exports fall back to the browser download flow because the Tauri native save dialog is not available
 - local transfer-path picks return mock file or folder paths

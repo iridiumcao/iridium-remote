@@ -259,3 +259,77 @@ pub struct SessionLogPreview {
     pub preview_text: String,
     pub truncated: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionHistoryDateRange {
+    Last7Days,
+    Last30Days,
+    Last90Days,
+    AllTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionHistoryCloseStatus {
+    Normal,
+    Abnormal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionHistoryDurationBucketKind {
+    Under5Minutes,
+    Between5And30Minutes,
+    Between30MinutesAnd2Hours,
+    Over2Hours,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionHistoryHostSummary {
+    pub history_key: String,
+    pub connection_id: Option<String>,
+    pub connection_name: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub deleted: bool,
+    pub latest_connection_at: Option<String>,
+    pub total_connection_count: u64,
+    pub total_duration_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionHistorySessionRecord {
+    pub id: String,
+    pub started_at: String,
+    pub ended_at: String,
+    pub duration_seconds: u64,
+    pub close_status: ConnectionHistoryCloseStatus,
+    pub is_estimated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionHistoryDurationBucket {
+    pub bucket: ConnectionHistoryDurationBucketKind,
+    pub session_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionHistoryOverview {
+    pub hosts: Vec<ConnectionHistoryHostSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionHistoryHostDetails {
+    pub host: ConnectionHistoryHostSummary,
+    pub sessions: Vec<ConnectionHistorySessionRecord>,
+    pub duration_buckets: Vec<ConnectionHistoryDurationBucket>,
+    pub summarized_session_count: u64,
+    pub summarized_duration_seconds: u64,
+}

@@ -63,6 +63,7 @@ type Dictionary = {
   menuReportIssue: string
   menuAbout: string
   menuNewConnection: string
+  menuConnectionHistory: string
   menuSessionLogs: string
   menuSessionRecording: string
   exit: string
@@ -146,6 +147,42 @@ type Dictionary = {
   sessionLogsPreviewTruncated: string
   noSessionLogsSelected: string
   sessionLogsExported: string
+  connectionHistoryTitle: string
+  connectionHistoryDescription: string
+  connectionHistorySearchHosts: string
+  connectionHistoryHostList: string
+  connectionHistoryNoHosts: string
+  connectionHistoryNoHostsDescription: string
+  connectionHistoryTotalConnections: string
+  connectionHistoryTotalDuration: string
+  connectionHistoryLatestConnection: string
+  connectionHistorySessions: string
+  connectionHistoryNoSessions: string
+  connectionHistoryStartTime: string
+  connectionHistoryEndTime: string
+  connectionHistoryDuration: string
+  connectionHistoryCloseStatus: string
+  connectionHistoryStatusNormal: string
+  connectionHistoryStatusAbnormal: string
+  connectionHistoryEstimated: string
+  connectionHistoryDeletedConnection: string
+  connectionHistoryRangeLast7Days: string
+  connectionHistoryRangeLast30Days: string
+  connectionHistoryRangeLast90Days: string
+  connectionHistoryRangeAllTime: string
+  connectionHistoryDurationShareChart: string
+  connectionHistoryCountShareChart: string
+  connectionHistoryDistributionChart: string
+  connectionHistoryChartEmpty: string
+  connectionHistoryBucketUnder5Minutes: string
+  connectionHistoryBucket5To30Minutes: string
+  connectionHistoryBucket30MinutesTo2Hours: string
+  connectionHistoryBucketOver2Hours: string
+  connectionHistoryOlderSessionsSummarized: (count: number) => string
+  durationDaysShort: string
+  durationHoursShort: string
+  durationMinutesShort: string
+  durationSecondsShort: string
   validationRequired: string
   validationPort: string
   validationPasswordLength: string
@@ -225,6 +262,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuReportIssue: 'Report Issue',
     menuAbout: 'About',
     menuNewConnection: 'New Connection',
+    menuConnectionHistory: 'Connection History',
     menuSessionLogs: 'Session Logs',
     menuSessionRecording: 'Session Recording',
     exit: 'Exit',
@@ -320,6 +358,45 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsPreviewTruncated: 'Preview truncated. Export the logs to save the full text.',
     noSessionLogsSelected: 'No session log files selected yet.',
     sessionLogsExported: 'Exported the decrypted session logs.',
+    connectionHistoryTitle: 'Connection History & Statistics',
+    connectionHistoryDescription:
+      'Review recent per-host connection sessions, totals, and simple usage charts.',
+    connectionHistorySearchHosts: 'Search hosts',
+    connectionHistoryHostList: 'Hosts',
+    connectionHistoryNoHosts: 'No connection history yet.',
+    connectionHistoryNoHostsDescription:
+      'Finished SSH sessions will appear here after they have been recorded.',
+    connectionHistoryTotalConnections: 'Total connections',
+    connectionHistoryTotalDuration: 'Total duration',
+    connectionHistoryLatestConnection: 'Latest connection',
+    connectionHistorySessions: 'Sessions',
+    connectionHistoryNoSessions: 'No detailed sessions match the current filter.',
+    connectionHistoryStartTime: 'Start time',
+    connectionHistoryEndTime: 'End time',
+    connectionHistoryDuration: 'Duration',
+    connectionHistoryCloseStatus: 'Close status',
+    connectionHistoryStatusNormal: 'Normal',
+    connectionHistoryStatusAbnormal: 'Abnormal interruption',
+    connectionHistoryEstimated: 'Estimated',
+    connectionHistoryDeletedConnection: 'Deleted connection',
+    connectionHistoryRangeLast7Days: 'Last 7 days',
+    connectionHistoryRangeLast30Days: 'Last 30 days',
+    connectionHistoryRangeLast90Days: 'Last 90 days',
+    connectionHistoryRangeAllTime: 'All time',
+    connectionHistoryDurationShareChart: 'Cross-host duration share',
+    connectionHistoryCountShareChart: 'Cross-host connection count share',
+    connectionHistoryDistributionChart: 'Selected host duration distribution',
+    connectionHistoryChartEmpty: 'No chart data is available for the current filter.',
+    connectionHistoryBucketUnder5Minutes: '< 5 minutes',
+    connectionHistoryBucket5To30Minutes: '5 to 30 minutes',
+    connectionHistoryBucket30MinutesTo2Hours: '30 minutes to 2 hours',
+    connectionHistoryBucketOver2Hours: '> 2 hours',
+    connectionHistoryOlderSessionsSummarized: (count) =>
+      `${count} older session${count === 1 ? '' : 's'} are summarized in totals and charts.`,
+    durationDaysShort: 'd',
+    durationHoursShort: 'h',
+    durationMinutesShort: 'm',
+    durationSecondsShort: 's',
     validationRequired: 'Name, host, and username are required.',
     validationPort: 'Port must be a valid TCP port.',
     validationPasswordLength: 'The session recording password must be at least 8 characters.',
@@ -403,6 +480,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuReportIssue: '反馈问题',
     menuAbout: '关于',
     menuNewConnection: '新建连接',
+    menuConnectionHistory: '连接历史',
     menuSessionLogs: '会话日志',
     menuSessionRecording: '会话录制',
     exit: '退出',
@@ -488,6 +566,43 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsPreviewTruncated: '预览内容已截断，请导出日志以保存完整文本。',
     noSessionLogsSelected: '尚未选择会话日志文件。',
     sessionLogsExported: '已导出解密后的会话日志。',
+    connectionHistoryTitle: '连接历史与统计',
+    connectionHistoryDescription: '查看每个主机的近期连接明细、累计统计和简要占比图。',
+    connectionHistorySearchHosts: '搜索主机',
+    connectionHistoryHostList: '主机列表',
+    connectionHistoryNoHosts: '还没有连接历史。',
+    connectionHistoryNoHostsDescription: '完成过的 SSH 会话会在这里显示出来。',
+    connectionHistoryTotalConnections: '总连接次数',
+    connectionHistoryTotalDuration: '总连接时长',
+    connectionHistoryLatestConnection: '最近连接时间',
+    connectionHistorySessions: '连接明细',
+    connectionHistoryNoSessions: '当前筛选条件下没有可展示的明细记录。',
+    connectionHistoryStartTime: '开始时间',
+    connectionHistoryEndTime: '结束时间',
+    connectionHistoryDuration: '时长',
+    connectionHistoryCloseStatus: '关闭状态',
+    connectionHistoryStatusNormal: '正常结束',
+    connectionHistoryStatusAbnormal: '异常中断',
+    connectionHistoryEstimated: '估算',
+    connectionHistoryDeletedConnection: '已删除主机',
+    connectionHistoryRangeLast7Days: '最近 7 天',
+    connectionHistoryRangeLast30Days: '最近 30 天',
+    connectionHistoryRangeLast90Days: '最近 90 天',
+    connectionHistoryRangeAllTime: '全部时间',
+    connectionHistoryDurationShareChart: '不同主机连接时长占比',
+    connectionHistoryCountShareChart: '不同主机连接次数占比',
+    connectionHistoryDistributionChart: '当前主机连接时长分布',
+    connectionHistoryChartEmpty: '当前筛选条件下没有可展示的图表数据。',
+    connectionHistoryBucketUnder5Minutes: '5 分钟以内',
+    connectionHistoryBucket5To30Minutes: '5 到 30 分钟',
+    connectionHistoryBucket30MinutesTo2Hours: '30 分钟到 2 小时',
+    connectionHistoryBucketOver2Hours: '2 小时以上',
+    connectionHistoryOlderSessionsSummarized: (count) =>
+      `另有 ${count} 条更早的连接已汇总到统计和图表中。`,
+    durationDaysShort: '天',
+    durationHoursShort: '小时',
+    durationMinutesShort: '分',
+    durationSecondsShort: '秒',
     validationRequired: '名称、主机和用户名为必填项。',
     validationPort: '端口必须是有效的 TCP 端口。',
     validationPasswordLength: '会话录制密码至少需要 8 个字符。',
@@ -566,6 +681,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuFile: '檔案',
     menuSettings: '設定',
     menuNewConnection: '新增連線...',
+    menuConnectionHistory: '連線歷史',
     menuHelp: '說明',
     menuCheckForUpdate: '檢查更新...',
     menuStarOnGitHub: '在 GitHub 上給我們評星',
@@ -656,6 +772,43 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsPreviewTruncated: '預覽內容已截斷，請匯出日誌以儲存完整文字。',
     noSessionLogsSelected: '尚未選取任何會話日誌檔案。',
     sessionLogsExported: '已匯出解密後的會話日誌。',
+    connectionHistoryTitle: '連線歷史與統計',
+    connectionHistoryDescription: '檢視每個主機的近期連線明細、累計統計與簡要占比圖。',
+    connectionHistorySearchHosts: '搜尋主機',
+    connectionHistoryHostList: '主機清單',
+    connectionHistoryNoHosts: '還沒有連線歷史。',
+    connectionHistoryNoHostsDescription: '完成過的 SSH 會話會顯示在這裡。',
+    connectionHistoryTotalConnections: '總連線次數',
+    connectionHistoryTotalDuration: '總連線時長',
+    connectionHistoryLatestConnection: '最近連線時間',
+    connectionHistorySessions: '連線明細',
+    connectionHistoryNoSessions: '目前篩選條件下沒有可顯示的明細紀錄。',
+    connectionHistoryStartTime: '開始時間',
+    connectionHistoryEndTime: '結束時間',
+    connectionHistoryDuration: '時長',
+    connectionHistoryCloseStatus: '關閉狀態',
+    connectionHistoryStatusNormal: '正常結束',
+    connectionHistoryStatusAbnormal: '異常中斷',
+    connectionHistoryEstimated: '估算',
+    connectionHistoryDeletedConnection: '已刪除主機',
+    connectionHistoryRangeLast7Days: '最近 7 天',
+    connectionHistoryRangeLast30Days: '最近 30 天',
+    connectionHistoryRangeLast90Days: '最近 90 天',
+    connectionHistoryRangeAllTime: '全部時間',
+    connectionHistoryDurationShareChart: '不同主機連線時長占比',
+    connectionHistoryCountShareChart: '不同主機連線次數占比',
+    connectionHistoryDistributionChart: '目前主機連線時長分布',
+    connectionHistoryChartEmpty: '目前篩選條件下沒有可顯示的圖表資料。',
+    connectionHistoryBucketUnder5Minutes: '5 分鐘以內',
+    connectionHistoryBucket5To30Minutes: '5 到 30 分鐘',
+    connectionHistoryBucket30MinutesTo2Hours: '30 分鐘到 2 小時',
+    connectionHistoryBucketOver2Hours: '2 小時以上',
+    connectionHistoryOlderSessionsSummarized: (count) =>
+      `另有 ${count} 筆更早的連線已彙總到統計與圖表中。`,
+    durationDaysShort: '天',
+    durationHoursShort: '小時',
+    durationMinutesShort: '分',
+    durationSecondsShort: '秒',
     validationRequired: '名稱、主機和使用者名稱為必填項。',
     validationPort: '連接埠必須是有效的 TCP 連接埠。',
     validationPasswordLength: '會話錄製密碼至少需要 8 個字元。',

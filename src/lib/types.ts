@@ -13,6 +13,20 @@ export type ConnectionListDisplayMode = 'normal' | 'compact'
 
 export type SessionRecordingMode = 'input_only' | 'full'
 
+export type ConnectionHistoryDateRange =
+  | 'last_7_days'
+  | 'last_30_days'
+  | 'last_90_days'
+  | 'all_time'
+
+export type ConnectionHistoryCloseStatus = 'normal' | 'abnormal'
+
+export type ConnectionHistoryDurationBucketKind =
+  | 'under_5_minutes'
+  | 'between_5_and_30_minutes'
+  | 'between_30_minutes_and_2_hours'
+  | 'over_2_hours'
+
 export type SessionRecordingSettings = {
   enabled: boolean
   mode: SessionRecordingMode
@@ -190,4 +204,43 @@ export type SessionLogPreview = {
   files: SessionLogFileInfo[]
   previewText: string
   truncated: boolean
+}
+
+export type ConnectionHistoryHostSummary = {
+  historyKey: string
+  connectionId: string | null
+  connectionName: string
+  host: string
+  port: number
+  username: string
+  deleted: boolean
+  latestConnectionAt: string | null
+  totalConnectionCount: number
+  totalDurationSeconds: number
+}
+
+export type ConnectionHistorySessionRecord = {
+  id: string
+  startedAt: string
+  endedAt: string
+  durationSeconds: number
+  closeStatus: ConnectionHistoryCloseStatus
+  isEstimated: boolean
+}
+
+export type ConnectionHistoryDurationBucket = {
+  bucket: ConnectionHistoryDurationBucketKind
+  sessionCount: number
+}
+
+export type ConnectionHistoryOverview = {
+  hosts: ConnectionHistoryHostSummary[]
+}
+
+export type ConnectionHistoryHostDetails = {
+  host: ConnectionHistoryHostSummary
+  sessions: ConnectionHistorySessionRecord[]
+  durationBuckets: ConnectionHistoryDurationBucket[]
+  summarizedSessionCount: number
+  summarizedDurationSeconds: number
 }

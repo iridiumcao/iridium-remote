@@ -14,6 +14,7 @@ Iridium Remote is designed for a practical desktop workflow:
 - open multiple terminal sessions in tabs
 - keep passwords in the system keyring instead of SQLite
 - transfer files with SFTP from the same app
+- review per-host connection history and usage statistics
 - persist user preferences such as theme, language, and sidebar layout
 
 **Windows**, **Ubuntu (Linux)**, and **macOS** are treated as equal first-class supported platforms, and release automation publishes installable builds for all three.
@@ -27,6 +28,7 @@ Iridium Remote is designed for a practical desktop workflow:
 | **Connection UX** | Collapsible groups, normal/compact sidebar modes, right-click actions in compact mode, double-click to open a new session |
 | **Authentication** | Optional password saving in the OS keyring, terminal-native password prompts, Linux Secret Service keyring support, and non-interactive SSH key auth when system SSH config allows it |
 | **File transfer** | Upload/download files and directories, local file/folder pickers, remote SFTP path browser |
+| **Connection history** | File-menu history dialog, per-host session timeline, abnormal-shutdown recovery, all-time totals, and pie-chart summaries |
 | **Preferences** | Light/dark theme, English / Simplified Chinese / Traditional Chinese, persisted sidebar state and display mode |
 | **Session recording** | Optional input-only or full-session recording, AES-256-GCM encrypted `.irlog` files, rotation/retention controls, and `.txt` export |
 | **Reliability** | Clear session status updates, immediate connection failure feedback, disconnect detection when the SSH process exits, session cleanup on close, single-instance desktop behavior |
@@ -70,6 +72,16 @@ Iridium Remote is designed for a practical desktop workflow:
 - Configurable log directory from the Session Recording dialog
 - File-menu log viewer that decrypts selected `.irlog` files and exports `.txt`
 
+### Connection history
+
+- File-menu `Connection History` dialog
+- Per-host recent session rows with start time, end time, duration, and close status
+- Abnormal-shutdown recovery that converts unfinished rows into estimated abnormal sessions on the next startup
+- Per-host total connection count and total duration
+- Cross-host pie charts for duration share and connection-count share
+- Per-host duration-bucket pie chart for session-length distribution
+- Long-term monthly rollups so all-time totals stay available while older detailed rows are trimmed
+
 ### Authentication and security
 
 - Use the system OpenSSH `ssh` client for terminal sessions
@@ -90,6 +102,7 @@ Iridium Remote is designed for a practical desktop workflow:
 
 - Light and dark themes across the app UI
 - Desktop Settings menu for language, theme, and a last-position session-recording action, with theme-aware in-app selectors in the left sidebar for browser-only fallback mode
+- File-menu Connection History entry between Export and Session Logs
 - Theme-aware sidebar scrollbar styling
 - English, Simplified Chinese, and Traditional Chinese UI
 - File-menu Session Logs entry for reviewing encrypted recordings

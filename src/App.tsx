@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appClient } from './api/client'
 import { AboutDialog } from './components/AboutDialog'
+import { ConnectionHistoryDialog } from './components/ConnectionHistoryDialog'
 import { ConnectionFormDialog } from './components/ConnectionFormDialog'
 import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
@@ -87,6 +88,7 @@ function App() {
     null,
   )
   const [isAboutDialogOpen, setAboutDialogOpen] = useState(false)
+  const [isConnectionHistoryDialogOpen, setConnectionHistoryDialogOpen] = useState(false)
   const [isSessionLogViewerOpen, setSessionLogViewerOpen] = useState(false)
   const [isSessionRecordingDialogOpen, setSessionRecordingDialogOpen] = useState(false)
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
@@ -308,6 +310,18 @@ function App() {
       setError(appClient.normalizeError(cause))
     }
   }, [])
+
+  const handleLoadConnectionHistoryOverview = useCallback(
+    (range: 'last_7_days' | 'last_30_days' | 'last_90_days' | 'all_time') =>
+      appClient.getConnectionHistoryOverview(range),
+    [],
+  )
+
+  const handleLoadConnectionHistoryHostDetails = useCallback(
+    (historyKey: string, range: 'last_7_days' | 'last_30_days' | 'last_90_days' | 'all_time') =>
+      appClient.getConnectionHistoryHostDetails(historyKey, range),
+    [],
+  )
 
   const handleCheckForUpdates = useCallback(async () => {
     try {
@@ -643,6 +657,15 @@ function App() {
                 action: () => {
                   if (!disposed) {
                     void handleExportConnections()
+                  }
+                },
+              },
+              {
+                id: 'connection-history',
+                text: t.menuConnectionHistory,
+                action: () => {
+                  if (!disposed) {
+                    setConnectionHistoryDialogOpen(true)
                   }
                 },
               },
@@ -1001,6 +1024,18 @@ function App() {
         t={t}
         theme={settings.theme}
       />
+
+      {isConnectionHistoryDialogOpen ? (
+        <ConnectionHistoryDialog
+          locale={settings.locale}
+          onClose={() => setConnectionHistoryDialogOpen(false)}
+          onLoadHostDetails={handleLoadConnectionHistoryHostDetails}
+          onLoadOverview={handleLoadConnectionHistoryOverview}
+          open
+          t={t}
+          theme={settings.theme}
+        />
+      ) : null}
 
       {isSessionRecordingDialogOpen ? (
         <SessionRecordingDialog

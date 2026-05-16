@@ -3,7 +3,7 @@ use std::{
     io::{Read, Write},
     sync::{Arc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
@@ -11,10 +11,11 @@ use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::{
+    database::Database,
     errors::{AppError, AppResult},
     models::{
-        ConnectionRecord, SessionRemovedEvent, SessionStatePayload, SessionStatus,
-        TerminalOutputEvent,
+        ConnectionHistoryCloseStatus, ConnectionRecord, SessionRemovedEvent,
+        SessionStatePayload, SessionStatus, TerminalOutputEvent,
     },
     recording::{RecordingManager, SessionRecorder},
     terminal_detection::{
@@ -27,6 +28,8 @@ struct SessionResources {
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
+    history_session_id: String,
+    last_history_activity_flush: Instant,
     queued_password: Option<String>,
     recent_output: String,
     connected: bool,
@@ -46,16 +49,18 @@ struct SessionInner {
 #[derive(Clone)]
 pub struct SessionManager {
     inner: Arc<Mutex<SessionInner>>,
+    database: Database,
     recording: RecordingManager,
 }
 
 impl SessionManager {
-    pub fn new(recording: RecordingManager) -> Self {
+    pub fn new(database: Database, recording: RecordingManager) -> Self {
         Self {
             inner: Arc::new(Mutex::new(SessionInner {
                 sessions: HashMap::new(),
                 order: Vec::new(),
             })),
+            database,
             recording,
         }
     }
@@ -115,6 +120,13 @@ impl SessionManager {
         })?;
 
         let child = Arc::new(Mutex::new(child));
+        let history_session_id = match self.database.start_connection_history_session(connection) {
+            Ok(history_session_id) => history_session_id,
+            Err(error) => {
+                let _ = child.lock().expect("session child mutex poisoned").kill();
+                return Err(error);
+            }
+        };
         let session_id = Uuid::new_v4().to_string();
         let snapshot = SessionStatePayload {
             session_id: session_id.clone(),
@@ -137,6 +149,8 @@ impl SessionManager {
                         child: Arc::clone(&child),
                         master: pair.master,
                         writer,
+                        history_session_id,
+                        last_history_activity_flush: Instant::now(),
                         queued_password: saved_password,
                         recent_output: String::new(),
                         connected: false,
@@ -181,7 +195,10 @@ impl SessionManager {
             })?;
         resources.writer.flush().map_err(|error| {
             AppError::internal("Failed to flush terminal input.", error.to_string())
-        })
+        })?;
+
+        self.touch_history_if_due(resources, false);
+        Ok(())
     }
 
     pub fn resize(&self, session_id: &str, cols: u16, rows: u16) -> AppResult<()> {
@@ -216,6 +233,7 @@ impl SessionManager {
                 AppError::no_active_session("The selected session is already closed.")
             })?;
 
+            self.finish_history(&resources, ConnectionHistoryCloseStatus::Normal, false);
             Self::finish_recorder(resources.recorder.as_mut())?;
             let _ = resources
                 .child
@@ -244,6 +262,12 @@ impl SessionManager {
         };
 
         if let Some(resources) = session.resources.as_mut() {
+            let close_status = if resources.connected {
+                ConnectionHistoryCloseStatus::Normal
+            } else {
+                ConnectionHistoryCloseStatus::Abnormal
+            };
+            self.finish_history(resources, close_status, false);
             Self::finish_recorder(resources.recorder.as_mut())?;
             let _ = resources
                 .child
@@ -360,6 +384,7 @@ impl SessionManager {
                     recorder_error = Some(error.message);
                 }
             }
+            self.touch_history_if_due(resources, false);
 
             if contains_password_prompt(&resources.recent_output) {
                 if let Some(recorder) = resources.recorder.as_mut() {
@@ -436,6 +461,12 @@ impl SessionManager {
             let mut final_status = status;
             let mut final_message = message.to_string();
             if let Some(mut resources) = session.resources.take() {
+                let close_status = if matches!(final_status, SessionStatus::Disconnected) {
+                    ConnectionHistoryCloseStatus::Normal
+                } else {
+                    ConnectionHistoryCloseStatus::Abnormal
+                };
+                self.finish_history(&resources, close_status, false);
                 if let Err(error) = Self::finish_recorder(resources.recorder.as_mut()) {
                     final_status = SessionStatus::Error;
                     final_message = error.message;
@@ -454,6 +485,57 @@ impl SessionManager {
             recorder.finish()?;
         }
         Ok(())
+    }
+
+    fn touch_history_if_due(&self, resources: &mut SessionResources, force: bool) {
+        if !force
+            && resources.last_history_activity_flush.elapsed() < Duration::from_secs(10)
+        {
+            return;
+        }
+
+        match self
+            .database
+            .touch_connection_history_session(&resources.history_session_id)
+        {
+            Ok(()) => {
+                resources.last_history_activity_flush = Instant::now();
+            }
+            Err(error) => {
+                log::warn!(
+                    "Failed to update connection history activity for session {}: {}",
+                    resources.history_session_id,
+                    error.message
+                );
+            }
+        }
+    }
+
+    fn finish_history(
+        &self,
+        resources: &SessionResources,
+        close_status: ConnectionHistoryCloseStatus,
+        is_estimated: bool,
+    ) {
+        if let Err(error) = self.database.finish_connection_history_session(
+            &resources.history_session_id,
+            close_status,
+            is_estimated,
+        ) {
+            log::warn!(
+                "Failed to finalize connection history session {}: {}",
+                resources.history_session_id,
+                error.message
+            );
+        }
+
+        if let Err(error) = self.database.cleanup_connection_history() {
+            log::warn!(
+                "Failed to clean up connection history after finishing session {}: {}",
+                resources.history_session_id,
+                error.message
+            );
+        }
     }
 
     fn emit_status(&self, app: &AppHandle, payload: &SessionStatePayload) -> AppResult<()> {

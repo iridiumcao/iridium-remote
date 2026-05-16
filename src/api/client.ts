@@ -7,6 +7,13 @@ import type {
   AppSettings,
   AppError,
   ConnectionRecord,
+  ConnectionHistoryCloseStatus,
+  ConnectionHistoryDateRange,
+  ConnectionHistoryDurationBucket,
+  ConnectionHistoryDurationBucketKind,
+  ConnectionHistoryHostDetails,
+  ConnectionHistoryHostSummary,
+  ConnectionHistoryOverview,
   ConnectionsExportPayload,
   CreateConnectionInput,
   FileTransferInput,
@@ -51,7 +58,23 @@ type MockStore = {
     recordingMode: SessionRecordingMode
     part: number
   }>
+  connectionHistorySessions: Array<{
+    id: string
+    historyKey: string
+    connectionId: string | null
+    connectionNameSnapshot: string
+    hostSnapshot: string
+    portSnapshot: number
+    usernameSnapshot: string
+    startedAt: string
+    lastActivityAt: string | null
+    endedAt: string | null
+    durationSeconds: number | null
+    closeStatus: ConnectionHistoryCloseStatus
+    isEstimated: boolean
+  }>
   sessionLogPathsBySessionId: Map<string, string>
+  historySessionIdsBySessionId: Map<string, string>
   sessionListeners: Set<(state: SessionState) => void>
   sessionRemovedListeners: Set<(event: SessionRemovedEvent) => void>
   terminalListeners: Set<(event: TerminalOutputEvent) => void>
@@ -116,7 +139,9 @@ const mockStore: MockStore = {
   sessions: [],
   sessionRecordingPassword: null,
   sessionLogs: [],
+  connectionHistorySessions: [],
   sessionLogPathsBySessionId: new Map(),
+  historySessionIdsBySessionId: new Map(),
   sessionListeners: new Set(),
   sessionRemovedListeners: new Set(),
   terminalListeners: new Set(),
@@ -171,6 +196,7 @@ const emitMockSession = (session: SessionState) => {
 const emitMockSessionRemoved = (sessionId: string) => {
   mockStore.sessions = mockStore.sessions.filter((session) => session.sessionId !== sessionId)
   mockStore.sessionLogPathsBySessionId.delete(sessionId)
+  mockStore.historySessionIdsBySessionId.delete(sessionId)
   const payload: SessionRemovedEvent = { sessionId }
   for (const listener of mockStore.sessionRemovedListeners) {
     listener(payload)
@@ -179,6 +205,7 @@ const emitMockSessionRemoved = (sessionId: string) => {
 
 const emitMockOutput = (sessionId: string, data: string) => {
   const session = mockStore.sessions.find((item) => item.sessionId === sessionId)
+  touchMockConnectionHistorySession(sessionId)
   if (session?.recordingActive && session.recordingMode === 'full') {
     appendMockSessionLog(sessionId, sanitizeMockVisibleText(data))
   }
@@ -229,6 +256,226 @@ const buildMockSessionLogPreview = (paths: string[], password: string): SessionL
     previewText: selectedLogs.map((log) => log.text).join(''),
     truncated: false,
   }
+}
+
+const buildMockHistoryKey = (connection: ConnectionRecord) =>
+  `${connection.id}|${connection.host.toLowerCase()}|${connection.port}|${connection.username.toLowerCase()}`
+
+const historyRangeCutoff = (range: ConnectionHistoryDateRange) => {
+  const days =
+    range === 'last_7_days'
+      ? 7
+      : range === 'last_30_days'
+        ? 30
+        : range === 'last_90_days'
+          ? 90
+          : null
+
+  if (days === null) {
+    return null
+  }
+
+  return Date.now() - days * 24 * 60 * 60 * 1000
+}
+
+const mockHistoryBucketKind = (durationSeconds: number): ConnectionHistoryDurationBucketKind => {
+  if (durationSeconds < 5 * 60) {
+    return 'under_5_minutes'
+  }
+
+  if (durationSeconds < 30 * 60) {
+    return 'between_5_and_30_minutes'
+  }
+
+  if (durationSeconds < 2 * 60 * 60) {
+    return 'between_30_minutes_and_2_hours'
+  }
+
+  return 'over_2_hours'
+}
+
+const initializeDurationBuckets = (): ConnectionHistoryDurationBucket[] => [
+  { bucket: 'under_5_minutes', sessionCount: 0 },
+  { bucket: 'between_5_and_30_minutes', sessionCount: 0 },
+  { bucket: 'between_30_minutes_and_2_hours', sessionCount: 0 },
+  { bucket: 'over_2_hours', sessionCount: 0 },
+]
+
+const createMockHistorySummary = (
+  session: MockStore['connectionHistorySessions'][number],
+): ConnectionHistoryHostSummary => {
+  const matchingConnection = session.connectionId
+    ? mockStore.connections.find(
+        (connection) =>
+          connection.id === session.connectionId &&
+          connection.port === session.portSnapshot &&
+          connection.host.toLowerCase() === session.hostSnapshot.toLowerCase() &&
+          connection.username.toLowerCase() === session.usernameSnapshot.toLowerCase(),
+      )
+    : undefined
+
+  return {
+    historyKey: session.historyKey,
+    connectionId: session.connectionId,
+    connectionName: matchingConnection?.name ?? session.connectionNameSnapshot,
+    host: session.hostSnapshot,
+    port: session.portSnapshot,
+    username: session.usernameSnapshot,
+    deleted: !matchingConnection,
+    latestConnectionAt: null,
+    totalConnectionCount: 0,
+    totalDurationSeconds: 0,
+  }
+}
+
+const buildMockConnectionHistoryOverview = (
+  range: ConnectionHistoryDateRange,
+): ConnectionHistoryOverview => {
+  const cutoff = historyRangeCutoff(range)
+  const summaries = new Map<string, ConnectionHistoryHostSummary>()
+
+  for (const session of mockStore.connectionHistorySessions) {
+    if (!session.endedAt || session.durationSeconds === null) {
+      continue
+    }
+
+    const startedAtMs = Date.parse(session.startedAt)
+    if (cutoff !== null && (!Number.isFinite(startedAtMs) || startedAtMs < cutoff)) {
+      continue
+    }
+
+    const current =
+      summaries.get(session.historyKey) ?? createMockHistorySummary(session)
+    current.latestConnectionAt =
+      !current.latestConnectionAt || current.latestConnectionAt < session.startedAt
+        ? session.startedAt
+        : current.latestConnectionAt
+    current.totalConnectionCount += 1
+    current.totalDurationSeconds += session.durationSeconds
+    summaries.set(session.historyKey, current)
+  }
+
+  return {
+    hosts: [...summaries.values()].sort((left, right) =>
+      (right.latestConnectionAt ?? '').localeCompare(left.latestConnectionAt ?? ''),
+    ),
+  }
+}
+
+const buildMockConnectionHistoryHostDetails = (
+  historyKey: string,
+  range: ConnectionHistoryDateRange,
+): ConnectionHistoryHostDetails => {
+  const overview = buildMockConnectionHistoryOverview(range)
+  const host = overview.hosts.find((entry) => entry.historyKey === historyKey)
+
+  if (!host) {
+    throw new Error('Connection history host not found.')
+  }
+
+  const cutoff = historyRangeCutoff(range)
+  const sessions = mockStore.connectionHistorySessions
+    .filter((session) => session.historyKey === historyKey && session.endedAt && session.durationSeconds !== null)
+    .filter((session) => {
+      if (cutoff === null) {
+        return true
+      }
+      const startedAtMs = Date.parse(session.startedAt)
+      return Number.isFinite(startedAtMs) && startedAtMs >= cutoff
+    })
+    .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
+    .map((session) => ({
+      id: session.id,
+      startedAt: session.startedAt,
+      endedAt: session.endedAt!,
+      durationSeconds: session.durationSeconds!,
+      closeStatus: session.closeStatus,
+      isEstimated: session.isEstimated,
+    }))
+
+  const durationBuckets = initializeDurationBuckets()
+  for (const session of sessions) {
+    const bucket = mockHistoryBucketKind(session.durationSeconds)
+    const target = durationBuckets.find((entry) => entry.bucket === bucket)
+    if (target) {
+      target.sessionCount += 1
+    }
+  }
+
+  return {
+    host,
+    sessions,
+    durationBuckets,
+    summarizedSessionCount: 0,
+    summarizedDurationSeconds: 0,
+  }
+}
+
+const appendMockConnectionHistorySession = (connection: ConnectionRecord) => {
+  const entry = {
+    id: randomId(),
+    historyKey: buildMockHistoryKey(connection),
+    connectionId: connection.id,
+    connectionNameSnapshot: connection.name,
+    hostSnapshot: connection.host,
+    portSnapshot: connection.port,
+    usernameSnapshot: connection.username,
+    startedAt: now(),
+    lastActivityAt: now(),
+    endedAt: null,
+    durationSeconds: null,
+    closeStatus: 'abnormal' as const,
+    isEstimated: false,
+  }
+
+  mockStore.connectionHistorySessions = [...mockStore.connectionHistorySessions, entry]
+  return entry.id
+}
+
+const touchMockConnectionHistorySession = (runtimeSessionId: string) => {
+  const historySessionId = mockStore.historySessionIdsBySessionId.get(runtimeSessionId)
+  if (!historySessionId) {
+    return
+  }
+
+  mockStore.connectionHistorySessions = mockStore.connectionHistorySessions.map((session) =>
+    session.id === historySessionId && !session.endedAt
+      ? {
+          ...session,
+          lastActivityAt: now(),
+        }
+      : session,
+  )
+}
+
+const finalizeMockConnectionHistorySession = (
+  runtimeSessionId: string,
+  closeStatus: ConnectionHistoryCloseStatus,
+) => {
+  const historySessionId = mockStore.historySessionIdsBySessionId.get(runtimeSessionId)
+  if (!historySessionId) {
+    return
+  }
+
+  const endedAt = now()
+  mockStore.connectionHistorySessions = mockStore.connectionHistorySessions.map((session) => {
+    if (session.id !== historySessionId || session.endedAt) {
+      return session
+    }
+
+    const durationSeconds = Math.max(
+      0,
+      Math.floor((Date.parse(endedAt) - Date.parse(session.startedAt)) / 1000),
+    )
+
+    return {
+      ...session,
+      endedAt,
+      durationSeconds,
+      closeStatus,
+      isEstimated: false,
+    }
+  })
 }
 
 type ParsedVersion = {
@@ -498,6 +745,7 @@ export const appClient = {
         .map((session) => session.sessionId)
 
       for (const sessionId of sessionIds) {
+        finalizeMockConnectionHistorySession(sessionId, 'normal')
         emitMockSessionRemoved(sessionId)
       }
 
@@ -556,6 +804,11 @@ export const appClient = {
         mockStore.sessionLogPathsBySessionId.set(session.sessionId, path)
       }
 
+      mockStore.historySessionIdsBySessionId.set(
+        session.sessionId,
+        appendMockConnectionHistorySession(connection),
+      )
+
       emitMockSession(session)
       emitMockOutput(session.sessionId, `Connected to ${connection.username}@${connection.host}\r\n`)
       emitMockOutput(
@@ -574,6 +827,7 @@ export const appClient = {
       if (session?.recordingActive && session.recordingMode === 'input_only') {
         appendMockSessionLog(sessionId, data.replace(/\r/g, '\n'))
       }
+      touchMockConnectionHistorySession(sessionId)
       emitMockOutput(sessionId, data)
       return
     }
@@ -605,6 +859,7 @@ export const appClient = {
         message: 'Session closed.',
       }
 
+      finalizeMockConnectionHistorySession(sessionId, 'normal')
       emitMockSession(nextState)
       return nextState
     }
@@ -614,6 +869,11 @@ export const appClient = {
 
   async closeSession(sessionId: string) {
     if (!isTauriRuntime()) {
+      const existing = mockStore.sessions.find((session) => session.sessionId === sessionId)
+      finalizeMockConnectionHistorySession(
+        sessionId,
+        existing?.status === 'connected' ? 'normal' : 'abnormal',
+      )
       emitMockSessionRemoved(sessionId)
       return
     }
@@ -627,6 +887,25 @@ export const appClient = {
     }
 
     return invoke<SessionState[]>('get_session_states')
+  },
+
+  async getConnectionHistoryOverview(range: ConnectionHistoryDateRange) {
+    if (!isTauriRuntime()) {
+      return buildMockConnectionHistoryOverview(range)
+    }
+
+    return invoke<ConnectionHistoryOverview>('get_connection_history_overview', { range })
+  },
+
+  async getConnectionHistoryHostDetails(historyKey: string, range: ConnectionHistoryDateRange) {
+    if (!isTauriRuntime()) {
+      return buildMockConnectionHistoryHostDetails(historyKey, range)
+    }
+
+    return invoke<ConnectionHistoryHostDetails>('get_connection_history_host_details', {
+      historyKey,
+      range,
+    })
   },
 
   async exportConnections() {

@@ -19,6 +19,7 @@ Iridium Remote is a split frontend/backend desktop application:
 
 - loading connections and app settings
 - loading session-recording runtime status
+- opening the connection-history dialog and delegating history queries through the bridge
 - menu registration
 - dialog visibility
 - active session selection
@@ -26,7 +27,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform. Group names are normalized case-insensitively into a shared Title Case form before they are stored or grouped in the UI.
-In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, plus a File-menu Session Logs entry. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, plus File-menu entries for Connection History and Session Logs. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
 
@@ -67,8 +68,8 @@ The session-log preview textarea reuses the same theme-aware scrollbar classes a
 - Tauri mode calls backend commands
 - browser mode uses a mock implementation for UI-only development
 
-The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
-In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/session-log/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes session-recording status, settings updates with runtime-only passwords, multi-file `.irlog` selection, decrypt previews, export, log-directory picking, and log-directory opening.
+The mock now mirrors settings persistence, session-history recording, and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
+In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/connection-history/session-log/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes connection-history overview/detail queries, session-recording status, settings updates with runtime-only passwords, multi-file `.irlog` selection, decrypt previews, export, log-directory picking, and log-directory opening.
 
 ## Backend architecture
 
@@ -88,12 +89,15 @@ The desktop runtime also registers a single-instance guard so a second launch fo
 
 ### Database layer
 
-`src-tauri\src\database.rs` now owns two persistence concerns:
+`src-tauri\src\database.rs` now owns four persistence concerns:
 
 1. `connections`
 2. `app_settings`
+3. `connection_history_sessions`
+4. `connection_history_rollups`
 
 Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend. Session-recording preferences, including the optional custom log-directory path, live inside that payload, but the recording password remains runtime-only and is never persisted.
+Connection history uses a detail-plus-rollup model: the backend inserts a running detail row as soon as SSH launch succeeds, throttles `last_activity_at` while the session is active, recovers unfinished rows as abnormal estimated sessions on startup, and rolls detail rows older than 365 days into monthly host rollups that preserve total counts, total duration, latest activity, and duration-bucket counts for all-time charts.
 
 ### Session manager
 
@@ -107,11 +111,12 @@ Responsibilities:
 - detect session exit
 - keep session output isolated by tab
 - attach an optional recorder when session recording is enabled
+- persist connection-history lifecycle updates without blocking SSH startup
 
 Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
 When a saved password exists, the session manager queues it and writes it back into the PTY after detecting a password prompt in the terminal output stream.
 The same output stream is inspected for immediate OpenSSH connection failures so a failed session can switch from `connecting` to `error` quickly and surface the SSH error text instead of leaving the loading state running. The prompt detector also recognizes a wider range of shell prompt endings, including common themed Unicode prompts, so successful logins do not remain stuck in the `connecting` state after the shell becomes interactive.
-The backend also watches the SSH child-process lifecycle directly instead of relying only on PTY reads, so a tab can switch from `connected` to `disconnected` promptly when the remote host shuts down and the SSH process exits without delivering more terminal output through the PTY stream. For input-only recording, the session manager records submitted command lines while suppressing password-prompt input; for full-session recording, it records visible terminal output after ANSI cleanup.
+The backend also watches the SSH child-process lifecycle directly instead of relying only on PTY reads, so a tab can switch from `connected` to `disconnected` promptly when the remote host shuts down and the SSH process exits without delivering more terminal output through the PTY stream. For input-only recording, the session manager records submitted command lines while suppressing password-prompt input; for full-session recording, it records visible terminal output after ANSI cleanup. The same manager now creates connection-history rows, throttles `last_activity_at` updates, finalizes rows as normal or abnormal, and triggers history cleanup after sessions finish.
 
 ### Session recording
 

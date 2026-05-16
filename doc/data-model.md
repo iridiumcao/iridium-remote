@@ -32,6 +32,52 @@ Current key:
 
 - `app` - serialized `AppSettings` JSON payload
 
+## `connection_history_sessions` table
+
+Detailed connection-history rows are stored in SQLite.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key UUID |
+| `history_key` | text | Stable history subject key derived from connection id + host + port + username snapshot |
+| `connection_id` | text nullable | Saved connection id when the historical snapshot still belongs to that connection |
+| `connection_name_snapshot` | text | Display name at session start |
+| `host_snapshot` | text | Host at session start |
+| `port_snapshot` | integer | Port at session start |
+| `username_snapshot` | text | Username at session start |
+| `started_at` | text | ISO timestamp |
+| `last_activity_at` | text nullable | Throttled last-known activity timestamp |
+| `ended_at` | text nullable | ISO timestamp when the session was finalized |
+| `duration_seconds` | integer nullable | Stored total duration in seconds |
+| `close_status` | text | `normal` or `abnormal` |
+| `is_estimated` | integer | `1` when startup recovery had to reconstruct the end time |
+| `created_at` | text | ISO timestamp |
+| `updated_at` | text | ISO timestamp |
+
+## `connection_history_rollups` table
+
+Older connection-history detail rows are compacted into monthly host rollups.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key UUID |
+| `history_key` | text | Same history subject key used by detail rows |
+| `connection_id` | text nullable | Saved connection id when still applicable |
+| `connection_name_snapshot` | text | Display name snapshot |
+| `host_snapshot` | text | Host snapshot |
+| `port_snapshot` | integer | Port snapshot |
+| `username_snapshot` | text | Username snapshot |
+| `bucket_month` | text | `YYYY-MM` month bucket |
+| `session_count` | integer | Number of sessions rolled into the month |
+| `total_duration_seconds` | integer | Total duration of the month bucket |
+| `latest_started_at` | text nullable | Latest session start time represented by the bucket |
+| `under_5_minutes_count` | integer | Duration-bucket count for `< 5 minutes` |
+| `between_5_and_30_minutes_count` | integer | Duration-bucket count for `5 to 30 minutes` |
+| `between_30_minutes_and_2_hours_count` | integer | Duration-bucket count for `30 minutes to 2 hours` |
+| `over_2_hours_count` | integer | Duration-bucket count for `> 2 hours` |
+| `created_at` | text | ISO timestamp |
+| `updated_at` | text | ISO timestamp |
+
 ## Keyring model
 
 Passwords are stored only in the system keyring.
@@ -91,6 +137,28 @@ An active session contains:
 - `message?`
 
 Session output is event-driven and buffered on the frontend per session.
+
+### Connection history
+
+Connection history overview data contains:
+
+- `historyKey`
+- `connectionId`
+- `connectionName`
+- `host`
+- `port`
+- `username`
+- `deleted`
+- `latestConnectionAt`
+- `totalConnectionCount`
+- `totalDurationSeconds`
+
+Detailed host history also contains:
+
+- `sessions[]`
+- `durationBuckets[]`
+- `summarizedSessionCount`
+- `summarizedDurationSeconds`
 
 ### TerminalOutputEvent
 

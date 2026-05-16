@@ -13,11 +13,12 @@ use std::{env, fs, process::Command, sync::Arc};
 use database::Database;
 use errors::{AppError, AppResult};
 use models::{
-    AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload,
-    CreateConnectionInput, FileTransferInput, FileTransferResult, ImportConnectionsResult,
-    RemotePathListing, SessionLogPreview, SessionRecordingSettings,
-    SessionRecordingStatus, SessionStatePayload, UpdateCheckResult,
-    UpdateConnectionInput, UpdateSessionRecordingSettingsResult,
+    AppSettings, ConnectionHistoryDateRange, ConnectionHistoryHostDetails,
+    ConnectionHistoryOverview, ConnectionListChangedEvent, ConnectionRecord,
+    ConnectionsExportPayload, CreateConnectionInput, FileTransferInput, FileTransferResult,
+    ImportConnectionsResult, RemotePathListing, SessionLogPreview,
+    SessionRecordingSettings, SessionRecordingStatus, SessionStatePayload,
+    UpdateCheckResult, UpdateConnectionInput, UpdateSessionRecordingSettingsResult,
 };
 use recording::RecordingManager;
 use session::SessionManager;
@@ -142,6 +143,25 @@ fn close_session(
 #[tauri::command]
 fn get_session_states(state: State<'_, Arc<AppState>>) -> AppResult<Vec<SessionStatePayload>> {
     Ok(state.sessions.current_states())
+}
+
+#[tauri::command]
+fn get_connection_history_overview(
+    state: State<'_, Arc<AppState>>,
+    range: ConnectionHistoryDateRange,
+) -> AppResult<ConnectionHistoryOverview> {
+    state.database.get_connection_history_overview(range)
+}
+
+#[tauri::command]
+fn get_connection_history_host_details(
+    state: State<'_, Arc<AppState>>,
+    history_key: String,
+    range: ConnectionHistoryDateRange,
+) -> AppResult<ConnectionHistoryHostDetails> {
+    state
+        .database
+        .get_connection_history_host_details(&history_key, range)
 }
 
 #[tauri::command]
@@ -370,11 +390,20 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
 
     let database = Database::new(app_data_dir.join("iridium-remote.db"));
     database.initialize()?;
+    let recovered_history_rows = database.recover_connection_history_sessions()?;
+    database.cleanup_connection_history()?;
     let app_settings = database.get_app_settings()?;
 
     let credentials = credentials::CredentialStore::new()?;
     let recording = RecordingManager::new(resolve_session_logs_dir()?, app_settings.session_recording)?;
-    let sessions = SessionManager::new(recording.clone());
+    let sessions = SessionManager::new(database.clone(), recording.clone());
+
+    if recovered_history_rows > 0 {
+        log::info!(
+            "Recovered {} unfinished connection history session(s) after startup.",
+            recovered_history_rows
+        );
+    }
 
     Ok(Arc::new(AppState {
         database,
@@ -541,6 +570,8 @@ pub fn run() {
             disconnect_session,
             close_session,
             get_session_states,
+            get_connection_history_overview,
+            get_connection_history_host_details,
             get_app_settings,
             update_app_settings,
             get_session_recording_status,
