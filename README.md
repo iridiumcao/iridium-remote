@@ -28,8 +28,9 @@ Iridium Remote is designed for a practical desktop workflow:
 | **Authentication** | Optional password saving in the OS keyring, terminal-native password prompts, Linux Secret Service keyring support, and non-interactive SSH key auth when system SSH config allows it |
 | **File transfer** | Upload/download files and directories, local file/folder pickers, remote SFTP path browser |
 | **Preferences** | Light/dark theme, English / Simplified Chinese / Traditional Chinese, persisted sidebar state and display mode |
+| **Session recording** | Optional input-only or full-session recording, AES-256-GCM encrypted `.irlog` files, rotation/retention controls, and `.txt` export |
 | **Reliability** | Clear session status updates, immediate connection failure feedback, disconnect detection when the SSH process exits, session cleanup on close, single-instance desktop behavior |
-| **Data safety** | Passwords are never stored in SQLite and are never included in exported backup files |
+| **Data safety** | Passwords are never stored in SQLite, recording passwords stay runtime-only, and exported backups never contain secrets |
 
 ## Detailed Features
 
@@ -54,8 +55,18 @@ Iridium Remote is designed for a practical desktop workflow:
 - Restore each tab's terminal buffer independently
 - Double-click a connection row to open a fresh session tab
 - Use a localized terminal context menu for copy, paste, and select-all
+- Show an explicit recording badge when the active session is being captured
 - Stop the connecting state immediately when OpenSSH reports a startup failure
 - Detect common shell prompt styles so a successful login switches the tab from `Connecting` to `Connected` promptly
+
+### Session recording
+
+- Optional `Input Only` and `Full Session Recording` modes
+- AES-256-GCM encrypted `.irlog` files with Argon2-derived keys
+- Runtime-only recording passwords that must be re-entered after app restart
+- Chunked compressed writes with automatic file rotation
+- Automatic retention and total-storage cleanup
+- File-menu log viewer that decrypts selected `.irlog` files and exports `.txt`
 
 ### Authentication and security
 
@@ -76,9 +87,10 @@ Iridium Remote is designed for a practical desktop workflow:
 ### Desktop UX
 
 - Light and dark themes across the app UI
-- Desktop Settings menu for language and theme selection, with theme-aware in-app selectors in the left sidebar for browser-only fallback mode
+- Desktop Settings menu for session recording, language, and theme selection, with theme-aware in-app selectors in the left sidebar for browser-only fallback mode
 - Theme-aware sidebar scrollbar styling
 - English, Simplified Chinese, and Traditional Chinese UI
+- File-menu Session Logs entry for reviewing encrypted recordings
 - Manual update checks from **Help -> Check for Updates...** against the latest GitHub release, with a release-page download link when a newer version exists and an in-app banner that auto-dismisses after about 5 seconds
 - Single-instance desktop behavior that focuses the existing window on relaunch
 - Application logging to the app log directory

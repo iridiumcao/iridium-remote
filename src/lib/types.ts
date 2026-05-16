@@ -11,11 +11,22 @@ export type AppTheme = 'dark' | 'light'
 
 export type ConnectionListDisplayMode = 'normal' | 'compact'
 
+export type SessionRecordingMode = 'input_only' | 'full'
+
+export type SessionRecordingSettings = {
+  enabled: boolean
+  mode: SessionRecordingMode
+  maxFileSizeMb: number
+  maxTotalStorageGb: number
+  retentionDays: number
+}
+
 export type AppSettings = {
   locale: Locale
   theme: AppTheme
   connectionListDisplayMode: ConnectionListDisplayMode
   collapsedGroups: string[]
+  sessionRecording: SessionRecordingSettings
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -23,6 +34,13 @@ export const defaultAppSettings: AppSettings = {
   theme: 'dark',
   connectionListDisplayMode: 'normal',
   collapsedGroups: [],
+  sessionRecording: {
+    enabled: false,
+    mode: 'input_only',
+    maxFileSizeMb: 100,
+    maxTotalStorageGb: 5,
+    retentionDays: 30,
+  },
 }
 
 export type ConnectionRecord = {
@@ -43,6 +61,8 @@ export type SessionState = {
   connectionName: string
   status: SessionStatus
   message?: string
+  recordingActive?: boolean
+  recordingMode?: SessionRecordingMode | null
 }
 
 export type TerminalOutputEvent = {
@@ -139,4 +159,33 @@ export type UpdateCheckResult = {
   latestVersion: string
   updateAvailable: boolean
   downloadUrl?: string
+}
+
+export type SessionRecordingStatus = {
+  configuredEnabled: boolean
+  passwordLoaded: boolean
+  canRecord: boolean
+  logDirectory: string
+  currentStorageBytes: number
+}
+
+export type UpdateSessionRecordingSettingsResult = {
+  appSettings: AppSettings
+  status: SessionRecordingStatus
+}
+
+export type SessionLogFileInfo = {
+  fileName: string
+  path: string
+  createdAt: string
+  host: string
+  username: string
+  recordingMode: SessionRecordingMode
+  part: number
+}
+
+export type SessionLogPreview = {
+  files: SessionLogFileInfo[]
+  previewText: string
+  truncated: boolean
 }

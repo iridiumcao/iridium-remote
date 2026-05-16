@@ -139,6 +139,23 @@ describe('TerminalWorkspace', () => {
     expect(appClient.resizeSession).toHaveBeenCalledWith('session-1', 120, 32)
   })
 
+  it('shows a recording indicator when the active session is being recorded', () => {
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={{ ...session, recordingActive: true, recordingMode: 'input_only' }}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[{ ...session, recordingActive: true, recordingMode: 'input_only' }]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    expect(screen.getByText('● Input Recording')).toBeInTheDocument()
+  })
+
   it('shows a localized, theme-aware custom terminal context menu', () => {
     const { container } = render(
       <TerminalWorkspace

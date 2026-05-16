@@ -28,6 +28,13 @@ const payload: ConnectionsExportPayload = {
     theme: 'dark',
     connectionListDisplayMode: 'normal',
     collapsedGroups: [],
+    sessionRecording: {
+      enabled: false,
+      mode: 'input_only',
+      maxFileSizeMb: 100,
+      maxTotalStorageGb: 5,
+      retentionDays: 30,
+    },
   },
   connections: [],
 }

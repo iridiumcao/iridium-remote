@@ -310,6 +310,12 @@ export const TerminalWorkspace = ({
   const headerTitle = headerConnection
     ? formatConnectionSubtitle(headerConnection)
     : t.terminalWorkspace
+  const recordingLabel =
+    activeSession?.recordingActive
+      ? activeSession.recordingMode === 'full'
+        ? t.recordingIndicator
+        : t.inputRecordingIndicator
+      : null
   const showIdleState = !headerConnection && !activeSession
   const showSelectionState = Boolean(headerConnection) && !activeSession
   const showOverlay = showIdleState || activeSession?.status === 'connecting' || showSelectionState
@@ -463,6 +469,16 @@ export const TerminalWorkspace = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {recordingLabel ? (
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                isDark ? 'bg-rose-500/15 text-rose-100' : 'bg-rose-50 text-rose-700'
+              }`}
+            >
+              {recordingLabel}
+            </span>
+          ) : null}
+
           {onConnect ? (
             <button
               type="button"

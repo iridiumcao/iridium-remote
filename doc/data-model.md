@@ -65,6 +65,19 @@ Frontend and backend share a connection model with:
 - `theme`
 - `connectionListDisplayMode`
 - `collapsedGroups`
+- `sessionRecording`
+
+### SessionRecordingSettings
+
+`SessionRecordingSettings` contains:
+
+- `enabled`
+- `mode`
+- `maxFileSizeMb`
+- `maxTotalStorageGb`
+- `retentionDays`
+
+The recording password is runtime-only and is never stored in SQLite.
 
 ### Session
 
@@ -85,6 +98,26 @@ Terminal output events contain:
 - `sessionId`
 - `stream`
 - `data`
+
+### Session recording status
+
+Runtime-only session recording status contains:
+
+- `configuredEnabled`
+- `passwordLoaded`
+- `canRecord`
+- `logDirectory`
+- `currentStorageBytes`
+
+### Session log files
+
+Session recordings are stored outside SQLite as encrypted `.irlog` files.
+
+- header line
+- plaintext metadata line
+- encrypted chunk lines
+
+Plaintext metadata includes only non-secret context such as host, username, mode, timestamp, salt, and rotation part. The payload chunks are compressed and then encrypted independently.
 
 ## Export file model
 

@@ -38,15 +38,21 @@ pub fn detect_connection_error_message(buffer: &str) -> Option<String> {
         })
 }
 
+pub fn strip_ansi(buffer: &str) -> String {
+    ansi_escape_re().replace_all(buffer, "").into_owned()
+}
+
+pub fn normalize_visible_text(buffer: &str) -> String {
+    strip_ansi(buffer)
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+}
+
 fn normalize_for_inline_prompt(buffer: &str) -> String {
     strip_ansi(buffer)
         .replace('\r', "")
         .replace('\n', "")
         .to_ascii_lowercase()
-}
-
-fn strip_ansi(buffer: &str) -> String {
-    ansi_escape_re().replace_all(buffer, "").into_owned()
 }
 
 fn ansi_escape_re() -> &'static Regex {

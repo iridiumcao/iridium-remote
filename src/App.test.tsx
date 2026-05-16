@@ -11,6 +11,7 @@ const appClientMocks = vi.hoisted(() => ({
   listConnectionsMock: vi.fn<() => Promise<ConnectionRecord[]>>(),
   getSessionStatesMock: vi.fn<() => Promise<SessionState[]>>(),
   getAppSettingsMock: vi.fn<() => Promise<typeof defaultAppSettings>>(),
+  getSessionRecordingStatusMock: vi.fn(),
   onSessionStateMock: vi.fn(),
   onSessionRemovedMock: vi.fn(),
 }))
@@ -44,6 +45,7 @@ vi.mock('./api/client', () => ({
     listConnections: appClientMocks.listConnectionsMock,
     getSessionStates: appClientMocks.getSessionStatesMock,
     getAppSettings: appClientMocks.getAppSettingsMock,
+    getSessionRecordingStatus: appClientMocks.getSessionRecordingStatusMock,
     onSessionState: appClientMocks.onSessionStateMock,
     onSessionRemoved: appClientMocks.onSessionRemovedMock,
     normalizeError: vi.fn((cause: unknown) => ({
@@ -63,6 +65,11 @@ vi.mock('./api/client', () => ({
     saveExportConnections: vi.fn(),
     importConnections: vi.fn(),
     checkForUpdates: vi.fn(),
+    updateSessionRecordingSettings: vi.fn(),
+    pickSessionLogFiles: vi.fn(),
+    previewSessionLogs: vi.fn(),
+    exportSessionLogs: vi.fn(),
+    openSessionLogsDirectory: vi.fn(),
     transferFile: vi.fn(),
   },
 }))
@@ -186,6 +193,13 @@ describe('App', () => {
     appClientMocks.listConnectionsMock.mockResolvedValue(connections)
     appClientMocks.getSessionStatesMock.mockResolvedValue([])
     appClientMocks.getAppSettingsMock.mockResolvedValue(defaultAppSettings)
+    appClientMocks.getSessionRecordingStatusMock.mockResolvedValue({
+      configuredEnabled: false,
+      passwordLoaded: false,
+      canRecord: false,
+      logDirectory: 'C:\\mock\\SessionLogs',
+      currentStorageBytes: 0,
+    })
     appClientMocks.onSessionStateMock.mockResolvedValue(() => {})
     appClientMocks.onSessionRemovedMock.mockResolvedValue(() => {})
     vi.mocked(appClient.updateAppSettings).mockImplementation(async (settings) => settings)

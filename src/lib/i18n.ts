@@ -63,6 +63,8 @@ type Dictionary = {
   menuReportIssue: string
   menuAbout: string
   menuNewConnection: string
+  menuSessionLogs: string
+  menuSessionRecording: string
   exit: string
   aboutTitle: string
   aboutDescription: string
@@ -113,8 +115,42 @@ type Dictionary = {
   updateUpToDate: (currentVersion: string) => string
   downloadUpdate: (latestVersion: string) => string
   updateCheckFailed: string
+  sessionRecordingTitle: string
+  sessionRecordingDescription: string
+  enableSessionRecording: string
+  sessionRecordingMode: string
+  inputOnlyRecording: string
+  fullSessionRecording: string
+  sessionRecordingPassword: string
+  confirmSessionRecordingPassword: string
+  sessionRecordingPasswordHint: string
+  sessionRecordingPasswordLoaded: string
+  sessionRecordingPasswordMissing: string
+  sessionRecordingWarning: string
+  sessionRecordingStorage: string
+  sessionRecordingMaxFileSize: string
+  sessionRecordingMaxTotalStorage: string
+  sessionRecordingRetentionDays: string
+  sessionRecordingLogDirectory: string
+  sessionRecordingCurrentUsage: string
+  sessionRecordingSaveSuccess: string
+  recordingIndicator: string
+  inputRecordingIndicator: string
+  sessionLogViewerTitle: string
+  sessionLogViewerDescription: string
+  selectSessionLogs: string
+  selectedSessionLogs: string
+  decryptSessionLogs: string
+  exportSessionLogs: string
+  sessionLogsPreview: string
+  sessionLogsPreviewTruncated: string
+  noSessionLogsSelected: string
+  sessionLogsExported: string
   validationRequired: string
   validationPort: string
+  validationPasswordLength: string
+  validationPasswordConfirm: string
+  validationPositiveNumber: string
   saveFailed: string
   terminalCopy: string
   terminalPaste: string
@@ -189,6 +225,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuReportIssue: 'Report Issue',
     menuAbout: 'About',
     menuNewConnection: 'New Connection',
+    menuSessionLogs: 'Session Logs',
+    menuSessionRecording: 'Session Recording',
     exit: 'Exit',
     aboutTitle: 'About Iridium Remote',
     aboutDescription:
@@ -246,8 +284,47 @@ const dictionaries: Record<Locale, Dictionary> = {
     updateUpToDate: (currentVersion) => `You are up to date. Current version: v${currentVersion}.`,
     downloadUpdate: (latestVersion) => `Download v${latestVersion}`,
     updateCheckFailed: 'Failed to check for updates.',
+    sessionRecordingTitle: 'Session Recording',
+    sessionRecordingDescription:
+      'Encrypt terminal recordings locally with chunked writes and runtime-only passwords.',
+    enableSessionRecording: 'Enable Session Recording',
+    sessionRecordingMode: 'Recording mode',
+    inputOnlyRecording: 'Input Only',
+    fullSessionRecording: 'Full Session Recording',
+    sessionRecordingPassword: 'Encryption password',
+    confirmSessionRecordingPassword: 'Confirm password',
+    sessionRecordingPasswordHint:
+      'Passwords are kept only for the current app run and must be entered again after restart.',
+    sessionRecordingPasswordLoaded: 'An encryption password is currently loaded for this app run.',
+    sessionRecordingPasswordMissing:
+      'No encryption password is loaded. Recording cannot start until you enter it again.',
+    sessionRecordingWarning:
+      'Full session recording may capture sensitive information, including secrets displayed in terminal output.',
+    sessionRecordingStorage: 'Storage policy',
+    sessionRecordingMaxFileSize: 'Max log file size (MB)',
+    sessionRecordingMaxTotalStorage: 'Max total storage (GB)',
+    sessionRecordingRetentionDays: 'Retention period (days)',
+    sessionRecordingLogDirectory: 'Log directory',
+    sessionRecordingCurrentUsage: 'Current usage',
+    sessionRecordingSaveSuccess: 'Updated the session recording settings.',
+    recordingIndicator: '● Recording',
+    inputRecordingIndicator: '● Input Recording',
+    sessionLogViewerTitle: 'Session Logs',
+    sessionLogViewerDescription:
+      'Open one or more encrypted .irlog files, preview their contents, and export them as plain text.',
+    selectSessionLogs: 'Select Session Logs',
+    selectedSessionLogs: 'Selected logs',
+    decryptSessionLogs: 'Decrypt Preview',
+    exportSessionLogs: 'Export as .txt',
+    sessionLogsPreview: 'Preview',
+    sessionLogsPreviewTruncated: 'Preview truncated. Export the logs to save the full text.',
+    noSessionLogsSelected: 'No session log files selected yet.',
+    sessionLogsExported: 'Exported the decrypted session logs.',
     validationRequired: 'Name, host, and username are required.',
     validationPort: 'Port must be a valid TCP port.',
+    validationPasswordLength: 'The session recording password must be at least 8 characters.',
+    validationPasswordConfirm: 'The session recording passwords do not match.',
+    validationPositiveNumber: 'Recording storage values must be positive whole numbers.',
     saveFailed: 'Unable to save the connection.',
     terminalCopy: 'Copy',
     terminalPaste: 'Paste',
@@ -326,6 +403,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuReportIssue: '反馈问题',
     menuAbout: '关于',
     menuNewConnection: '新建连接',
+    menuSessionLogs: '会话日志',
+    menuSessionRecording: '会话录制',
     exit: '退出',
     aboutTitle: '关于 Iridium Remote',
     aboutDescription: 'Iridium Remote 是一个基于 Tauri、React 和 Rust 的桌面 SSH 客户端。',
@@ -378,8 +457,42 @@ const dictionaries: Record<Locale, Dictionary> = {
     updateUpToDate: (currentVersion) => `当前已是最新版本。当前版本：v${currentVersion}。`,
     downloadUpdate: (latestVersion) => `下载 v${latestVersion}`,
     updateCheckFailed: '检查更新失败。',
+    sessionRecordingTitle: '会话录制',
+    sessionRecordingDescription: '使用分块加密的本地日志记录终端会话，录制密码仅保留在当前应用运行期间。',
+    enableSessionRecording: '启用会话录制',
+    sessionRecordingMode: '录制模式',
+    inputOnlyRecording: '仅输入',
+    fullSessionRecording: '完整会话录制',
+    sessionRecordingPassword: '加密密码',
+    confirmSessionRecordingPassword: '确认密码',
+    sessionRecordingPasswordHint: '密码不会被永久保存，重启应用后需要重新输入。',
+    sessionRecordingPasswordLoaded: '当前应用运行期间已加载加密密码。',
+    sessionRecordingPasswordMissing: '当前未加载加密密码，重新输入后才能开始录制。',
+    sessionRecordingWarning: '完整会话录制可能会捕获终端输出中的敏感信息，包括密钥和机密数据。',
+    sessionRecordingStorage: '存储策略',
+    sessionRecordingMaxFileSize: '单个日志文件上限（MB）',
+    sessionRecordingMaxTotalStorage: '总存储上限（GB）',
+    sessionRecordingRetentionDays: '保留天数',
+    sessionRecordingLogDirectory: '日志目录',
+    sessionRecordingCurrentUsage: '当前占用',
+    sessionRecordingSaveSuccess: '已更新会话录制设置。',
+    recordingIndicator: '● 正在录制',
+    inputRecordingIndicator: '● 输入录制',
+    sessionLogViewerTitle: '会话日志',
+    sessionLogViewerDescription: '打开一个或多个加密的 .irlog 文件，预览内容并导出为纯文本。',
+    selectSessionLogs: '选择会话日志',
+    selectedSessionLogs: '已选择日志',
+    decryptSessionLogs: '解密预览',
+    exportSessionLogs: '导出为 .txt',
+    sessionLogsPreview: '预览',
+    sessionLogsPreviewTruncated: '预览内容已截断，请导出日志以保存完整文本。',
+    noSessionLogsSelected: '尚未选择会话日志文件。',
+    sessionLogsExported: '已导出解密后的会话日志。',
     validationRequired: '名称、主机和用户名为必填项。',
     validationPort: '端口必须是有效的 TCP 端口。',
+    validationPasswordLength: '会话录制密码至少需要 8 个字符。',
+    validationPasswordConfirm: '两次输入的会话录制密码不一致。',
+    validationPositiveNumber: '录制存储参数必须是正整数。',
     saveFailed: '无法保存连接。',
     terminalCopy: '复制',
     terminalPaste: '粘贴',
@@ -458,6 +571,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     menuStarOnGitHub: '在 GitHub 上給我們評星',
     menuReportIssue: '回報問題',
     menuAbout: '關於',
+    menuSessionLogs: '會話日誌',
+    menuSessionRecording: '會話錄製',
     exit: '結束',
     aboutTitle: '關於 Iridium Remote',
     aboutDescription: '一個輕量、現代的桌面 SSH 客戶端',
@@ -510,8 +625,42 @@ const dictionaries: Record<Locale, Dictionary> = {
     updateUpToDate: (currentVersion) => `目前已是最新版本。當前版本：v${currentVersion}。`,
     downloadUpdate: (latestVersion) => `下載 v${latestVersion}`,
     updateCheckFailed: '檢查更新失敗。',
+    sessionRecordingTitle: '會話錄製',
+    sessionRecordingDescription: '以分塊加密的本地日誌記錄終端機會話，錄製密碼只保留在目前應用程式執行期間。',
+    enableSessionRecording: '啟用會話錄製',
+    sessionRecordingMode: '錄製模式',
+    inputOnlyRecording: '僅輸入',
+    fullSessionRecording: '完整會話錄製',
+    sessionRecordingPassword: '加密密碼',
+    confirmSessionRecordingPassword: '確認密碼',
+    sessionRecordingPasswordHint: '密碼不會被永久儲存，重新啟動應用程式後需要再次輸入。',
+    sessionRecordingPasswordLoaded: '目前應用程式執行期間已載入加密密碼。',
+    sessionRecordingPasswordMissing: '目前尚未載入加密密碼，重新輸入後才能開始錄製。',
+    sessionRecordingWarning: '完整會話錄製可能會擷取終端機輸出中的敏感資訊，包括金鑰與機密資料。',
+    sessionRecordingStorage: '儲存策略',
+    sessionRecordingMaxFileSize: '單一日誌檔案上限（MB）',
+    sessionRecordingMaxTotalStorage: '總儲存上限（GB）',
+    sessionRecordingRetentionDays: '保留天數',
+    sessionRecordingLogDirectory: '日誌目錄',
+    sessionRecordingCurrentUsage: '目前用量',
+    sessionRecordingSaveSuccess: '已更新會話錄製設定。',
+    recordingIndicator: '● 正在錄製',
+    inputRecordingIndicator: '● 輸入錄製',
+    sessionLogViewerTitle: '會話日誌',
+    sessionLogViewerDescription: '開啟一個或多個加密的 .irlog 檔案，預覽內容並匯出為純文字。',
+    selectSessionLogs: '選擇會話日誌',
+    selectedSessionLogs: '已選取日誌',
+    decryptSessionLogs: '解密預覽',
+    exportSessionLogs: '匯出為 .txt',
+    sessionLogsPreview: '預覽',
+    sessionLogsPreviewTruncated: '預覽內容已截斷，請匯出日誌以儲存完整文字。',
+    noSessionLogsSelected: '尚未選取任何會話日誌檔案。',
+    sessionLogsExported: '已匯出解密後的會話日誌。',
     validationRequired: '名稱、主機和使用者名稱為必填項。',
     validationPort: '連接埠必須是有效的 TCP 連接埠。',
+    validationPasswordLength: '會話錄製密碼至少需要 8 個字元。',
+    validationPasswordConfirm: '兩次輸入的會話錄製密碼不一致。',
+    validationPositiveNumber: '錄製儲存參數必須是正整數。',
     saveFailed: '無法儲存連線。',
     terminalCopy: '複製',
     terminalPaste: '貼上',

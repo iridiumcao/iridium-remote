@@ -8,7 +8,8 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         AppSettings, ConnectionExportRecord, ConnectionRecord, ConnectionsExportPayload,
-        CreateConnectionInput, ImportConnectionsResult, UpdateConnectionInput,
+        CreateConnectionInput, ImportConnectionsResult, SessionRecordingSettings,
+        UpdateConnectionInput,
     },
 };
 
@@ -512,7 +513,32 @@ fn normalize_app_settings(settings: AppSettings) -> AppResult<AppSettings> {
         theme: theme.into(),
         connection_list_display_mode: settings.connection_list_display_mode,
         collapsed_groups,
+        session_recording: normalize_session_recording_settings(settings.session_recording)?,
     })
+}
+
+fn normalize_session_recording_settings(
+    settings: SessionRecordingSettings,
+) -> AppResult<SessionRecordingSettings> {
+    if settings.max_file_size_mb == 0 {
+        return Err(AppError::validation(
+            "Session recording max file size must be greater than 0 MB.",
+        ));
+    }
+
+    if settings.max_total_storage_gb == 0 {
+        return Err(AppError::validation(
+            "Session recording max total storage must be greater than 0 GB.",
+        ));
+    }
+
+    if settings.retention_days == 0 {
+        return Err(AppError::validation(
+            "Session recording retention must be greater than 0 days.",
+        ));
+    }
+
+    Ok(settings)
 }
 
 fn connection_signature(connection: ConnectionRecord) -> String {
@@ -573,7 +599,9 @@ fn is_group_word_separator(character: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{normalize_app_settings, normalize_group_name};
-    use crate::models::{AppSettings, ConnectionListDisplayMode};
+    use crate::models::{
+        AppSettings, ConnectionListDisplayMode, SessionRecordingMode, SessionRecordingSettings,
+    };
 
     #[test]
     fn normalize_group_name_merges_case_variants() {
@@ -591,10 +619,33 @@ mod tests {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: vec!["home".into(), "Home".into(), "Work".into()],
+            session_recording: SessionRecordingSettings::default(),
         };
 
         let normalized = normalize_app_settings(settings).expect("settings should normalize");
 
         assert_eq!(normalized.collapsed_groups, vec!["Home", "Work"]);
+    }
+
+    #[test]
+    fn normalize_app_settings_keeps_session_recording_defaults() {
+        let settings = AppSettings {
+            locale: "en".into(),
+            theme: "dark".into(),
+            connection_list_display_mode: ConnectionListDisplayMode::Normal,
+            collapsed_groups: Vec::new(),
+            session_recording: SessionRecordingSettings {
+                enabled: true,
+                mode: SessionRecordingMode::Full,
+                max_file_size_mb: 100,
+                max_total_storage_gb: 5,
+                retention_days: 30,
+            },
+        };
+
+        let normalized = normalize_app_settings(settings).expect("settings should normalize");
+
+        assert!(normalized.session_recording.enabled);
+        assert_eq!(normalized.session_recording.mode, SessionRecordingMode::Full);
     }
 }

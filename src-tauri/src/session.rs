@@ -16,6 +16,7 @@ use crate::{
         ConnectionRecord, SessionRemovedEvent, SessionStatePayload, SessionStatus,
         TerminalOutputEvent,
     },
+    recording::{RecordingManager, SessionRecorder},
     terminal_detection::{
         append_recent_output, contains_password_prompt, contains_shell_prompt,
         detect_connection_error_message,
@@ -29,6 +30,7 @@ struct SessionResources {
     queued_password: Option<String>,
     recent_output: String,
     connected: bool,
+    recorder: Option<SessionRecorder>,
 }
 
 struct ManagedSession {
@@ -44,15 +46,17 @@ struct SessionInner {
 #[derive(Clone)]
 pub struct SessionManager {
     inner: Arc<Mutex<SessionInner>>,
+    recording: RecordingManager,
 }
 
 impl SessionManager {
-    pub fn new() -> Self {
+    pub fn new(recording: RecordingManager) -> Self {
         Self {
             inner: Arc::new(Mutex::new(SessionInner {
                 sessions: HashMap::new(),
                 order: Vec::new(),
             })),
+            recording,
         }
     }
 
@@ -76,6 +80,7 @@ impl SessionManager {
         connection: &ConnectionRecord,
         saved_password: Option<String>,
     ) -> AppResult<SessionStatePayload> {
+        let recorder = self.recording.start_session(connection)?;
         let pty_system = native_pty_system();
         let pair = pty_system
             .openpty(PtySize {
@@ -117,6 +122,8 @@ impl SessionManager {
             connection_name: connection.name.clone(),
             status: SessionStatus::Connecting,
             message: Some(format!("Connecting to {}...", connection.host)),
+            recording_active: recorder.is_some(),
+            recording_mode: recorder.as_ref().map(SessionRecorder::mode),
         };
 
         {
@@ -133,6 +140,7 @@ impl SessionManager {
                         queued_password: saved_password,
                         recent_output: String::new(),
                         connected: false,
+                        recorder,
                     }),
                 },
             );
@@ -160,6 +168,10 @@ impl SessionManager {
             .resources
             .as_mut()
             .ok_or_else(|| AppError::no_active_session("The selected session is not active."))?;
+
+        if let Some(recorder) = resources.recorder.as_mut() {
+            recorder.record_input(data)?;
+        }
 
         resources
             .writer
@@ -200,10 +212,11 @@ impl SessionManager {
             let session = inner.sessions.get_mut(session_id).ok_or_else(|| {
                 AppError::no_active_session("The selected session is no longer available.")
             })?;
-            let resources = session.resources.take().ok_or_else(|| {
+            let mut resources = session.resources.take().ok_or_else(|| {
                 AppError::no_active_session("The selected session is already closed.")
             })?;
 
+            Self::finish_recorder(resources.recorder.as_mut())?;
             let _ = resources
                 .child
                 .lock()
@@ -231,6 +244,7 @@ impl SessionManager {
         };
 
         if let Some(resources) = session.resources.as_mut() {
+            Self::finish_recorder(resources.recorder.as_mut())?;
             let _ = resources
                 .child
                 .lock()
@@ -330,6 +344,7 @@ impl SessionManager {
         let mut status_to_emit = None;
         let mut auto_password = None;
         let mut failure_message = None;
+        let mut recorder_error = None;
 
         {
             let mut inner = self.inner.lock().expect("session mutex poisoned");
@@ -340,20 +355,36 @@ impl SessionManager {
                 return;
             };
             append_recent_output(&mut resources.recent_output, &data);
+            if let Some(recorder) = resources.recorder.as_mut() {
+                if let Err(error) = recorder.record_output(&data) {
+                    recorder_error = Some(error.message);
+                }
+            }
 
             if contains_password_prompt(&resources.recent_output) {
+                if let Some(recorder) = resources.recorder.as_mut() {
+                    recorder.suppress_input_until_submit();
+                }
                 if let Some(password) = resources.queued_password.take() {
                     resources.recent_output.clear();
                     auto_password = Some(password);
                 }
             } else if !resources.connected && contains_shell_prompt(&resources.recent_output) {
                 resources.connected = true;
+                if let Some(recorder) = resources.recorder.as_mut() {
+                    recorder.clear_input_suppression();
+                }
                 session.snapshot.status = SessionStatus::Connected;
                 session.snapshot.message = Some("Connected.".into());
                 status_to_emit = Some(session.snapshot.clone());
             } else if !resources.connected {
                 failure_message = detect_connection_error_message(&resources.recent_output);
             }
+        }
+
+        if let Some(error) = recorder_error {
+            self.finish_session(app, session_id, SessionStatus::Error, &error);
+            return;
         }
 
         if let Some(message) = failure_message {
@@ -402,13 +433,27 @@ impl SessionManager {
                 return;
             };
 
-            session.resources = None;
-            session.snapshot.status = status;
-            session.snapshot.message = Some(message.to_string());
+            let mut final_status = status;
+            let mut final_message = message.to_string();
+            if let Some(mut resources) = session.resources.take() {
+                if let Err(error) = Self::finish_recorder(resources.recorder.as_mut()) {
+                    final_status = SessionStatus::Error;
+                    final_message = error.message;
+                }
+            }
+            session.snapshot.status = final_status;
+            session.snapshot.message = Some(final_message);
             session.snapshot.clone()
         };
 
         let _ = self.emit_status(app, &snapshot);
+    }
+
+    fn finish_recorder(recorder: Option<&mut SessionRecorder>) -> AppResult<()> {
+        if let Some(recorder) = recorder {
+            recorder.finish()?;
+        }
+        Ok(())
     }
 
     fn emit_status(&self, app: &AppHandle, payload: &SessionStatePayload) -> AppResult<()> {

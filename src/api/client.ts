@@ -13,11 +13,16 @@ import type {
   FileTransferResult,
   ImportConnectionsResult,
   RemotePathListing,
+  SessionLogPreview,
+  SessionRecordingMode,
+  SessionRecordingSettings,
+  SessionRecordingStatus,
   SessionRemovedEvent,
   SessionState,
   TerminalOutputEvent,
   UpdateCheckResult,
   UpdateConnectionInput,
+  UpdateSessionRecordingSettingsResult,
 } from '../lib/types'
 
 type Unsubscribe = () => void | Promise<void>
@@ -36,12 +41,24 @@ type MockStore = {
   settings: AppSettings
   connections: ConnectionRecord[]
   sessions: SessionState[]
+  sessionRecordingPassword: string | null
+  sessionLogs: Array<{
+    path: string
+    text: string
+    createdAt: string
+    host: string
+    username: string
+    recordingMode: SessionRecordingMode
+    part: number
+  }>
+  sessionLogPathsBySessionId: Map<string, string>
   sessionListeners: Set<(state: SessionState) => void>
   sessionRemovedListeners: Set<(event: SessionRemovedEvent) => void>
   terminalListeners: Set<(event: TerminalOutputEvent) => void>
 }
 
 const MOCK_SETTINGS_STORAGE_KEY = 'iridium-remote.mock-settings'
+const MOCK_LOG_DIRECTORY = 'C:\\mock\\SessionLogs'
 
 const loadMockSettings = (): AppSettings => {
   if (typeof window === 'undefined') {
@@ -54,9 +71,14 @@ const loadMockSettings = (): AppSettings => {
       return defaultAppSettings
     }
 
+    const parsed = JSON.parse(raw) as Partial<AppSettings>
     return normalizeMockSettings({
       ...defaultAppSettings,
-      ...(JSON.parse(raw) as Partial<AppSettings>),
+      ...parsed,
+      sessionRecording: {
+        ...defaultAppSettings.sessionRecording,
+        ...(parsed.sessionRecording ?? {}),
+      },
     })
   } catch {
     return defaultAppSettings
@@ -76,13 +98,56 @@ const normalizeMockSettings = (settings: AppSettings): AppSettings => ({
   collapsedGroups: normalizeCollapsedGroups(settings.collapsedGroups),
 })
 
+const sanitizeMockVisibleText = (data: string) =>
+  data
+    .replace(
+      new RegExp(
+        String.raw`\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\))`,
+        'g',
+      ),
+      '',
+    )
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+
 const mockStore: MockStore = {
   settings: loadMockSettings(),
   connections: [],
   sessions: [],
+  sessionRecordingPassword: null,
+  sessionLogs: [],
+  sessionLogPathsBySessionId: new Map(),
   sessionListeners: new Set(),
   sessionRemovedListeners: new Set(),
   terminalListeners: new Set(),
+}
+
+const buildMockRecordingStatus = (): SessionRecordingStatus => ({
+  configuredEnabled: mockStore.settings.sessionRecording.enabled,
+  passwordLoaded: Boolean(mockStore.sessionRecordingPassword),
+  canRecord:
+    mockStore.settings.sessionRecording.enabled && Boolean(mockStore.sessionRecordingPassword),
+  logDirectory: MOCK_LOG_DIRECTORY,
+  currentStorageBytes: mockStore.sessionLogs.reduce(
+    (total, log) => total + new TextEncoder().encode(log.text).length,
+    0,
+  ),
+})
+
+const appendMockSessionLog = (sessionId: string, data: string) => {
+  const logPath = mockStore.sessionLogPathsBySessionId.get(sessionId)
+  if (!logPath) {
+    return
+  }
+
+  mockStore.sessionLogs = mockStore.sessionLogs.map((log) =>
+    log.path === logPath
+      ? {
+          ...log,
+          text: `${log.text}${data}`,
+        }
+      : log,
+  )
 }
 
 const emitMockSession = (session: SessionState) => {
@@ -103,6 +168,7 @@ const emitMockSession = (session: SessionState) => {
 
 const emitMockSessionRemoved = (sessionId: string) => {
   mockStore.sessions = mockStore.sessions.filter((session) => session.sessionId !== sessionId)
+  mockStore.sessionLogPathsBySessionId.delete(sessionId)
   const payload: SessionRemovedEvent = { sessionId }
   for (const listener of mockStore.sessionRemovedListeners) {
     listener(payload)
@@ -110,6 +176,10 @@ const emitMockSessionRemoved = (sessionId: string) => {
 }
 
 const emitMockOutput = (sessionId: string, data: string) => {
+  const session = mockStore.sessions.find((item) => item.sessionId === sessionId)
+  if (session?.recordingActive && session.recordingMode === 'full') {
+    appendMockSessionLog(sessionId, sanitizeMockVisibleText(data))
+  }
   const payload: TerminalOutputEvent = { sessionId, stream: 'stdout', data }
   for (const listener of mockStore.terminalListeners) {
     listener(payload)
@@ -124,6 +194,12 @@ const getRemoteFileName = (path: string) => {
   return segments.at(-1) ?? ''
 }
 
+const fileNameFromPath = (path: string) => {
+  const normalized = path.trim().replace(/\\/g, '/')
+  const segments = normalized.split('/').filter(Boolean)
+  return segments.at(-1) ?? path
+}
+
 const getExportFileName = (payload: ConnectionsExportPayload) => {
   const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
   return `iridium-remote-backup-${timestamp}.json`
@@ -131,6 +207,27 @@ const getExportFileName = (payload: ConnectionsExportPayload) => {
 
 const randomId = () => crypto.randomUUID()
 type TransferLocalPathSelectionMode = 'file' | 'directory'
+
+const buildMockSessionLogPreview = (paths: string[], password: string): SessionLogPreview => {
+  if (!mockStore.sessionRecordingPassword || password.trim() !== mockStore.sessionRecordingPassword) {
+    throw new Error('Failed to decrypt the selected session logs. Check the encryption password.')
+  }
+
+  const selectedLogs = mockStore.sessionLogs.filter((log) => paths.includes(log.path))
+  return {
+    files: selectedLogs.map((log) => ({
+      fileName: fileNameFromPath(log.path),
+      path: log.path,
+      createdAt: log.createdAt,
+      host: log.host,
+      username: log.username,
+      recordingMode: log.recordingMode,
+      part: log.part,
+    })),
+    previewText: selectedLogs.map((log) => log.text).join(''),
+    truncated: false,
+  }
+}
 
 type ParsedVersion = {
   major: number
@@ -425,6 +522,36 @@ export const appClient = {
         connectionName: connection.name,
         status: 'connected',
         message: `Connected to ${connection.host} (mock session).`,
+        recordingActive: false,
+        recordingMode: null,
+      }
+
+      if (mockStore.settings.sessionRecording.enabled && !mockStore.sessionRecordingPassword) {
+        throw {
+          code: 'VALIDATION_ERROR',
+          message:
+            'Session recording is enabled but the encryption password is not loaded. Open Settings > Session Recording and enter it again.',
+        } satisfies AppError
+      }
+
+      if (mockStore.settings.sessionRecording.enabled && mockStore.sessionRecordingPassword) {
+        session.recordingActive = true
+        session.recordingMode = mockStore.settings.sessionRecording.mode
+        const createdAt = now()
+        const path = `${MOCK_LOG_DIRECTORY}\\${createdAt.replace(/[:.]/g, '-')}_${connection.username}_${connection.host}.irlog`
+        mockStore.sessionLogs = [
+          ...mockStore.sessionLogs,
+          {
+            path,
+            text: '',
+            createdAt,
+            host: connection.host,
+            username: connection.username,
+            recordingMode: mockStore.settings.sessionRecording.mode,
+            part: 1,
+          },
+        ]
+        mockStore.sessionLogPathsBySessionId.set(session.sessionId, path)
       }
 
       emitMockSession(session)
@@ -441,6 +568,10 @@ export const appClient = {
 
   async writeSessionInput(sessionId: string, data: string) {
     if (!isTauriRuntime()) {
+      const session = mockStore.sessions.find((item) => item.sessionId === sessionId)
+      if (session?.recordingActive && session.recordingMode === 'input_only') {
+        appendMockSessionLog(sessionId, data.replace(/\r/g, '\n'))
+      }
       emitMockOutput(sessionId, data)
       return
     }
@@ -558,6 +689,10 @@ export const appClient = {
         mockStore.settings = {
           ...defaultAppSettings,
           ...payload.settings,
+          sessionRecording: {
+            ...defaultAppSettings.sessionRecording,
+            ...payload.settings.sessionRecording,
+          },
         }
         mockStore.settings = normalizeMockSettings(mockStore.settings)
         persistMockSettings(mockStore.settings)
@@ -620,6 +755,130 @@ export const appClient = {
     }
 
     return invoke<FileTransferResult>('transfer_file', { input })
+  },
+
+  async getSessionRecordingStatus() {
+    if (!isTauriRuntime()) {
+      return buildMockRecordingStatus()
+    }
+
+    return invoke<SessionRecordingStatus>('get_session_recording_status')
+  },
+
+  async updateSessionRecordingSettings(
+    settings: SessionRecordingSettings,
+    password?: string,
+  ) {
+    if (!isTauriRuntime()) {
+      const normalizedPassword = password?.trim()
+      if (normalizedPassword && normalizedPassword.length < 8) {
+        throw {
+          code: 'VALIDATION_ERROR',
+          message: 'Session recording requires an encryption password with at least 8 characters.',
+        } satisfies AppError
+      }
+
+      if (settings.enabled && !normalizedPassword && !mockStore.sessionRecordingPassword) {
+        throw {
+          code: 'VALIDATION_ERROR',
+          message: 'Session recording requires an encryption password with at least 8 characters.',
+        } satisfies AppError
+      }
+
+      mockStore.settings = normalizeMockSettings({
+        ...mockStore.settings,
+        sessionRecording: settings,
+      })
+      persistMockSettings(mockStore.settings)
+      mockStore.sessionRecordingPassword = settings.enabled
+        ? normalizedPassword || mockStore.sessionRecordingPassword
+        : null
+
+      return {
+        appSettings: mockStore.settings,
+        status: buildMockRecordingStatus(),
+      } satisfies UpdateSessionRecordingSettingsResult
+    }
+
+    return invoke<UpdateSessionRecordingSettingsResult>('update_session_recording_settings', {
+      settings,
+      password,
+    })
+  },
+
+  async pickSessionLogFiles() {
+    if (!isTauriRuntime()) {
+      return mockStore.sessionLogs.map((log) => log.path)
+    }
+
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const selection = await open({
+      multiple: true,
+      filters: [
+        {
+          name: 'Iridium Session Logs',
+          extensions: ['irlog'],
+        },
+      ],
+    })
+
+    if (!selection) {
+      return []
+    }
+
+    return Array.isArray(selection) ? selection : [selection]
+  },
+
+  async previewSessionLogs(paths: string[], password: string) {
+    if (!isTauriRuntime()) {
+      return buildMockSessionLogPreview(paths, password)
+    }
+
+    return invoke<SessionLogPreview>('preview_session_logs', { paths, password })
+  },
+
+  async exportSessionLogs(paths: string[], password: string) {
+    if (!isTauriRuntime()) {
+      const preview = buildMockSessionLogPreview(paths, password)
+      const blob = new Blob([preview.previewText], {
+        type: 'text/plain;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'iridium-remote-session-log.txt'
+      document.body.append(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      return true
+    }
+
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    const outputPath = await save({
+      defaultPath: 'iridium-remote-session-log.txt',
+      filters: [
+        {
+          name: 'Text',
+          extensions: ['txt'],
+        },
+      ],
+    })
+
+    if (!outputPath) {
+      return false
+    }
+
+    await invoke('export_session_logs', { paths, password, outputPath })
+    return true
+  },
+
+  async openSessionLogsDirectory() {
+    if (!isTauriRuntime()) {
+      return
+    }
+
+    await invoke('open_session_logs_directory')
   },
 
   async pickTransferLocalPath(

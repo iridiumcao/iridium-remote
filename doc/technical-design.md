@@ -18,6 +18,7 @@ Iridium Remote is a split frontend/backend desktop application:
 `src\App.tsx` owns:
 
 - loading connections and app settings
+- loading session-recording runtime status
 - menu registration
 - dialog visibility
 - active session selection
@@ -25,7 +26,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform. Group names are normalized case-insensitively into a shared Title Case form before they are stored or grouped in the UI.
-In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Language and Theme submenus. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Session Recording, Language, and Theme actions, plus a File-menu Session Logs entry. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
 
@@ -56,7 +57,7 @@ Filtering is done in the frontend in real time against connection name, host, an
 The layout uses `min-h-0` and overflow boundaries so the main window does not become the scroll container. `src\App.tsx` suppresses the default browser-like context menu across the shell, and `src\components\TerminalWorkspace.tsx` replaces the terminal area's native browser menu with a custom localized, theme-aware menu for terminal actions.
 The horizontally scrolling tab strip also uses theme-aware scrollbar styling so the right workspace stays visually aligned with the active light or dark theme.
 Per-session terminal history is buffered on the frontend for fast tab restoration, but replay-only buffers strip terminal status-query escape sequences so activating a tab does not send synthetic input back to the SSH session. Tab activation also updates the selected connection in the sidebar so the left panel stays synchronized with the active workspace session.
-The workspace header itself is intentionally minimal: it shows only the active SSH target in `username@host[:port]` format and does not repeat the saved connection name or render a separate status pill.
+The workspace header itself is intentionally minimal: it shows only the active SSH target in `username@host[:port]` format and does not repeat the saved connection name or render a separate status pill. When the active session is being recorded, the same header shows a compact recording badge so users always know when capture is active.
 
 ### Frontend bridge
 
@@ -66,7 +67,7 @@ The workspace header itself is intentionally minimal: it shows only the active S
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
-In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/exit actions, while Settings owns Language and Theme selection.
+In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/session-log/exit actions, while Settings owns session-recording configuration plus Language and Theme selection. The bridge also exposes session-recording status, settings updates with runtime-only passwords, multi-file `.irlog` selection, decrypt previews, export, and log-directory opening.
 
 ## Backend architecture
 
@@ -76,6 +77,7 @@ In packaged Tauri builds, the app menu exposes File, Settings, and Help sections
 
 - connection CRUD
 - session lifecycle and terminal I/O
+- session recording status, settings, decrypt preview, export, and directory opening
 - file transfer
 - app settings load/update
 - connection export/import
@@ -90,7 +92,7 @@ The desktop runtime also registers a single-instance guard so a second launch fo
 1. `connections`
 2. `app_settings`
 
-Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend.
+Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend. Session-recording preferences live inside that payload, but the recording password remains runtime-only and is never persisted.
 
 ### Session manager
 
@@ -103,11 +105,27 @@ Responsibilities:
 - receive terminal input and resize events
 - detect session exit
 - keep session output isolated by tab
+- attach an optional recorder when session recording is enabled
 
 Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
 When a saved password exists, the session manager queues it and writes it back into the PTY after detecting a password prompt in the terminal output stream.
 The same output stream is inspected for immediate OpenSSH connection failures so a failed session can switch from `connecting` to `error` quickly and surface the SSH error text instead of leaving the loading state running. The prompt detector also recognizes a wider range of shell prompt endings, including common themed Unicode prompts, so successful logins do not remain stuck in the `connecting` state after the shell becomes interactive.
-The backend also watches the SSH child-process lifecycle directly instead of relying only on PTY reads, so a tab can switch from `connected` to `disconnected` promptly when the remote host shuts down and the SSH process exits without delivering more terminal output through the PTY stream.
+The backend also watches the SSH child-process lifecycle directly instead of relying only on PTY reads, so a tab can switch from `connected` to `disconnected` promptly when the remote host shuts down and the SSH process exits without delivering more terminal output through the PTY stream. For input-only recording, the session manager records submitted command lines while suppressing password-prompt input; for full-session recording, it records visible terminal output after ANSI cleanup.
+
+### Session recording
+
+`src-tauri\src\recording.rs` owns the encrypted session-recording pipeline.
+
+Responsibilities:
+
+- keep the recording password in runtime memory only
+- create the session-log directory and report current storage usage
+- derive AES-256-GCM keys from the user password through Argon2
+- compress visible session text with zstd before encryption
+- write independently encrypted chunks into `.irlog` files
+- rotate files at the configured size
+- delete old files when retention or total-storage limits are exceeded
+- decrypt selected `.irlog` files for preview and `.txt` export
 
 ### Credentials
 
@@ -126,6 +144,7 @@ Persisted settings currently include:
 - theme
 - connection list display mode
 - collapsed group keys
+- session recording settings except the encryption password
 
 The frontend treats backend settings as the source of truth so preferences survive restarts in both packaged and local runs.
 

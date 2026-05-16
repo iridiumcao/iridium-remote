@@ -7,9 +7,18 @@ type ModalProps = PropsWithChildren<{
   open: boolean
   footer: ReactNode
   theme: AppTheme
+  widthClass?: string
 }>
 
-export const Modal = ({ children, description, footer, open, theme, title }: ModalProps) => {
+export const Modal = ({
+  children,
+  description,
+  footer,
+  open,
+  theme,
+  title,
+  widthClass = 'max-w-lg',
+}: ModalProps) => {
   if (!open) {
     return null
   }
@@ -23,7 +32,7 @@ export const Modal = ({ children, description, footer, open, theme, title }: Mod
       }`}
     >
       <div
-        className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${
+        className={`w-full ${widthClass} rounded-2xl border p-6 shadow-2xl ${
           isDark
             ? 'border-white/10 bg-slate-900 text-white shadow-black/40'
             : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'

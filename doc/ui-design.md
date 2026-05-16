@@ -25,6 +25,7 @@ In desktop builds, Language and Theme are not shown here because they live in th
 - New Connection
 - Import
 - Export
+- Session Logs
 - Exit
 
 ### Help
@@ -36,6 +37,7 @@ In desktop builds, Language and Theme are not shown here because they live in th
 
 ### Settings
 
+- Session Recording
 - Language
   - English
   - 简体中文
@@ -111,6 +113,7 @@ The right side contains:
 
 - terminal tab strip for active sessions
 - workspace header showing only the active SSH target in `username@host[:port]` format
+- recording indicator when the active session is being recorded
 - connect / disconnect actions for the selected connection
 - file transfer action for the active connection
 - active terminal area
@@ -152,6 +155,28 @@ Shows:
 - license
 
 The project URL is an actionable link or button.
+
+### Session recording dialog
+
+Shows:
+
+- enable toggle
+- recording mode selection
+- encryption password and confirmation fields
+- storage policy fields for file size, total storage, and retention
+- log directory path
+- current storage usage
+- open-folder action
+
+### Session logs dialog
+
+Shows:
+
+- file picker for one or more `.irlog` files
+- password field for decryption
+- preview area for decrypted text
+- export action for `.txt`
+- open-folder action for the recording directory
 
 ## Visual behavior
 

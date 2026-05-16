@@ -32,6 +32,23 @@ Returns persisted user preferences.
 
 Stores and returns the normalized settings payload.
 
+### `get_session_recording_status() -> SessionRecordingStatus`
+
+Returns the current runtime recording status:
+
+- `configuredEnabled`
+- `passwordLoaded`
+- `canRecord`
+- `logDirectory`
+- `currentStorageBytes`
+
+### `update_session_recording_settings(settings, password?) -> UpdateSessionRecordingSettingsResult`
+
+Stores the session-recording settings, updates the runtime password when supplied, and returns:
+
+- `appSettings`
+- `status`
+
 ## Import / export commands
 
 ### `export_connections() -> ConnectionsExportPayload`
@@ -76,6 +93,11 @@ Removes the target session from the backend session list and releases backend re
 
 Returns the currently tracked session snapshots on startup so the frontend can restore open tabs.
 
+Each `SessionState` may also include:
+
+- `recordingActive`
+- `recordingMode?`
+
 ### `check_for_updates() -> UpdateCheckResult`
 
 Queries GitHub from the backend for the latest release and returns:
@@ -84,6 +106,24 @@ Queries GitHub from the backend for the latest release and returns:
 - `latestVersion`
 - `updateAvailable`
 - `downloadUrl?`
+
+## Session log commands
+
+### `preview_session_logs(paths, password) -> SessionLogPreview`
+
+Decrypts one or more `.irlog` files and returns:
+
+- `files`
+- `previewText`
+- `truncated`
+
+### `export_session_logs(paths, password, outputPath) -> void`
+
+Decrypts one or more `.irlog` files and writes the combined plain-text export to `outputPath`.
+
+### `open_session_logs_directory() -> void`
+
+Opens the configured session-log directory in the host OS file explorer.
 
 ## File transfer commands
 
@@ -138,6 +178,8 @@ Used by the frontend to remove closed tabs and clean up buffered output.
 - `saveExportConnections(payload)` opens the native save dialog in Tauri builds, then calls `write_export_file`.
 - `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the transfer dialog.
 - `checkForUpdates()` calls the Tauri `check_for_updates` command in desktop builds and falls back to a direct GitHub lookup only outside Tauri.
+- `pickSessionLogFiles()` opens the native multi-file picker for `.irlog` files.
+- `exportSessionLogs()` opens the native save dialog for the exported `.txt` file before calling `export_session_logs`.
 
 ## Browser mock behavior
 
@@ -146,9 +188,11 @@ When the app is not running inside Tauri:
 - connections are mocked in memory
 - settings are persisted via browser storage
 - sessions are simulated
+- session recording settings and runtime password state are simulated in memory
 - import/export works against the mock store, including settings when present
 - exports fall back to the browser download flow because the Tauri native save dialog is not available
 - local transfer-path picks return mock file or folder paths
 - remote browsing returns mock remote directory entries
+- session-log preview and export use the mock in-memory log store
 
 This keeps `npm run dev` useful for UI development without the Rust runtime.

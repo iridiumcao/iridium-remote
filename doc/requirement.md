@@ -16,7 +16,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 2. Open one or more SSH sessions from saved connections and switch between them using tabs.
 3. Interact with remote hosts directly inside the terminal, including password prompts and `sudo` prompts.
 4. Upload and download files with SFTP from the active session context.
-5. Adjust preferences such as theme, language, and connection list display mode and keep them across restarts.
+5. Configure optional encrypted session recording and review exported session logs.
+6. Adjust preferences such as theme, language, and connection list display mode and keep them across restarts.
 
 ## Functional requirements
 
@@ -67,6 +68,20 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - When the remote shell becomes available, the tab status must switch from `connecting` to `connected` promptly and the connecting overlay must disappear, including for common themed shell prompts.
 - Disconnects and session exits should be surfaced clearly without crashing the app.
 - The terminal area should be the only vertically scrolling area on the right side of the window.
+- When session recording is active for the selected session, the workspace should show a clear recording indicator.
+
+### Session recording
+
+- Session recording is optional and disabled by default.
+- Recording modes:
+  - `Input Only`
+  - `Full Session Recording`
+- Input-only recording must exclude hidden/password input.
+- Full-session recording must write encrypted local `.irlog` files without plaintext disk writes.
+- Encryption passwords must never be stored permanently.
+- Recorded log files must rotate when they reach the configured max file size.
+- Old log files must be deleted automatically when they exceed the configured retention period or total storage cap.
+- Users can open one or more encrypted `.irlog` files, decrypt them with the recording password, preview them, and export them as `.txt`.
 
 ### File transfer
 
@@ -98,6 +113,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
   - `New Connection`
   - `Import`
   - `Export`
+  - `Session Logs`
   - `Exit`
 - The app should suppress the default browser-like context menu across the main window.
 - Right-clicking inside the terminal workspace should open a localized, theme-aware terminal menu instead of the browser menu.
@@ -105,6 +121,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 #### Settings menu
 
 - The Settings menu must contain:
+  - `Session Recording`
   - `Language`
   - `Theme`
 - `Language` contains:
@@ -152,6 +169,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
   - theme
   - connection list display mode
   - collapsed connection groups
+  - session recording settings except the encryption password
 
 ### Logging
 
@@ -171,6 +189,7 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 
 - SQLite stores connection records and application settings.
 - The system keyring stores passwords.
+- Session recordings are stored as encrypted local `.irlog` files.
 - Export files contain app settings and connection metadata only.
 
 ## TODO

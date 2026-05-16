@@ -2,20 +2,24 @@ mod credentials;
 mod database;
 mod errors;
 mod models;
+mod recording;
 mod session;
 mod terminal_detection;
 mod transfer;
 mod update;
 
-use std::{fs, sync::Arc};
+use std::{env, fs, process::Command, sync::Arc};
 
 use database::Database;
 use errors::{AppError, AppResult};
 use models::{
     AppSettings, ConnectionListChangedEvent, ConnectionRecord, ConnectionsExportPayload,
     CreateConnectionInput, FileTransferInput, FileTransferResult, ImportConnectionsResult,
-    RemotePathListing, SessionStatePayload, UpdateCheckResult, UpdateConnectionInput,
+    RemotePathListing, SessionLogPreview, SessionRecordingSettings,
+    SessionRecordingStatus, SessionStatePayload, UpdateCheckResult,
+    UpdateConnectionInput, UpdateSessionRecordingSettingsResult,
 };
+use recording::RecordingManager;
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
@@ -23,6 +27,7 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 struct AppState {
     database: Database,
     credentials: credentials::CredentialStore,
+    recording: RecordingManager,
     sessions: SessionManager,
 }
 
@@ -176,8 +181,114 @@ fn update_app_settings(
     settings: AppSettings,
 ) -> AppResult<AppSettings> {
     let saved = state.database.set_app_settings(&settings)?;
+    state
+        .recording
+        .sync_settings(saved.session_recording.clone())?;
     log::info!("Updated app settings.");
     Ok(saved)
+}
+
+#[tauri::command]
+fn get_session_recording_status(
+    state: State<'_, Arc<AppState>>,
+) -> AppResult<SessionRecordingStatus> {
+    state.recording.status()
+}
+
+#[tauri::command]
+fn update_session_recording_settings(
+    state: State<'_, Arc<AppState>>,
+    settings: SessionRecordingSettings,
+    password: Option<String>,
+) -> AppResult<UpdateSessionRecordingSettingsResult> {
+    let trimmed_password = password
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(value) = trimmed_password {
+        if value.len() < 8 {
+            return Err(AppError::validation(
+                "Session recording requires an encryption password with at least 8 characters.",
+            ));
+        }
+    }
+    let current_status = state.recording.status()?;
+    if settings.enabled && trimmed_password.is_none() && !current_status.password_loaded {
+        return Err(AppError::validation(
+            "Session recording requires an encryption password with at least 8 characters.",
+        ));
+    }
+
+    let mut app_settings = state.database.get_app_settings()?;
+    app_settings.session_recording = settings;
+    let saved = state.database.set_app_settings(&app_settings)?;
+    let status = state
+        .recording
+        .update_settings(saved.session_recording.clone(), password)?;
+
+    Ok(UpdateSessionRecordingSettingsResult {
+        app_settings: saved,
+        status,
+    })
+}
+
+#[tauri::command]
+fn preview_session_logs(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+    password: String,
+) -> AppResult<SessionLogPreview> {
+    state.recording.preview_logs(paths, password)
+}
+
+#[tauri::command]
+fn export_session_logs(
+    state: State<'_, Arc<AppState>>,
+    paths: Vec<String>,
+    password: String,
+    output_path: String,
+) -> AppResult<()> {
+    state.recording.export_logs(paths, password, output_path)
+}
+
+#[tauri::command]
+fn open_session_logs_directory(state: State<'_, Arc<AppState>>) -> AppResult<()> {
+    let path = state.recording.logs_directory();
+    fs::create_dir_all(&path).map_err(|error| {
+        AppError::internal(
+            "Failed to initialize the session log directory.",
+            error.to_string(),
+        )
+    })?;
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("explorer");
+        command.arg(&path);
+        command
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(&path);
+        command
+    };
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(&path);
+        command
+    };
+
+    command.spawn().map_err(|error| {
+        AppError::internal(
+            "Failed to open the session log directory.",
+            error.to_string(),
+        )
+    })?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -207,6 +318,10 @@ fn import_connections(
     payload: ConnectionsExportPayload,
 ) -> AppResult<ImportConnectionsResult> {
     let result = state.database.import_connections(payload)?;
+    let settings = state.database.get_app_settings()?;
+    state
+        .recording
+        .sync_settings(settings.session_recording)?;
     log::info!(
         "Imported {} connections, skipped {} duplicates, settings restored: {}.",
         result.imported,
@@ -255,15 +370,56 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
 
     let database = Database::new(app_data_dir.join("iridium-remote.db"));
     database.initialize()?;
+    let app_settings = database.get_app_settings()?;
 
     let credentials = credentials::CredentialStore::new()?;
-    let sessions = SessionManager::new();
+    let recording = RecordingManager::new(resolve_session_logs_dir()?, app_settings.session_recording)?;
+    let sessions = SessionManager::new(recording.clone());
 
     Ok(Arc::new(AppState {
         database,
         credentials,
+        recording,
         sessions,
     }))
+}
+
+fn resolve_session_logs_dir() -> AppResult<std::path::PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(local_app_data) = env::var_os("LOCALAPPDATA") {
+            return Ok(std::path::PathBuf::from(local_app_data)
+                .join("Iridium Remote")
+                .join("SessionLogs"));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = env::var_os("HOME") {
+            return Ok(std::path::PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("Iridium Remote")
+                .join("SessionLogs"));
+        }
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        if let Some(home) = env::var_os("HOME") {
+            return Ok(std::path::PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("Iridium Remote")
+                .join("SessionLogs"));
+        }
+    }
+
+    Err(AppError::internal(
+        "Failed to resolve the session log directory.",
+        "No suitable user data directory is available.",
+    ))
 }
 
 fn enrich_connections(
@@ -387,12 +543,17 @@ pub fn run() {
             get_session_states,
             get_app_settings,
             update_app_settings,
+            get_session_recording_status,
+            update_session_recording_settings,
             list_remote_directory,
             export_connections,
             write_export_file,
             import_connections,
             check_for_updates,
             transfer_file,
+            preview_session_logs,
+            export_session_logs,
+            open_session_logs_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

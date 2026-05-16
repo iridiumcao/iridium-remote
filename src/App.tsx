@@ -4,6 +4,8 @@ import { AboutDialog } from './components/AboutDialog'
 import { ConnectionFormDialog } from './components/ConnectionFormDialog'
 import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
+import { SessionLogViewerDialog } from './components/SessionLogViewerDialog'
+import { SessionRecordingDialog } from './components/SessionRecordingDialog'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
@@ -18,6 +20,8 @@ import type {
   ConnectionsExportPayload,
   CreateConnectionInput,
   FileTransferInput,
+  SessionRecordingSettings,
+  SessionRecordingStatus,
   SessionState,
   UpdateConnectionInput,
 } from './lib/types'
@@ -83,7 +87,11 @@ function App() {
     null,
   )
   const [isAboutDialogOpen, setAboutDialogOpen] = useState(false)
+  const [isSessionLogViewerOpen, setSessionLogViewerOpen] = useState(false)
+  const [isSessionRecordingDialogOpen, setSessionRecordingDialogOpen] = useState(false)
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [sessionRecordingStatus, setSessionRecordingStatus] =
+    useState<SessionRecordingStatus | null>(null)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const settingsRef = useRef(settings)
@@ -206,10 +214,11 @@ function App() {
 
     const load = async () => {
       try {
-        const [loadedConnections, loadedSessions, loadedSettings] = await Promise.all([
+        const [loadedConnections, loadedSessions, loadedSettings, loadedRecordingStatus] = await Promise.all([
           appClient.listConnections(),
           appClient.getSessionStates(),
           appClient.getAppSettings(),
+          appClient.getSessionRecordingStatus(),
         ])
 
         if (!active) {
@@ -219,6 +228,7 @@ function App() {
         setConnections(loadedConnections)
         setSessions(loadedSessions)
         setSettings(loadedSettings)
+        setSessionRecordingStatus(loadedRecordingStatus)
         setActiveSessionId(loadedSessions[0]?.sessionId ?? null)
         setSelectedConnectionId(loadedSessions[0]?.connectionId ?? loadedConnections[0]?.id ?? null)
       } catch (cause) {
@@ -285,6 +295,15 @@ function App() {
     try {
       setError(null)
       await appClient.closeCurrentWindow()
+    } catch (cause) {
+      setError(appClient.normalizeError(cause))
+    }
+  }, [])
+
+  const handleOpenSessionLogsDirectory = useCallback(async () => {
+    try {
+      setError(null)
+      await appClient.openSessionLogsDirectory()
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
@@ -551,6 +570,40 @@ function App() {
     [updateSettings],
   )
 
+  const handleSaveSessionRecordingSettings = useCallback(
+    async (sessionRecording: SessionRecordingSettings, password?: string) => {
+      try {
+        setError(null)
+        const result = await appClient.updateSessionRecordingSettings(sessionRecording, password)
+        setSettings(result.appSettings)
+        setSessionRecordingStatus(result.status)
+        setSessionRecordingDialogOpen(false)
+        showNotice({
+          message: t.sessionRecordingSaveSuccess,
+          autoDismissMs: NOTICE_AUTO_DISMISS_MS,
+        })
+      } catch (cause) {
+        setError(appClient.normalizeError(cause))
+        throw cause
+      }
+    },
+    [showNotice, t.sessionRecordingSaveSuccess],
+  )
+
+  const handleExportSessionLogs = useCallback(
+    async (paths: string[], password: string) => {
+      const exported = await appClient.exportSessionLogs(paths, password)
+      if (exported) {
+        showNotice({
+          message: t.sessionLogsExported,
+          autoDismissMs: NOTICE_AUTO_DISMISS_MS,
+        })
+      }
+      return exported
+    },
+    [showNotice, t.sessionLogsExported],
+  )
+
   useEffect(() => {
     if (!isTauriRuntime) {
       return
@@ -594,6 +647,15 @@ function App() {
                 },
               },
               {
+                id: 'session-logs',
+                text: t.menuSessionLogs,
+                action: () => {
+                  if (!disposed) {
+                    setSessionLogViewerOpen(true)
+                  }
+                },
+              },
+              {
                 id: 'exit',
                 text: t.exit,
                 action: () => {
@@ -607,6 +669,15 @@ function App() {
           {
             text: t.menuSettings,
             items: [
+              {
+                id: 'session-recording',
+                text: t.menuSessionRecording,
+                action: () => {
+                  if (!disposed) {
+                    setSessionRecordingDialogOpen(true)
+                  }
+                },
+              },
               {
                 text: t.language,
                 items: languageOptions.map((option) => ({
@@ -689,7 +760,10 @@ function App() {
     handleCheckForUpdates,
     handleExitApp,
     handleExportConnections,
+    handleExportSessionLogs,
     handleImportConnections,
+    handleOpenSessionLogsDirectory,
+    handleSaveSessionRecordingSettings,
     handleSelectLocale,
     handleSelectTheme,
     isTauriRuntime,
@@ -717,7 +791,9 @@ function App() {
       const result = await appClient.importConnections(payload)
       await refreshConnections()
       const nextSettings = await appClient.getAppSettings()
+      const nextRecordingStatus = await appClient.getSessionRecordingStatus()
       setSettings(nextSettings)
+      setSessionRecordingStatus(nextRecordingStatus)
       showNotice(
         {
           message: getTranslations(nextSettings.locale).importConnectionsSuccess(
@@ -925,6 +1001,37 @@ function App() {
         t={t}
         theme={settings.theme}
       />
+
+      {isSessionRecordingDialogOpen ? (
+        <SessionRecordingDialog
+          onClose={() => setSessionRecordingDialogOpen(false)}
+          onOpenFolder={() => {
+            void handleOpenSessionLogsDirectory()
+          }}
+          onSave={handleSaveSessionRecordingSettings}
+          open
+          settings={settings.sessionRecording}
+          status={sessionRecordingStatus}
+          t={t}
+          theme={settings.theme}
+        />
+      ) : null}
+
+      {isSessionLogViewerOpen ? (
+        <SessionLogViewerDialog
+          onClose={() => setSessionLogViewerOpen(false)}
+          onExport={handleExportSessionLogs}
+          onOpenFolder={() => {
+            void handleOpenSessionLogsDirectory()
+          }}
+          onPickFiles={() => appClient.pickSessionLogFiles()}
+          onPreview={(paths, password) => appClient.previewSessionLogs(paths, password)}
+          open
+          status={sessionRecordingStatus}
+          t={t}
+          theme={settings.theme}
+        />
+      ) : null}
 
       {isTransferDialogOpen && activeConnection ? (
         <TransferDialog

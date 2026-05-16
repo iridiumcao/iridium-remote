@@ -7,6 +7,41 @@ pub enum ConnectionListDisplayMode {
     Compact,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionRecordingMode {
+    InputOnly,
+    Full,
+}
+
+impl Default for SessionRecordingMode {
+    fn default() -> Self {
+        Self::InputOnly
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRecordingSettings {
+    pub enabled: bool,
+    pub mode: SessionRecordingMode,
+    pub max_file_size_mb: u32,
+    pub max_total_storage_gb: u32,
+    pub retention_days: u32,
+}
+
+impl Default for SessionRecordingSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: SessionRecordingMode::InputOnly,
+            max_file_size_mb: 100,
+            max_total_storage_gb: 5,
+            retention_days: 30,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -14,6 +49,8 @@ pub struct AppSettings {
     pub theme: String,
     pub connection_list_display_mode: ConnectionListDisplayMode,
     pub collapsed_groups: Vec<String>,
+    #[serde(default)]
+    pub session_recording: SessionRecordingSettings,
 }
 
 impl Default for AppSettings {
@@ -23,6 +60,7 @@ impl Default for AppSettings {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: Vec::new(),
+            session_recording: SessionRecordingSettings::default(),
         }
     }
 }
@@ -83,6 +121,9 @@ pub struct SessionStatePayload {
     pub connection_name: String,
     pub status: SessionStatus,
     pub message: Option<String>,
+    #[serde(default)]
+    pub recording_active: bool,
+    pub recording_mode: Option<SessionRecordingMode>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,4 +218,41 @@ pub struct UpdateCheckResult {
     pub latest_version: String,
     pub update_available: bool,
     pub download_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRecordingStatus {
+    pub configured_enabled: bool,
+    pub password_loaded: bool,
+    pub can_record: bool,
+    pub log_directory: String,
+    pub current_storage_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSessionRecordingSettingsResult {
+    pub app_settings: AppSettings,
+    pub status: SessionRecordingStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLogFileInfo {
+    pub file_name: String,
+    pub path: String,
+    pub created_at: String,
+    pub host: String,
+    pub username: String,
+    pub recording_mode: SessionRecordingMode,
+    pub part: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLogPreview {
+    pub files: Vec<SessionLogFileInfo>,
+    pub preview_text: String,
+    pub truncated: bool,
 }
