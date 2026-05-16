@@ -861,11 +861,12 @@ impl Database {
         range: &ConnectionHistoryDateRange,
     ) -> AppResult<std::collections::HashMap<String, HistoryHostAccumulator>> {
         let connection = self.connect()?;
-        let cutoff = history_range_cutoff(range).map(|value| value.to_rfc3339());
+        let cutoff = history_range_cutoff(range);
         let mut aggregates = std::collections::HashMap::<String, HistoryHostAccumulator>::new();
 
-        let detail_sql = if cutoff.is_some() {
-            "SELECT
+        let mut detail_statement = connection
+            .prepare(
+                "SELECT
                 history_key,
                 connection_id,
                 connection_name_snapshot,
@@ -873,97 +874,60 @@ impl Database {
                 port_snapshot,
                 username_snapshot,
                 started_at,
+                ended_at,
                 duration_seconds
              FROM connection_history_sessions
-             WHERE ended_at IS NOT NULL
-               AND started_at >= ?1"
-        } else {
-            "SELECT
-                history_key,
-                connection_id,
-                connection_name_snapshot,
-                host_snapshot,
-                port_snapshot,
-                username_snapshot,
-                started_at,
-                duration_seconds
-             FROM connection_history_sessions
-             WHERE ended_at IS NOT NULL"
-        };
-
-        let mut detail_statement = connection.prepare(detail_sql).map_err(|error| {
-            AppError::database(
-                "Failed to prepare the connection history summary query.",
-                error.to_string(),
+             ",
             )
-        })?;
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to prepare the connection history summary query.",
+                    error.to_string(),
+                )
+            })?;
 
-        if let Some(value) = cutoff.as_deref() {
-            let detail_rows = detail_statement
-                .query_map([value], |row| {
-                    Ok(DetailHistoryAggregateRow {
-                        history_key: row.get(0)?,
-                        connection_id: row.get(1)?,
-                        connection_name_snapshot: row.get(2)?,
-                        host_snapshot: row.get(3)?,
-                        port_snapshot: row.get::<_, u16>(4)?,
-                        username_snapshot: row.get(5)?,
-                        started_at: row.get(6)?,
-                        duration_seconds: row.get::<_, i64>(7)? as u64,
-                    })
+        let detail_rows = detail_statement
+            .query_map([], |row| {
+                Ok(DetailHistoryAggregateRow {
+                    history_key: row.get(0)?,
+                    connection_id: row.get(1)?,
+                    connection_name_snapshot: row.get(2)?,
+                    host_snapshot: row.get(3)?,
+                    port_snapshot: row.get::<_, u16>(4)?,
+                    username_snapshot: row.get(5)?,
+                    started_at: row.get(6)?,
+                    ended_at: row.get(7)?,
+                    duration_seconds: row.get::<_, Option<i64>>(8)?.map(|value| value as u64),
                 })
-                .map_err(|error| {
-                    AppError::database(
-                        "Failed to load connection history summary rows.",
-                        error.to_string(),
-                    )
-                })?;
+            })
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to load connection history summary rows.",
+                    error.to_string(),
+                )
+            })?;
 
-            for row in detail_rows {
-                let row = row.map_err(|error| {
-                    AppError::database(
-                        "Failed to decode a connection history summary row.",
-                        error.to_string(),
-                    )
-                })?;
-                aggregates
-                    .entry(row.history_key.clone())
-                    .or_insert_with(|| HistoryHostAccumulator::from_detail_row(&row))
-                    .add_detail_row(&row);
-            }
-        } else {
-            let detail_rows = detail_statement
-                .query_map([], |row| {
-                    Ok(DetailHistoryAggregateRow {
-                        history_key: row.get(0)?,
-                        connection_id: row.get(1)?,
-                        connection_name_snapshot: row.get(2)?,
-                        host_snapshot: row.get(3)?,
-                        port_snapshot: row.get::<_, u16>(4)?,
-                        username_snapshot: row.get(5)?,
-                        started_at: row.get(6)?,
-                        duration_seconds: row.get::<_, i64>(7)? as u64,
-                    })
+        for row in detail_rows {
+            let row = row.map_err(|error| {
+                AppError::database(
+                    "Failed to decode a connection history summary row.",
+                    error.to_string(),
+                )
+            })?;
+            if cutoff
+                .as_ref()
+                .is_some_and(|cutoff| {
+                    parse_timestamp(&row.started_at)
+                        .map(|started_at| started_at < cutoff.clone())
+                        .unwrap_or(false)
                 })
-                .map_err(|error| {
-                    AppError::database(
-                        "Failed to load connection history summary rows.",
-                        error.to_string(),
-                    )
-                })?;
-
-            for row in detail_rows {
-                let row = row.map_err(|error| {
-                    AppError::database(
-                        "Failed to decode a connection history summary row.",
-                        error.to_string(),
-                    )
-                })?;
-                aggregates
-                    .entry(row.history_key.clone())
-                    .or_insert_with(|| HistoryHostAccumulator::from_detail_row(&row))
-                    .add_detail_row(&row);
+            {
+                continue;
             }
+            aggregates
+                .entry(row.history_key.clone())
+                .or_insert_with(|| HistoryHostAccumulator::from_detail_row(&row))
+                .add_detail_row(&row);
         }
 
         if matches!(range, &ConnectionHistoryDateRange::AllTime) {
@@ -1041,8 +1005,8 @@ impl Database {
         range: &ConnectionHistoryDateRange,
     ) -> AppResult<Vec<ConnectionHistorySessionRecord>> {
         let connection = self.connect()?;
-        let cutoff = history_range_cutoff(range).map(|value| value.to_rfc3339());
-        let sql = if cutoff.is_some() {
+        let cutoff = history_range_cutoff(range);
+        let mut statement = connection.prepare(
             "SELECT
                 id,
                 started_at,
@@ -1052,81 +1016,71 @@ impl Database {
                 is_estimated
              FROM connection_history_sessions
              WHERE history_key = ?1
-               AND ended_at IS NOT NULL
-               AND started_at >= ?2
-             ORDER BY started_at DESC"
-        } else {
-            "SELECT
-                id,
-                started_at,
-                ended_at,
-                duration_seconds,
-                close_status,
-                is_estimated
-             FROM connection_history_sessions
-             WHERE history_key = ?1
-               AND ended_at IS NOT NULL
-             ORDER BY started_at DESC"
-        };
-
-        let mut statement = connection.prepare(sql).map_err(|error| {
+             ORDER BY started_at DESC",
+        ).map_err(|error| {
             AppError::database(
                 "Failed to prepare the connection history detail query.",
                 error.to_string(),
             )
         })?;
 
-        if let Some(value) = cutoff.as_deref() {
-            let rows = statement
-                .query_map(params![history_key, value], |row| {
-                    Ok(ConnectionHistorySessionRecord {
-                        id: row.get(0)?,
-                        started_at: row.get(1)?,
-                        ended_at: row.get(2)?,
-                        duration_seconds: row.get::<_, i64>(3)? as u64,
-                        close_status: history_close_status_from_db(&row.get::<_, String>(4)?),
-                        is_estimated: row.get::<_, i64>(5)? != 0,
-                    })
+        let rows = statement
+            .query_map([history_key], |row| {
+                Ok(RawConnectionHistorySessionRow {
+                    id: row.get(0)?,
+                    started_at: row.get(1)?,
+                    ended_at: row.get(2)?,
+                    duration_seconds: row.get::<_, Option<i64>>(3)?.map(|value| value as u64),
+                    close_status: row.get(4)?,
+                    is_estimated: row.get::<_, i64>(5)? != 0,
                 })
-                .map_err(|error| {
-                    AppError::database(
-                        "Failed to load connection history detail rows.",
-                        error.to_string(),
-                    )
-                })?;
-
-            rows.collect::<Result<Vec<_>, _>>().map_err(|error| {
+            })
+            .map_err(|error| {
                 AppError::database(
-                    "Failed to decode connection history detail rows.",
+                    "Failed to load connection history detail rows.",
                     error.to_string(),
                 )
-            })
-        } else {
-            let rows = statement
-                .query_map([history_key], |row| {
-                    Ok(ConnectionHistorySessionRecord {
-                        id: row.get(0)?,
-                        started_at: row.get(1)?,
-                        ended_at: row.get(2)?,
-                        duration_seconds: row.get::<_, i64>(3)? as u64,
-                        close_status: history_close_status_from_db(&row.get::<_, String>(4)?),
-                        is_estimated: row.get::<_, i64>(5)? != 0,
-                    })
-                })
-                .map_err(|error| {
-                    AppError::database(
-                        "Failed to load connection history detail rows.",
-                        error.to_string(),
-                    )
-                })?;
+            })?;
 
-            rows.collect::<Result<Vec<_>, _>>().map_err(|error| {
-                AppError::database(
-                    "Failed to decode connection history detail rows.",
-                    error.to_string(),
-                )
+        let raw_sessions = rows.collect::<Result<Vec<_>, _>>().map_err(|error| {
+            AppError::database(
+                "Failed to decode connection history detail rows.",
+                error.to_string(),
+            )
+        })?;
+
+        let mut sessions = raw_sessions
+            .into_iter()
+            .map(|row| {
+                Ok(ConnectionHistorySessionRecord {
+                    id: row.id,
+                    started_at: row.started_at.clone(),
+                    ended_at: row.ended_at.clone(),
+                    duration_seconds: effective_history_duration_seconds(
+                        &row.started_at,
+                        row.ended_at.as_deref(),
+                        row.duration_seconds,
+                    )?,
+                    close_status: history_close_status_from_db(
+                        &row.close_status,
+                        row.ended_at.is_none(),
+                    ),
+                    is_estimated: row.is_estimated,
+                })
             })
+            .collect::<AppResult<Vec<_>>>()?;
+
+        if let Some(cutoff) = cutoff {
+            sessions.retain(|session| {
+                parse_timestamp(&session.started_at)
+                    .map(|started_at| started_at >= cutoff)
+                    .unwrap_or(false)
+            });
         }
+
+        sessions.sort_by(|left, right| right.started_at.cmp(&left.started_at));
+
+        Ok(sessions)
     }
 
     fn has_column(connection: &Connection, table_name: &str, column_name: &str) -> AppResult<bool> {
@@ -1222,7 +1176,17 @@ struct DetailHistoryAggregateRow {
     port_snapshot: u16,
     username_snapshot: String,
     started_at: String,
-    duration_seconds: u64,
+    ended_at: Option<String>,
+    duration_seconds: Option<u64>,
+}
+
+struct RawConnectionHistorySessionRow {
+    id: String,
+    started_at: String,
+    ended_at: Option<String>,
+    duration_seconds: Option<u64>,
+    close_status: String,
+    is_estimated: bool,
 }
 
 struct HistoryRollupAccumulator {
@@ -1297,11 +1261,17 @@ impl HistoryHostAccumulator {
     }
 
     fn add_detail_row(&mut self, row: &DetailHistoryAggregateRow) {
+        let duration_seconds = effective_history_duration_seconds(
+            &row.started_at,
+            row.ended_at.as_deref(),
+            row.duration_seconds,
+        )
+        .unwrap_or(0);
         self.total_connection_count += 1;
-        self.total_duration_seconds += row.duration_seconds;
+        self.total_duration_seconds += duration_seconds;
         update_latest_timestamp(&mut self.latest_connection_at, Some(row.started_at.as_str()));
 
-        match connection_history_duration_bucket(row.duration_seconds) {
+        match connection_history_duration_bucket(duration_seconds) {
             ConnectionHistoryDurationBucketKind::Under5Minutes => self.under_5_minutes_count += 1,
             ConnectionHistoryDurationBucketKind::Between5And30Minutes => {
                 self.between_5_and_30_minutes_count += 1
@@ -1525,15 +1495,35 @@ fn update_latest_timestamp(target: &mut Option<String>, candidate: Option<&str>)
 
 fn history_close_status_to_db(status: &ConnectionHistoryCloseStatus) -> &'static str {
     match status {
+        ConnectionHistoryCloseStatus::InProgress => "in_progress",
         ConnectionHistoryCloseStatus::Normal => "normal",
         ConnectionHistoryCloseStatus::Abnormal => "abnormal",
     }
 }
 
-fn history_close_status_from_db(value: &str) -> ConnectionHistoryCloseStatus {
+fn history_close_status_from_db(
+    value: &str,
+    in_progress: bool,
+) -> ConnectionHistoryCloseStatus {
+    if in_progress {
+        return ConnectionHistoryCloseStatus::InProgress;
+    }
+
     match value {
         "normal" => ConnectionHistoryCloseStatus::Normal,
         _ => ConnectionHistoryCloseStatus::Abnormal,
+    }
+}
+
+fn effective_history_duration_seconds(
+    started_at: &str,
+    ended_at: Option<&str>,
+    stored_duration_seconds: Option<u64>,
+) -> AppResult<u64> {
+    match (ended_at, stored_duration_seconds) {
+        (_, Some(duration_seconds)) => Ok(duration_seconds),
+        (Some(ended_at), None) => duration_seconds_between(started_at, ended_at),
+        (None, None) => duration_seconds_between(started_at, &Utc::now().to_rfc3339()),
     }
 }
 

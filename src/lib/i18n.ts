@@ -162,6 +162,7 @@ type Dictionary = {
   connectionHistoryEndTime: string
   connectionHistoryDuration: string
   connectionHistoryCloseStatus: string
+  connectionHistoryStatusInProgress: string
   connectionHistoryStatusNormal: string
   connectionHistoryStatusAbnormal: string
   connectionHistoryEstimated: string
@@ -375,6 +376,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryEndTime: 'End time',
     connectionHistoryDuration: 'Duration',
     connectionHistoryCloseStatus: 'Close status',
+    connectionHistoryStatusInProgress: 'In progress',
     connectionHistoryStatusNormal: 'Normal',
     connectionHistoryStatusAbnormal: 'Abnormal interruption',
     connectionHistoryEstimated: 'Estimated',
@@ -581,6 +583,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryEndTime: '结束时间',
     connectionHistoryDuration: '时长',
     connectionHistoryCloseStatus: '关闭状态',
+    connectionHistoryStatusInProgress: '进行中',
     connectionHistoryStatusNormal: '正常结束',
     connectionHistoryStatusAbnormal: '异常中断',
     connectionHistoryEstimated: '估算',
@@ -787,6 +790,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryEndTime: '結束時間',
     connectionHistoryDuration: '時長',
     connectionHistoryCloseStatus: '關閉狀態',
+    connectionHistoryStatusInProgress: '進行中',
     connectionHistoryStatusNormal: '正常結束',
     connectionHistoryStatusAbnormal: '異常中斷',
     connectionHistoryEstimated: '估算',

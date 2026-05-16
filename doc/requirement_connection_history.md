@@ -115,6 +115,7 @@ Historical session records should show one row per connection attempt/session wi
 - close status
 
 The list should be ordered with newest records first.
+If a session is still running, the current filter should still show it as an in-progress row with an empty end time and a live duration up to now.
 
 ### Summary charts
 
@@ -168,6 +169,7 @@ If a host has too few sessions to make the chart meaningful, the UI may still sh
 
 Each historical session row should show a human-readable close status:
 
+- `In progress`
 - `Normal`
 - `Abnormal`
 
@@ -190,6 +192,7 @@ V1 may provide quick filters such as:
 - all time
 
 Statistics, charts, and the session list should stay consistent with the active filter.
+Recent-range filters should include both completed sessions and still-running sessions whose `started_at` falls inside the selected range.
 
 ---
 

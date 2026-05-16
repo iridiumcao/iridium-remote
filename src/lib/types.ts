@@ -19,7 +19,7 @@ export type ConnectionHistoryDateRange =
   | 'last_90_days'
   | 'all_time'
 
-export type ConnectionHistoryCloseStatus = 'normal' | 'abnormal'
+export type ConnectionHistoryCloseStatus = 'in_progress' | 'normal' | 'abnormal'
 
 export type ConnectionHistoryDurationBucketKind =
   | 'under_5_minutes'
@@ -222,7 +222,7 @@ export type ConnectionHistoryHostSummary = {
 export type ConnectionHistorySessionRecord = {
   id: string
   startedAt: string
-  endedAt: string
+  endedAt: string | null
   durationSeconds: number
   closeStatus: ConnectionHistoryCloseStatus
   isEstimated: boolean

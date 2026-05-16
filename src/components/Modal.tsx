@@ -8,6 +8,7 @@ type ModalProps = PropsWithChildren<{
   footer: ReactNode
   theme: AppTheme
   widthClass?: string
+  bodyClassName?: string
 }>
 
 export const Modal = ({
@@ -18,6 +19,7 @@ export const Modal = ({
   theme,
   title,
   widthClass = 'max-w-lg',
+  bodyClassName = 'space-y-4 overflow-y-auto',
 }: ModalProps) => {
   if (!open) {
     return null
@@ -32,12 +34,14 @@ export const Modal = ({
       }`}
     >
       <div
-        className={`w-full ${widthClass} rounded-2xl border p-6 shadow-2xl ${
-          isDark
-            ? 'border-white/10 bg-slate-900 text-white shadow-black/40'
-            : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'
-        }`}
-      >
+      className={`flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border p-6 shadow-2xl ${
+        widthClass
+      } ${
+        isDark
+          ? 'border-white/10 bg-slate-900 text-white shadow-black/40'
+          : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/70'
+      }`}
+    >
         <div className="mb-5">
           <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
             {title}
@@ -49,7 +53,7 @@ export const Modal = ({
           ) : null}
         </div>
 
-        <div className="space-y-4">{children}</div>
+        <div className={`min-h-0 flex-1 ${bodyClassName}`}>{children}</div>
 
         <div className="mt-6 flex justify-end gap-3">{footer}</div>
       </div>

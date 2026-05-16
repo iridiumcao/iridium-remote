@@ -272,6 +272,7 @@ pub enum ConnectionHistoryDateRange {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionHistoryCloseStatus {
+    InProgress,
     Normal,
     Abnormal,
 }
@@ -305,7 +306,7 @@ pub struct ConnectionHistoryHostSummary {
 pub struct ConnectionHistorySessionRecord {
     pub id: String,
     pub started_at: String,
-    pub ended_at: String,
+    pub ended_at: Option<String>,
     pub duration_seconds: u64,
     pub close_status: ConnectionHistoryCloseStatus,
     pub is_estimated: bool,

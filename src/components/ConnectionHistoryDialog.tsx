@@ -193,8 +193,7 @@ export const ConnectionHistoryDialog = ({
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isDark = theme === 'dark'
-  const visibleDetails =
-    details && details.host.historyKey === selectedHistoryKey ? details : null
+  const visibleDetails = details && details.host.historyKey === selectedHistoryKey ? details : null
 
   useEffect(() => {
     if (!open) {
@@ -209,6 +208,7 @@ export const ConnectionHistoryDialog = ({
           return
         }
 
+        setError(null)
         setOverview(nextOverview)
         setSelectedHistoryKey((current) =>
           current && nextOverview.hosts.some((host) => host.historyKey === current)
@@ -240,6 +240,7 @@ export const ConnectionHistoryDialog = ({
     void onLoadHostDetails(selectedHistoryKey, range)
       .then((nextDetails) => {
         if (active) {
+          setError(null)
           setDetails(nextDetails)
         }
       })
@@ -335,6 +336,7 @@ export const ConnectionHistoryDialog = ({
       theme={theme}
       title={t.connectionHistoryTitle}
       widthClass="max-w-7xl"
+      bodyClassName="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
     >
       <div className="flex flex-wrap items-center gap-3">
         {durationRanges.map((option) => {
@@ -351,6 +353,9 @@ export const ConnectionHistoryDialog = ({
                     : 'border border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
               onClick={() => {
+                setError(null)
+                setDetails(null)
+                setSelectedHistoryKey(null)
                 setRange(option)
               }}
             >
@@ -370,8 +375,8 @@ export const ConnectionHistoryDialog = ({
         </p>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className={`${sectionClass} p-4`}>
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className={`${sectionClass} flex min-h-0 flex-col p-4`}>
           <p className="text-sm font-medium">{t.connectionHistoryHostList}</p>
           <input
             className={`mt-3 w-full rounded-xl border px-3 py-2 outline-none transition ${
@@ -387,7 +392,7 @@ export const ConnectionHistoryDialog = ({
           />
 
           <div
-            className={`themed-scrollbar mt-4 max-h-[560px] space-y-2 overflow-y-auto pr-1 ${
+            className={`themed-scrollbar mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 ${
               isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
             }`}
           >
@@ -444,7 +449,12 @@ export const ConnectionHistoryDialog = ({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div
+          className={`themed-scrollbar min-h-0 overflow-y-auto pr-1 ${
+            isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
+          }`}
+        >
+          <div className="space-y-4">
           {visibleDetails?.host ? (
             <>
               <div className={sectionClass}>
@@ -530,11 +540,7 @@ export const ConnectionHistoryDialog = ({
                 <div className="border-b px-4 py-4">
                   <p className="text-sm font-medium">{t.connectionHistorySessions}</p>
                 </div>
-                <div
-                  className={`themed-scrollbar max-h-[320px] overflow-auto ${
-                    isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
-                  }`}
-                >
+                <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-sm">
                     <thead className={isDark ? 'bg-slate-900/80 text-slate-300' : 'bg-slate-100 text-slate-600'}>
                       <tr>
@@ -559,9 +565,11 @@ export const ConnectionHistoryDialog = ({
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span>
-                                  {session.closeStatus === 'normal'
-                                    ? t.connectionHistoryStatusNormal
-                                    : t.connectionHistoryStatusAbnormal}
+                                  {session.closeStatus === 'in_progress'
+                                    ? t.connectionHistoryStatusInProgress
+                                    : session.closeStatus === 'normal'
+                                      ? t.connectionHistoryStatusNormal
+                                      : t.connectionHistoryStatusAbnormal}
                                 </span>
                                 {session.isEstimated ? (
                                   <span
@@ -593,6 +601,7 @@ export const ConnectionHistoryDialog = ({
               {open && overview === null ? '…' : t.connectionHistoryNoHostsDescription}
             </div>
           )}
+          </div>
         </div>
       </div>
     </Modal>

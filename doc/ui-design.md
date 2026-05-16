@@ -195,10 +195,11 @@ Shows:
 - per-host summary cards for connection count, total duration, and latest connection time
 - cross-host pie charts for duration share and connection-count share
 - per-host pie chart for duration-bucket distribution
-- recent per-session detail table with start time, end time, duration, close status, and estimated markers
+- recent per-session detail table with start time, end time, duration, close status, estimated markers, and in-progress rows for still-running sessions
 
 The host list scroll region and the session-detail scroll region should keep the active light or dark theme scrollbar styling.
 When all-time totals include older rolled-up history, the dialog should show a short note that older sessions are summarized in totals and charts.
+Switching the date-range tabs should clear stale selection/error state before the new range loads, so a previous host selection does not produce a false empty-state or stale error message.
 
 ## Visual behavior
 
