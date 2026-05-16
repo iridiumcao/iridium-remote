@@ -37,7 +37,6 @@ In desktop builds, Language and Theme are not shown here because they live in th
 
 ### Settings
 
-- Session Recording
 - Language
   - English
   - 简体中文
@@ -45,6 +44,7 @@ In desktop builds, Language and Theme are not shown here because they live in th
 - Theme
   - Dark
   - Light
+- Session Recording
 
 Selecting external-link items opens the user’s browser. Selecting About opens a modal dialog. Selecting Check for Updates checks the latest GitHub release and shows an in-app status message; when a newer version exists, that message includes an actionable release download link. The status banner auto-dismisses after about 5 seconds with a smooth fade-out.
 
@@ -163,10 +163,13 @@ Shows:
 - enable toggle
 - recording mode selection
 - encryption password and confirmation fields
+- password field uses a masked placeholder when a runtime password is already loaded
 - storage policy fields for file size, total storage, and retention
-- log directory path
+- customizable log directory path with browse/open actions
 - current storage usage
 - open-folder action
+
+When recording is disabled, all dependent controls below the enable toggle are disabled and visually dimmed.
 
 ### Session logs dialog
 

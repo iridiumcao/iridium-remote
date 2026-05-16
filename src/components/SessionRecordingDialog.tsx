@@ -12,6 +12,7 @@ type SessionRecordingDialogProps = {
   open: boolean
   onClose: () => void
   onOpenFolder: () => void
+  onPickLogDirectory: (currentPath: string) => Promise<string | null>
   onSave: (settings: SessionRecordingSettings, password?: string) => Promise<void>
   settings: SessionRecordingSettings
   status: SessionRecordingStatus | null
@@ -25,6 +26,7 @@ type FormState = {
   maxFileSizeMb: string
   maxTotalStorageGb: string
   retentionDays: string
+  logDirectory: string
   password: string
   confirmPassword: string
 }
@@ -33,6 +35,7 @@ export const SessionRecordingDialog = ({
   open,
   onClose,
   onOpenFolder,
+  onPickLogDirectory,
   onSave,
   settings,
   status,
@@ -45,6 +48,7 @@ export const SessionRecordingDialog = ({
     maxFileSizeMb: String(settings.maxFileSizeMb),
     maxTotalStorageGb: String(settings.maxTotalStorageGb),
     retentionDays: String(settings.retentionDays),
+    logDirectory: settings.logDirectory?.trim() || status?.logDirectory || '',
     password: '',
     confirmPassword: '',
   })
@@ -65,6 +69,8 @@ export const SessionRecordingDialog = ({
   const sectionClass = `rounded-2xl border p-4 ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
+  const disabledSectionClass = !formState.enabled ? 'opacity-50' : ''
+  const isPasswordLoaded = Boolean(status?.passwordLoaded)
 
   const handleSave = async () => {
     const maxFileSizeMb = Number(formState.maxFileSizeMb)
@@ -85,19 +91,21 @@ export const SessionRecordingDialog = ({
       return
     }
 
-    if (password && password.length < 8) {
-      setError(t.validationPasswordLength)
-      return
-    }
+    if (formState.enabled) {
+      if (password && password.length < 8) {
+        setError(t.validationPasswordLength)
+        return
+      }
 
-    if (password !== confirmPassword) {
-      setError(t.validationPasswordConfirm)
-      return
-    }
+      if (password !== confirmPassword) {
+        setError(t.validationPasswordConfirm)
+        return
+      }
 
-    if (formState.enabled && !password && !status?.passwordLoaded) {
-      setError(t.validationPasswordLength)
-      return
+      if (!password && !status?.passwordLoaded) {
+        setError(t.validationPasswordLength)
+        return
+      }
     }
 
     setIsSaving(true)
@@ -111,6 +119,7 @@ export const SessionRecordingDialog = ({
           maxFileSizeMb,
           maxTotalStorageGb,
           retentionDays,
+          logDirectory: formState.logDirectory.trim() || null,
         },
         password || undefined,
       )
@@ -120,6 +129,15 @@ export const SessionRecordingDialog = ({
       setIsSaving(false)
       return
     }
+  }
+
+  const handlePickLogDirectory = async () => {
+    const selectedPath = await onPickLogDirectory(formState.logDirectory)
+    if (!selectedPath) {
+      return
+    }
+
+    setFormState((current) => ({ ...current, logDirectory: selectedPath }))
   }
 
   return (
@@ -173,7 +191,7 @@ export const SessionRecordingDialog = ({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className={sectionClass}>
+        <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled}>
           <p className="mb-3 text-sm font-medium">{t.sessionRecordingMode}</p>
           <label className="flex items-start gap-3 text-sm">
             <input
@@ -211,10 +229,9 @@ export const SessionRecordingDialog = ({
               {t.sessionRecordingWarning}
             </p>
           ) : null}
-        </div>
+        </fieldset>
 
-        <div className={sectionClass}>
-          <p className="mb-3 text-sm font-medium">{t.sessionRecordingPassword}</p>
+        <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled}>
           <div className="space-y-3">
             <label className="block text-sm">
               <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
@@ -225,6 +242,7 @@ export const SessionRecordingDialog = ({
                 onChange={(event) => {
                   setFormState((current) => ({ ...current, password: event.target.value }))
                 }}
+                placeholder={isPasswordLoaded ? '********' : undefined}
                 type="password"
                 value={formState.password}
               />
@@ -245,15 +263,15 @@ export const SessionRecordingDialog = ({
             </label>
 
             <p className={helperClass}>
-              {status?.passwordLoaded
+              {isPasswordLoaded
                 ? t.sessionRecordingPasswordLoaded
                 : t.sessionRecordingPasswordMissing}
             </p>
           </div>
-        </div>
+        </fieldset>
       </div>
 
-      <div className={sectionClass}>
+      <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled}>
         <p className="mb-3 text-sm font-medium">{t.sessionRecordingStorage}</p>
         <div className="grid gap-4 lg:grid-cols-3">
           <label className="block text-sm">
@@ -298,33 +316,56 @@ export const SessionRecordingDialog = ({
             />
           </label>
         </div>
-      </div>
+      </fieldset>
 
-      <div className={sectionClass}>
+      <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled}>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">{t.sessionRecordingLogDirectory}</p>
-            <p className={`mt-1 break-all text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              {status?.logDirectory ?? '-'}
-            </p>
+          <div className="min-w-0 flex-1">
+            <label className="block text-sm">
+              <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                {t.sessionRecordingLogDirectory}
+              </span>
+              <input
+                className={inputClass}
+                onChange={(event) => {
+                  setFormState((current) => ({ ...current, logDirectory: event.target.value }))
+                }}
+                value={formState.logDirectory}
+              />
+            </label>
             <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {t.sessionRecordingCurrentUsage}: {formatStorageBytes(status?.currentStorageBytes ?? 0)}
             </p>
           </div>
 
-          <button
-            type="button"
-            className={`rounded-lg border px-4 py-2 text-sm transition ${
-              isDark
-                ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-            }`}
-            onClick={onOpenFolder}
-          >
-            {t.openFolder}
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <button
+              type="button"
+              className={`rounded-lg border px-4 py-2 text-sm transition ${
+                isDark
+                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
+                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+              onClick={() => {
+                void handlePickLogDirectory()
+              }}
+            >
+              {t.browseFolder}
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg border px-4 py-2 text-sm transition ${
+                isDark
+                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
+                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+              onClick={onOpenFolder}
+            >
+              {t.openFolder}
+            </button>
+          </div>
         </div>
-      </div>
+      </fieldset>
 
       {error ? (
         <p

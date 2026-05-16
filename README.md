@@ -64,8 +64,10 @@ Iridium Remote is designed for a practical desktop workflow:
 - Optional `Input Only` and `Full Session Recording` modes
 - AES-256-GCM encrypted `.irlog` files with Argon2-derived keys
 - Runtime-only recording passwords that must be re-entered after app restart
+- Masked password placeholder when a runtime recording password is already loaded
 - Chunked compressed writes with automatic file rotation
 - Automatic retention and total-storage cleanup
+- Configurable log directory from the Session Recording dialog
 - File-menu log viewer that decrypts selected `.irlog` files and exports `.txt`
 
 ### Authentication and security
@@ -87,7 +89,7 @@ Iridium Remote is designed for a practical desktop workflow:
 ### Desktop UX
 
 - Light and dark themes across the app UI
-- Desktop Settings menu for session recording, language, and theme selection, with theme-aware in-app selectors in the left sidebar for browser-only fallback mode
+- Desktop Settings menu for language, theme, and a last-position session-recording action, with theme-aware in-app selectors in the left sidebar for browser-only fallback mode
 - Theme-aware sidebar scrollbar styling
 - English, Simplified Chinese, and Traditional Chinese UI
 - File-menu Session Logs entry for reviewing encrypted recordings

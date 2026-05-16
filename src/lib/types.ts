@@ -19,6 +19,7 @@ export type SessionRecordingSettings = {
   maxFileSizeMb: number
   maxTotalStorageGb: number
   retentionDays: number
+  logDirectory?: string | null
 }
 
 export type AppSettings = {
@@ -40,6 +41,7 @@ export const defaultAppSettings: AppSettings = {
     maxFileSizeMb: 100,
     maxTotalStorageGb: 5,
     retentionDays: 30,
+    logDirectory: null,
   },
 }
 

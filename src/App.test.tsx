@@ -70,6 +70,7 @@ vi.mock('./api/client', () => ({
     previewSessionLogs: vi.fn(),
     exportSessionLogs: vi.fn(),
     openSessionLogsDirectory: vi.fn(),
+    pickSessionLogDirectory: vi.fn(),
     transferFile: vi.fn(),
   },
 }))
@@ -395,6 +396,8 @@ describe('App', () => {
     expect(screen.queryByRole('combobox', { name: 'Language' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Theme' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New Connection' })).not.toBeInTheDocument()
+    const settingsMenu = tauriMenuMocks.lastMenuItems.find((item) => item.text === 'Settings')
+    expect(settingsMenu?.items?.at(-1)?.id).toBe('session-recording')
 
     const selectLanguageAction = findMenuAction(tauriMenuMocks.lastMenuItems, 'settings-locale-zh-CN')
     expect(selectLanguageAction).not.toBeNull()

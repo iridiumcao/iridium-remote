@@ -26,7 +26,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform. Group names are normalized case-insensitively into a shared Title Case form before they are stored or grouped in the UI.
-In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that contains Session Recording, Language, and Theme actions, plus a File-menu Session Logs entry. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, plus a File-menu Session Logs entry. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
 
@@ -67,7 +67,7 @@ The workspace header itself is intentionally minimal: it shows only the active S
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
-In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/session-log/exit actions, while Settings owns session-recording configuration plus Language and Theme selection. The bridge also exposes session-recording status, settings updates with runtime-only passwords, multi-file `.irlog` selection, decrypt previews, export, and log-directory opening.
+In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/session-log/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes session-recording status, settings updates with runtime-only passwords, multi-file `.irlog` selection, decrypt previews, export, log-directory picking, and log-directory opening.
 
 ## Backend architecture
 
@@ -92,7 +92,7 @@ The desktop runtime also registers a single-instance guard so a second launch fo
 1. `connections`
 2. `app_settings`
 
-Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend. Session-recording preferences live inside that payload, but the recording password remains runtime-only and is never persisted.
+Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend. Session-recording preferences, including the optional custom log-directory path, live inside that payload, but the recording password remains runtime-only and is never persisted.
 
 ### Session manager
 

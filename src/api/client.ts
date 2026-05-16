@@ -122,16 +122,18 @@ const mockStore: MockStore = {
   terminalListeners: new Set(),
 }
 
+const getMockLogDirectory = () =>
+  mockStore.settings.sessionRecording.logDirectory?.trim() || MOCK_LOG_DIRECTORY
+
 const buildMockRecordingStatus = (): SessionRecordingStatus => ({
   configuredEnabled: mockStore.settings.sessionRecording.enabled,
   passwordLoaded: Boolean(mockStore.sessionRecordingPassword),
   canRecord:
     mockStore.settings.sessionRecording.enabled && Boolean(mockStore.sessionRecordingPassword),
-  logDirectory: MOCK_LOG_DIRECTORY,
-  currentStorageBytes: mockStore.sessionLogs.reduce(
-    (total, log) => total + new TextEncoder().encode(log.text).length,
-    0,
-  ),
+  logDirectory: getMockLogDirectory(),
+  currentStorageBytes: mockStore.sessionLogs
+    .filter((log) => log.path.startsWith(`${getMockLogDirectory()}\\`))
+    .reduce((total, log) => total + new TextEncoder().encode(log.text).length, 0),
 })
 
 const appendMockSessionLog = (sessionId: string, data: string) => {
@@ -538,7 +540,7 @@ export const appClient = {
         session.recordingActive = true
         session.recordingMode = mockStore.settings.sessionRecording.mode
         const createdAt = now()
-        const path = `${MOCK_LOG_DIRECTORY}\\${createdAt.replace(/[:.]/g, '-')}_${connection.username}_${connection.host}.irlog`
+        const path = `${getMockLogDirectory()}\\${createdAt.replace(/[:.]/g, '-')}_${connection.username}_${connection.host}.irlog`
         mockStore.sessionLogs = [
           ...mockStore.sessionLogs,
           {
@@ -787,7 +789,10 @@ export const appClient = {
 
       mockStore.settings = normalizeMockSettings({
         ...mockStore.settings,
-        sessionRecording: settings,
+        sessionRecording: {
+          ...settings,
+          logDirectory: settings.logDirectory?.trim() || null,
+        },
       })
       persistMockSettings(mockStore.settings)
       mockStore.sessionRecordingPassword = settings.enabled
@@ -827,6 +832,25 @@ export const appClient = {
     }
 
     return Array.isArray(selection) ? selection : [selection]
+  },
+
+  async pickSessionLogDirectory(currentPath?: string) {
+    if (!isTauriRuntime()) {
+      return currentPath || getMockLogDirectory()
+    }
+
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const selection = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: currentPath || undefined,
+    })
+
+    if (!selection || Array.isArray(selection)) {
+      return null
+    }
+
+    return selection
   },
 
   async previewSessionLogs(paths: string[], password: string) {

@@ -538,7 +538,13 @@ fn normalize_session_recording_settings(
         ));
     }
 
-    Ok(settings)
+    Ok(SessionRecordingSettings {
+        log_directory: settings
+            .log_directory
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        ..settings
+    })
 }
 
 fn connection_signature(connection: ConnectionRecord) -> String {
@@ -640,6 +646,7 @@ mod tests {
                 max_file_size_mb: 100,
                 max_total_storage_gb: 5,
                 retention_days: 30,
+                log_directory: None,
             },
         };
 

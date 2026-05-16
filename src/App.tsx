@@ -670,15 +670,6 @@ function App() {
             text: t.menuSettings,
             items: [
               {
-                id: 'session-recording',
-                text: t.menuSessionRecording,
-                action: () => {
-                  if (!disposed) {
-                    setSessionRecordingDialogOpen(true)
-                  }
-                },
-              },
-              {
                 text: t.language,
                 items: languageOptions.map((option) => ({
                   id: `settings-locale-${option.value}`,
@@ -701,6 +692,15 @@ function App() {
                     }
                   },
                 })),
+              },
+              {
+                id: 'session-recording',
+                text: t.menuSessionRecording,
+                action: () => {
+                  if (!disposed) {
+                    setSessionRecordingDialogOpen(true)
+                  }
+                },
               },
             ],
           },
@@ -1008,6 +1008,7 @@ function App() {
           onOpenFolder={() => {
             void handleOpenSessionLogsDirectory()
           }}
+          onPickLogDirectory={(currentPath) => appClient.pickSessionLogDirectory(currentPath)}
           onSave={handleSaveSessionRecordingSettings}
           open
           settings={settings.sessionRecording}

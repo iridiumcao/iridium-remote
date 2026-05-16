@@ -35,6 +35,7 @@ pub struct RecordingManager {
 }
 
 struct RecordingManagerState {
+    default_logs_dir: PathBuf,
     logs_dir: PathBuf,
     settings: SessionRecordingSettings,
     password: Option<String>,
@@ -91,7 +92,8 @@ struct ExistingLogFile {
 }
 
 impl RecordingManager {
-    pub fn new(logs_dir: PathBuf, settings: SessionRecordingSettings) -> AppResult<Self> {
+    pub fn new(default_logs_dir: PathBuf, settings: SessionRecordingSettings) -> AppResult<Self> {
+        let logs_dir = resolve_logs_dir(&default_logs_dir, &settings);
         fs::create_dir_all(&logs_dir).map_err(|error| {
             AppError::internal(
                 "Failed to initialize the session log directory.",
@@ -101,6 +103,7 @@ impl RecordingManager {
 
         let manager = Self {
             inner: Arc::new(Mutex::new(RecordingManagerState {
+                default_logs_dir,
                 logs_dir,
                 settings,
                 password: None,
@@ -128,6 +131,7 @@ impl RecordingManager {
     ) -> AppResult<SessionRecordingStatus> {
         let mut inner = self.inner.lock().expect("recording mutex poisoned");
         inner.settings = settings;
+        inner.logs_dir = resolve_logs_dir(&inner.default_logs_dir, &inner.settings);
 
         if inner.settings.enabled {
             if let Some(password) = normalize_password(password) {
@@ -158,6 +162,7 @@ impl RecordingManager {
     pub fn sync_settings(&self, settings: SessionRecordingSettings) -> AppResult<SessionRecordingStatus> {
         let mut inner = self.inner.lock().expect("recording mutex poisoned");
         inner.settings = settings;
+        inner.logs_dir = resolve_logs_dir(&inner.default_logs_dir, &inner.settings);
         if !inner.settings.enabled {
             inner.password = None;
         }
@@ -725,6 +730,16 @@ fn sanitize_file_name_component(value: &str) -> String {
     }
 }
 
+fn resolve_logs_dir(default_logs_dir: &Path, settings: &SessionRecordingSettings) -> PathBuf {
+    settings
+        .log_directory
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| default_logs_dir.to_path_buf())
+}
+
 fn max_file_size_bytes(settings: &SessionRecordingSettings) -> u64 {
     u64::from(settings.max_file_size_mb) * 1_024 * 1_024
 }
@@ -873,6 +888,7 @@ mod tests {
             max_file_size_mb: 100,
             max_total_storage_gb: 5,
             retention_days: 30,
+            log_directory: None,
         };
         let manager = RecordingManager::new(logs_dir.clone(), settings.clone()).expect("manager");
         manager
@@ -916,6 +932,7 @@ mod tests {
                 max_file_size_mb: 100,
                 max_total_storage_gb: 5,
                 retention_days: 30,
+                log_directory: None,
             },
             "super-secret".into(),
             &test_connection(),

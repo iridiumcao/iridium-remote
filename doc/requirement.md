@@ -76,9 +76,12 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - Recording modes:
   - `Input Only`
   - `Full Session Recording`
+- When recording is disabled in the Session Recording dialog, all dependent controls should be disabled and visually grayed out.
 - Input-only recording must exclude hidden/password input.
 - Full-session recording must write encrypted local `.irlog` files without plaintext disk writes.
 - Encryption passwords must never be stored permanently.
+- When a runtime password is already loaded, the password field should show a masked placeholder instead of appearing blank.
+- The log directory must be configurable from the Session Recording dialog.
 - Recorded log files must rotate when they reach the configured max file size.
 - Old log files must be deleted automatically when they exceed the configured retention period or total storage cap.
 - Users can open one or more encrypted `.irlog` files, decrypt them with the recording password, preview them, and export them as `.txt`.
@@ -121,9 +124,9 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 #### Settings menu
 
 - The Settings menu must contain:
-  - `Session Recording`
   - `Language`
   - `Theme`
+  - `Session Recording`
 - `Language` contains:
   - `English`
   - `简体中文`

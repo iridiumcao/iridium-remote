@@ -28,6 +28,8 @@ pub struct SessionRecordingSettings {
     pub max_file_size_mb: u32,
     pub max_total_storage_gb: u32,
     pub retention_days: u32,
+    #[serde(default)]
+    pub log_directory: Option<String>,
 }
 
 impl Default for SessionRecordingSettings {
@@ -38,6 +40,7 @@ impl Default for SessionRecordingSettings {
             max_file_size_mb: 100,
             max_total_storage_gb: 5,
             retention_days: 30,
+            log_directory: None,
         }
     }
 }

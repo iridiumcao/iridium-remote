@@ -76,6 +76,7 @@ Frontend and backend share a connection model with:
 - `maxFileSizeMb`
 - `maxTotalStorageGb`
 - `retentionDays`
+- `logDirectory?`
 
 The recording password is runtime-only and is never stored in SQLite.
 

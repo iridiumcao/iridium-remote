@@ -104,6 +104,8 @@ Settings
   └── Session Recording
 ```
 
+In the Settings menu, `Session Recording` should appear after the existing Language and Theme items.
+
 ---
 
 # 6. Session Recording Settings
@@ -115,6 +117,8 @@ Settings
 ```
 
 Disabled by default.
+
+When unchecked, all other controls in the Session Recording dialog should be disabled visually and functionally.
 
 ---
 
@@ -145,6 +149,8 @@ Requirements:
 The password is used to encrypt session log files.
 
 The application MUST NOT permanently store this password.
+
+If a password is already loaded for the current app run, the password field should show a masked placeholder such as `********` instead of appearing empty.
 
 ---
 
@@ -255,6 +261,8 @@ The application SHOULD provide:
 ```
 
 button for convenience.
+
+Users should also be able to customize the log directory path from the Session Recording dialog.
 
 ---
 

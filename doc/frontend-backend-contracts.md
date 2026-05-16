@@ -49,6 +49,8 @@ Stores the session-recording settings, updates the runtime password when supplie
 - `appSettings`
 - `status`
 
+`settings` also carries the optional custom `logDirectory` path that becomes the effective recording directory when non-empty.
+
 ## Import / export commands
 
 ### `export_connections() -> ConnectionsExportPayload`
@@ -179,6 +181,7 @@ Used by the frontend to remove closed tabs and clean up buffered output.
 - `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the transfer dialog.
 - `checkForUpdates()` calls the Tauri `check_for_updates` command in desktop builds and falls back to a direct GitHub lookup only outside Tauri.
 - `pickSessionLogFiles()` opens the native multi-file picker for `.irlog` files.
+- `pickSessionLogDirectory()` opens the native directory picker for a custom recording directory.
 - `exportSessionLogs()` opens the native save dialog for the exported `.txt` file before calling `export_session_logs`.
 
 ## Browser mock behavior
