@@ -8,6 +8,7 @@ import type {
   AppError,
   ConnectionRecord,
   ConnectionHistoryCloseStatus,
+  ConnectionHistoryDailyHostUsage,
   ConnectionHistoryDateRange,
   ConnectionHistoryDurationBucket,
   ConnectionHistoryDurationBucketKind,
@@ -118,6 +119,10 @@ const persistMockSettings = (settings: AppSettings) => {
 
 const normalizeMockSettings = (settings: AppSettings): AppSettings => ({
   ...settings,
+  connectionHistoryTimeZone:
+    settings.connectionHistoryTimeZone?.trim() ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    'UTC',
   collapsedGroups: normalizeCollapsedGroups(settings.collapsedGroups),
 })
 
@@ -333,6 +338,15 @@ const buildMockConnectionHistoryOverview = (
 ): ConnectionHistoryOverview => {
   const cutoff = historyRangeCutoff(range)
   const summaries = new Map<string, ConnectionHistoryHostSummary>()
+  const dailyUsage = new Map<
+    string,
+    {
+      date: string
+      totalConnectionCount: number
+      totalDurationSeconds: number
+      hosts: Map<string, ConnectionHistoryDailyHostUsage>
+    }
+  >()
 
   for (const session of mockStore.connectionHistorySessions) {
     if (!session.endedAt || session.durationSeconds === null) {
@@ -353,12 +367,44 @@ const buildMockConnectionHistoryOverview = (
     current.totalConnectionCount += 1
     current.totalDurationSeconds += session.durationSeconds
     summaries.set(session.historyKey, current)
+
+    const date = new Intl.DateTimeFormat('en-CA', {
+      timeZone: mockStore.settings.connectionHistoryTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(session.startedAt))
+    const daily = dailyUsage.get(date) ?? {
+      date,
+      totalConnectionCount: 0,
+      totalDurationSeconds: 0,
+      hosts: new Map<string, ConnectionHistoryDailyHostUsage>(),
+    }
+    const dailyHost = daily.hosts.get(session.historyKey) ?? {
+      ...createMockHistorySummary(session),
+      connectionCount: 0,
+      totalDurationSeconds: 0,
+    }
+    dailyHost.connectionCount += 1
+    dailyHost.totalDurationSeconds += session.durationSeconds
+    daily.hosts.set(session.historyKey, dailyHost)
+    daily.totalConnectionCount += 1
+    daily.totalDurationSeconds += session.durationSeconds
+    dailyUsage.set(date, daily)
   }
 
   return {
     hosts: [...summaries.values()].sort((left, right) =>
       (right.latestConnectionAt ?? '').localeCompare(left.latestConnectionAt ?? ''),
     ),
+    dailyUsage: [...dailyUsage.values()]
+      .map((day) => ({
+        ...day,
+        hosts: [...day.hosts.values()].sort(
+          (left, right) => right.totalDurationSeconds - left.totalDurationSeconds,
+        ),
+      }))
+      .sort((left, right) => right.date.localeCompare(left.date)),
   }
 }
 
@@ -970,6 +1016,9 @@ export const appClient = {
         mockStore.settings = {
           ...defaultAppSettings,
           ...payload.settings,
+          connectionHistoryTimeZone:
+            payload.settings.connectionHistoryTimeZone ||
+            defaultAppSettings.connectionHistoryTimeZone,
           sessionRecording: {
             ...defaultAppSettings.sessionRecording,
             ...payload.settings.sessionRecording,

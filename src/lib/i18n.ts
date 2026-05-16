@@ -171,9 +171,16 @@ type Dictionary = {
   connectionHistoryRangeLast30Days: string
   connectionHistoryRangeLast90Days: string
   connectionHistoryRangeAllTime: string
+  connectionHistoryTimeZone: string
   connectionHistoryDurationShareChart: string
   connectionHistoryCountShareChart: string
   connectionHistoryDistributionChart: string
+  connectionHistoryDailyUsageChart: string
+  connectionHistoryDailyHostShareChart: string
+  connectionHistoryDailyUsage: string
+  connectionHistorySelectedDay: string
+  connectionHistoryMostUsedHost: string
+  connectionHistoryNoDailyUsage: string
   connectionHistoryChartEmpty: string
   connectionHistoryBucketUnder5Minutes: string
   connectionHistoryBucket5To30Minutes: string
@@ -385,9 +392,16 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryRangeLast30Days: 'Last 30 days',
     connectionHistoryRangeLast90Days: 'Last 90 days',
     connectionHistoryRangeAllTime: 'All time',
+    connectionHistoryTimeZone: 'History time zone',
     connectionHistoryDurationShareChart: 'Cross-host duration share',
     connectionHistoryCountShareChart: 'Cross-host connection count share',
     connectionHistoryDistributionChart: 'Selected host duration distribution',
+    connectionHistoryDailyUsageChart: 'Daily total usage',
+    connectionHistoryDailyHostShareChart: 'Selected-day host duration share',
+    connectionHistoryDailyUsage: 'Daily usage',
+    connectionHistorySelectedDay: 'Selected day',
+    connectionHistoryMostUsedHost: 'Most-used host',
+    connectionHistoryNoDailyUsage: 'No daily usage is available for the current filter.',
     connectionHistoryChartEmpty: 'No chart data is available for the current filter.',
     connectionHistoryBucketUnder5Minutes: '< 5 minutes',
     connectionHistoryBucket5To30Minutes: '5 to 30 minutes',
@@ -592,9 +606,16 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryRangeLast30Days: '最近 30 天',
     connectionHistoryRangeLast90Days: '最近 90 天',
     connectionHistoryRangeAllTime: '全部时间',
+    connectionHistoryTimeZone: '历史统计时区',
     connectionHistoryDurationShareChart: '不同主机连接时长占比',
     connectionHistoryCountShareChart: '不同主机连接次数占比',
     connectionHistoryDistributionChart: '当前主机连接时长分布',
+    connectionHistoryDailyUsageChart: '每日总使用时长',
+    connectionHistoryDailyHostShareChart: '选中日期主机时长占比',
+    connectionHistoryDailyUsage: '每日使用统计',
+    connectionHistorySelectedDay: '选中日期',
+    connectionHistoryMostUsedHost: '使用最多的主机',
+    connectionHistoryNoDailyUsage: '当前筛选条件下没有每日使用数据。',
     connectionHistoryChartEmpty: '当前筛选条件下没有可展示的图表数据。',
     connectionHistoryBucketUnder5Minutes: '5 分钟以内',
     connectionHistoryBucket5To30Minutes: '5 到 30 分钟',
@@ -799,9 +820,16 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryRangeLast30Days: '最近 30 天',
     connectionHistoryRangeLast90Days: '最近 90 天',
     connectionHistoryRangeAllTime: '全部時間',
+    connectionHistoryTimeZone: '歷史統計時區',
     connectionHistoryDurationShareChart: '不同主機連線時長占比',
     connectionHistoryCountShareChart: '不同主機連線次數占比',
     connectionHistoryDistributionChart: '目前主機連線時長分布',
+    connectionHistoryDailyUsageChart: '每日總使用時長',
+    connectionHistoryDailyHostShareChart: '選取日期主機時長占比',
+    connectionHistoryDailyUsage: '每日使用統計',
+    connectionHistorySelectedDay: '選取日期',
+    connectionHistoryMostUsedHost: '使用最多的主機',
+    connectionHistoryNoDailyUsage: '目前篩選條件下沒有每日使用資料。',
     connectionHistoryChartEmpty: '目前篩選條件下沒有可顯示的圖表資料。',
     connectionHistoryBucketUnder5Minutes: '5 分鐘以內',
     connectionHistoryBucket5To30Minutes: '5 到 30 分鐘',

@@ -28,6 +28,7 @@ const payload: ConnectionsExportPayload = {
     theme: 'dark',
     connectionListDisplayMode: 'normal',
     collapsedGroups: [],
+    connectionHistoryTimeZone: 'UTC',
     sessionRecording: {
       enabled: false,
       mode: 'input_only',

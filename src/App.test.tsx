@@ -212,6 +212,7 @@ describe('App', () => {
     })
     appClientMocks.getConnectionHistoryOverviewMock.mockResolvedValue({
       hosts: [],
+      dailyUsage: [],
     })
     appClientMocks.getConnectionHistoryHostDetailsMock.mockResolvedValue({
       host: {
@@ -524,6 +525,29 @@ describe('App', () => {
     appClientMocks.getConnectionHistoryOverviewMock.mockImplementation(
       async (range: ConnectionHistoryDateRange) => ({
         hosts: range === 'all_time' ? [allTimeHost] : [],
+        dailyUsage:
+          range === 'all_time'
+            ? [
+                {
+                  date: '2026-01-01',
+                  totalConnectionCount: 2,
+                  totalDurationSeconds: 120,
+                  hosts: [
+                    {
+                      historyKey: 'history-1',
+                      connectionId: 'connection-1',
+                      connectionName: 'Alpha',
+                      host: '192.168.1.10',
+                      port: 22,
+                      username: 'root',
+                      deleted: false,
+                      connectionCount: 2,
+                      totalDurationSeconds: 120,
+                    },
+                  ],
+                },
+              ]
+            : [],
       }),
     )
     appClientMocks.getConnectionHistoryHostDetailsMock.mockImplementation(
@@ -564,13 +588,13 @@ describe('App', () => {
     await waitFor(() => {
       expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('all_time')
       expect(appClient.getConnectionHistoryHostDetails).toHaveBeenCalledWith('history-1', 'last_30_days')
-      expect(appClient.getConnectionHistoryHostDetails).toHaveBeenCalledWith('history-1', 'all_time')
     })
 
     expect(screen.getByRole('heading', { name: 'Connection History & Statistics' })).toBeInTheDocument()
     expect(screen.getAllByText('root@192.168.1.10').length).toBeGreaterThan(0)
     expect(screen.getByText('Total connections')).toBeInTheDocument()
-    expect(screen.getAllByText('2').length).toBeGreaterThan(0)
+    expect(appClient.getConnectionHistoryHostDetails).not.toHaveBeenCalledWith('history-1', 'all_time')
+    expect(screen.getByText('No detailed sessions match the current filter.')).toBeInTheDocument()
     expect(screen.queryByText('No connection history yet.')).not.toBeInTheDocument()
   })
 })

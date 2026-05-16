@@ -41,6 +41,7 @@ export type AppSettings = {
   theme: AppTheme
   connectionListDisplayMode: ConnectionListDisplayMode
   collapsedGroups: string[]
+  connectionHistoryTimeZone: string
   sessionRecording: SessionRecordingSettings
 }
 
@@ -49,6 +50,7 @@ export const defaultAppSettings: AppSettings = {
   theme: 'dark',
   connectionListDisplayMode: 'normal',
   collapsedGroups: [],
+  connectionHistoryTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   sessionRecording: {
     enabled: false,
     mode: 'input_only',
@@ -233,8 +235,28 @@ export type ConnectionHistoryDurationBucket = {
   sessionCount: number
 }
 
+export type ConnectionHistoryDailyHostUsage = {
+  historyKey: string
+  connectionId: string | null
+  connectionName: string
+  host: string
+  port: number
+  username: string
+  deleted: boolean
+  connectionCount: number
+  totalDurationSeconds: number
+}
+
+export type ConnectionHistoryDailyUsage = {
+  date: string
+  totalConnectionCount: number
+  totalDurationSeconds: number
+  hosts: ConnectionHistoryDailyHostUsage[]
+}
+
 export type ConnectionHistoryOverview = {
   hosts: ConnectionHistoryHostSummary[]
+  dailyUsage: ConnectionHistoryDailyUsage[]
 }
 
 export type ConnectionHistoryHostDetails = {

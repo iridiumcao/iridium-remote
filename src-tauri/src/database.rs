@@ -1,6 +1,9 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::PathBuf,
+};
 
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use uuid::Uuid;
 
@@ -8,11 +11,12 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         AppSettings, ConnectionExportRecord, ConnectionHistoryCloseStatus,
-        ConnectionHistoryDateRange, ConnectionHistoryDurationBucket,
-        ConnectionHistoryDurationBucketKind, ConnectionHistoryHostDetails,
-        ConnectionHistoryHostSummary, ConnectionHistoryOverview, ConnectionHistorySessionRecord,
-        ConnectionRecord, ConnectionsExportPayload, CreateConnectionInput, ImportConnectionsResult,
-        SessionRecordingSettings, UpdateConnectionInput,
+        ConnectionHistoryDailyHostUsage, ConnectionHistoryDailyUsage, ConnectionHistoryDateRange,
+        ConnectionHistoryDurationBucket, ConnectionHistoryDurationBucketKind,
+        ConnectionHistoryHostDetails, ConnectionHistoryHostSummary, ConnectionHistoryOverview,
+        ConnectionHistorySessionRecord, ConnectionRecord, ConnectionsExportPayload,
+        CreateConnectionInput, ImportConnectionsResult, SessionRecordingSettings,
+        UpdateConnectionInput,
     },
 };
 
@@ -88,6 +92,22 @@ impl Database {
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     UNIQUE(history_key, bucket_month)
+                );
+                CREATE TABLE IF NOT EXISTS connection_history_daily_rollups (
+                    id TEXT PRIMARY KEY,
+                    local_date TEXT NOT NULL,
+                    time_zone TEXT NOT NULL,
+                    history_key TEXT NOT NULL,
+                    connection_id TEXT,
+                    connection_name_snapshot TEXT NOT NULL,
+                    host_snapshot TEXT NOT NULL,
+                    port_snapshot INTEGER NOT NULL,
+                    username_snapshot TEXT NOT NULL,
+                    session_count INTEGER NOT NULL,
+                    total_duration_seconds INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(local_date, time_zone, history_key)
                 );",
             )
             .map_err(|error| {
@@ -616,6 +636,8 @@ impl Database {
     pub fn cleanup_connection_history(&self) -> AppResult<()> {
         let cutoff = (Utc::now() - ChronoDuration::days(CONNECTION_HISTORY_DETAIL_RETENTION_DAYS))
             .to_rfc3339();
+        let time_zone = self.get_app_settings()?.connection_history_time_zone;
+        let offset = connection_history_time_zone_offset(&time_zone);
         let mut connection = self.connect()?;
         let transaction = connection.transaction().map_err(|error| {
             AppError::database(
@@ -765,6 +787,129 @@ impl Database {
                 })?;
         }
 
+        let mut daily_statement = transaction
+            .prepare(
+                "SELECT
+                    history_key,
+                    connection_id,
+                    connection_name_snapshot,
+                    host_snapshot,
+                    port_snapshot,
+                    username_snapshot,
+                    started_at,
+                    ended_at,
+                    duration_seconds
+                 FROM connection_history_sessions
+                 WHERE ended_at IS NOT NULL
+                   AND started_at < ?1",
+            )
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to prepare the connection history daily cleanup query.",
+                    error.to_string(),
+                )
+            })?;
+
+        let daily_rows = daily_statement
+            .query_map([&cutoff], |row| {
+                Ok(DetailHistoryAggregateRow {
+                    history_key: row.get(0)?,
+                    connection_id: row.get(1)?,
+                    connection_name_snapshot: row.get(2)?,
+                    host_snapshot: row.get(3)?,
+                    port_snapshot: row.get::<_, u16>(4)?,
+                    username_snapshot: row.get(5)?,
+                    started_at: row.get(6)?,
+                    ended_at: row.get(7)?,
+                    duration_seconds: row.get::<_, Option<i64>>(8)?.map(|value| value as u64),
+                })
+            })
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to load connection history daily cleanup rows.",
+                    error.to_string(),
+                )
+            })?;
+
+        let mut daily_rollups = BTreeMap::<(String, String), HistoryDailyHostAccumulator>::new();
+        for row in daily_rows {
+            let row = row.map_err(|error| {
+                AppError::database(
+                    "Failed to decode connection history daily cleanup rows.",
+                    error.to_string(),
+                )
+            })?;
+            let started_at = parse_timestamp(&row.started_at)?;
+            let Some(ended_at) = row.ended_at.as_deref() else {
+                continue;
+            };
+            let ended_at = parse_timestamp(ended_at)?;
+
+            for (date, duration_seconds) in
+                split_history_duration_by_local_day(started_at, ended_at, offset)
+            {
+                let key = (date.to_string(), row.history_key.clone());
+                daily_rollups
+                    .entry(key)
+                    .or_insert_with(|| HistoryDailyHostAccumulator::from_detail_row(&row))
+                    .add_usage(1, duration_seconds);
+            }
+        }
+
+        drop(daily_statement);
+
+        for ((local_date, _history_key), rollup) in daily_rollups {
+            let now = Utc::now().to_rfc3339();
+            transaction
+                .execute(
+                    "INSERT INTO connection_history_daily_rollups (
+                        id,
+                        local_date,
+                        time_zone,
+                        history_key,
+                        connection_id,
+                        connection_name_snapshot,
+                        host_snapshot,
+                        port_snapshot,
+                        username_snapshot,
+                        session_count,
+                        total_duration_seconds,
+                        created_at,
+                        updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                     ON CONFLICT(local_date, time_zone, history_key) DO UPDATE SET
+                        connection_id = excluded.connection_id,
+                        connection_name_snapshot = excluded.connection_name_snapshot,
+                        host_snapshot = excluded.host_snapshot,
+                        port_snapshot = excluded.port_snapshot,
+                        username_snapshot = excluded.username_snapshot,
+                        session_count = connection_history_daily_rollups.session_count + excluded.session_count,
+                        total_duration_seconds = connection_history_daily_rollups.total_duration_seconds + excluded.total_duration_seconds,
+                        updated_at = excluded.updated_at",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        &local_date,
+                        &time_zone,
+                        &rollup.history_key,
+                        &rollup.connection_id,
+                        &rollup.connection_name_snapshot,
+                        &rollup.host_snapshot,
+                        i64::from(rollup.port_snapshot),
+                        &rollup.username_snapshot,
+                        rollup.connection_count as i64,
+                        rollup.total_duration_seconds as i64,
+                        &now,
+                        &now
+                    ],
+                )
+                .map_err(|error| {
+                    AppError::database(
+                        "Failed to write a connection history daily rollup row.",
+                        error.to_string(),
+                    )
+                })?;
+        }
+
         transaction
             .execute(
                 "DELETE FROM connection_history_sessions
@@ -803,10 +948,13 @@ impl Database {
             .into_values()
             .map(|aggregate| aggregate.into_summary(&current_connections))
             .collect::<Vec<_>>();
+        let time_zone = self.get_app_settings()?.connection_history_time_zone;
+        let daily_usage =
+            self.aggregate_connection_history_daily(&range, &time_zone, &current_connections)?;
 
         hosts.sort_by(|left, right| right.latest_connection_at.cmp(&left.latest_connection_at));
 
-        Ok(ConnectionHistoryOverview { hosts })
+        Ok(ConnectionHistoryOverview { hosts, daily_usage })
     }
 
     pub fn get_connection_history_host_details(
@@ -1008,6 +1156,197 @@ impl Database {
         }
 
         Ok(aggregates)
+    }
+
+    fn aggregate_connection_history_daily(
+        &self,
+        range: &ConnectionHistoryDateRange,
+        time_zone: &str,
+        current_connections: &HashMap<String, ConnectionRecord>,
+    ) -> AppResult<Vec<ConnectionHistoryDailyUsage>> {
+        let connection = self.connect()?;
+        let offset = connection_history_time_zone_offset(time_zone);
+        let start_date = history_range_start_date(range, offset);
+        let today = local_date_for_timestamp(Utc::now(), offset);
+        let mut daily_hosts =
+            BTreeMap::<String, HashMap<String, HistoryDailyHostAccumulator>>::new();
+
+        let mut detail_statement = connection
+            .prepare(
+                "SELECT
+                history_key,
+                connection_id,
+                connection_name_snapshot,
+                host_snapshot,
+                port_snapshot,
+                username_snapshot,
+                started_at,
+                ended_at,
+                duration_seconds
+             FROM connection_history_sessions",
+            )
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to prepare the connection history daily usage query.",
+                    error.to_string(),
+                )
+            })?;
+
+        let detail_rows = detail_statement
+            .query_map([], |row| {
+                Ok(DetailHistoryAggregateRow {
+                    history_key: row.get(0)?,
+                    connection_id: row.get(1)?,
+                    connection_name_snapshot: row.get(2)?,
+                    host_snapshot: row.get(3)?,
+                    port_snapshot: row.get::<_, u16>(4)?,
+                    username_snapshot: row.get(5)?,
+                    started_at: row.get(6)?,
+                    ended_at: row.get(7)?,
+                    duration_seconds: row.get::<_, Option<i64>>(8)?.map(|value| value as u64),
+                })
+            })
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to load connection history daily usage rows.",
+                    error.to_string(),
+                )
+            })?;
+
+        for row in detail_rows {
+            let row = row.map_err(|error| {
+                AppError::database(
+                    "Failed to decode a connection history daily usage row.",
+                    error.to_string(),
+                )
+            })?;
+            let started_at = parse_timestamp(&row.started_at)?;
+            let ended_at = match row.ended_at.as_deref() {
+                Some(value) => parse_timestamp(value)?,
+                None => Utc::now(),
+            };
+            let segments = split_history_duration_by_local_day(started_at, ended_at, offset);
+
+            for (date, duration_seconds) in segments {
+                if start_date.is_some_and(|start_date| date < start_date) {
+                    continue;
+                }
+                let date_key = date.to_string();
+                daily_hosts
+                    .entry(date_key)
+                    .or_default()
+                    .entry(row.history_key.clone())
+                    .or_insert_with(|| HistoryDailyHostAccumulator::from_detail_row(&row))
+                    .add_usage(1, duration_seconds);
+            }
+        }
+
+        drop(detail_statement);
+
+        let mut rollup_statement = connection
+            .prepare(
+                "SELECT
+                    local_date,
+                    time_zone,
+                    history_key,
+                    connection_id,
+                    connection_name_snapshot,
+                    host_snapshot,
+                    port_snapshot,
+                    username_snapshot,
+                    session_count,
+                    total_duration_seconds
+                 FROM connection_history_daily_rollups
+                 WHERE time_zone = ?1",
+            )
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to prepare the connection history daily rollup query.",
+                    error.to_string(),
+                )
+            })?;
+
+        let rollup_rows = rollup_statement
+            .query_map([time_zone], |row| {
+                Ok(HistoryDailyRollupRow {
+                    local_date: row.get(0)?,
+                    history_key: row.get(2)?,
+                    connection_id: row.get(3)?,
+                    connection_name_snapshot: row.get(4)?,
+                    host_snapshot: row.get(5)?,
+                    port_snapshot: row.get::<_, u16>(6)?,
+                    username_snapshot: row.get(7)?,
+                    session_count: row.get::<_, i64>(8)? as u64,
+                    total_duration_seconds: row.get::<_, i64>(9)? as u64,
+                })
+            })
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to load connection history daily rollup rows.",
+                    error.to_string(),
+                )
+            })?;
+
+        for row in rollup_rows {
+            let row = row.map_err(|error| {
+                AppError::database(
+                    "Failed to decode a connection history daily rollup row.",
+                    error.to_string(),
+                )
+            })?;
+            let Ok(date) = NaiveDate::parse_from_str(&row.local_date, "%Y-%m-%d") else {
+                continue;
+            };
+            if start_date.is_some_and(|start_date| date < start_date) {
+                continue;
+            }
+
+            daily_hosts
+                .entry(row.local_date.clone())
+                .or_default()
+                .entry(row.history_key.clone())
+                .or_insert_with(|| HistoryDailyHostAccumulator::from_rollup_row(&row))
+                .add_usage(row.session_count, row.total_duration_seconds);
+        }
+
+        if let Some(start_date) = start_date {
+            let mut date = start_date;
+            while date <= today {
+                daily_hosts.entry(date.to_string()).or_default();
+                date = date
+                    .succ_opt()
+                    .ok_or_else(|| AppError::internal("Failed to advance a local date.", ""))?;
+            }
+        }
+
+        let mut daily_usage = daily_hosts
+            .into_iter()
+            .map(|(date, hosts)| {
+                let mut hosts = hosts
+                    .into_values()
+                    .map(|host| host.into_usage(current_connections))
+                    .collect::<Vec<_>>();
+                hosts.sort_by(|left, right| {
+                    right
+                        .total_duration_seconds
+                        .cmp(&left.total_duration_seconds)
+                        .then_with(|| left.connection_name.cmp(&right.connection_name))
+                });
+
+                ConnectionHistoryDailyUsage {
+                    date,
+                    total_connection_count: hosts.iter().map(|host| host.connection_count).sum(),
+                    total_duration_seconds: hosts
+                        .iter()
+                        .map(|host| host.total_duration_seconds)
+                        .sum(),
+                    hosts,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        daily_usage.sort_by(|left, right| right.date.cmp(&left.date));
+        Ok(daily_usage)
     }
 
     fn load_connection_history_sessions(
@@ -1219,6 +1558,30 @@ struct HistoryRollupAccumulator {
     over_2_hours_count: u64,
 }
 
+struct HistoryDailyRollupRow {
+    local_date: String,
+    history_key: String,
+    connection_id: Option<String>,
+    connection_name_snapshot: String,
+    host_snapshot: String,
+    port_snapshot: u16,
+    username_snapshot: String,
+    session_count: u64,
+    total_duration_seconds: u64,
+}
+
+#[derive(Clone)]
+struct HistoryDailyHostAccumulator {
+    history_key: String,
+    connection_id: Option<String>,
+    connection_name_snapshot: String,
+    host_snapshot: String,
+    port_snapshot: u16,
+    username_snapshot: String,
+    connection_count: u64,
+    total_duration_seconds: u64,
+}
+
 #[derive(Clone)]
 struct HistoryHostAccumulator {
     history_key: String,
@@ -1234,6 +1597,71 @@ struct HistoryHostAccumulator {
     between_5_and_30_minutes_count: u64,
     between_30_minutes_and_2_hours_count: u64,
     over_2_hours_count: u64,
+}
+
+impl HistoryDailyHostAccumulator {
+    fn from_detail_row(row: &DetailHistoryAggregateRow) -> Self {
+        Self {
+            history_key: row.history_key.clone(),
+            connection_id: row.connection_id.clone(),
+            connection_name_snapshot: row.connection_name_snapshot.clone(),
+            host_snapshot: row.host_snapshot.clone(),
+            port_snapshot: row.port_snapshot,
+            username_snapshot: row.username_snapshot.clone(),
+            connection_count: 0,
+            total_duration_seconds: 0,
+        }
+    }
+
+    fn from_rollup_row(row: &HistoryDailyRollupRow) -> Self {
+        Self {
+            history_key: row.history_key.clone(),
+            connection_id: row.connection_id.clone(),
+            connection_name_snapshot: row.connection_name_snapshot.clone(),
+            host_snapshot: row.host_snapshot.clone(),
+            port_snapshot: row.port_snapshot,
+            username_snapshot: row.username_snapshot.clone(),
+            connection_count: 0,
+            total_duration_seconds: 0,
+        }
+    }
+
+    fn add_usage(&mut self, connection_count: u64, duration_seconds: u64) {
+        self.connection_count += connection_count;
+        self.total_duration_seconds += duration_seconds;
+    }
+
+    fn into_usage(
+        self,
+        current_connections: &HashMap<String, ConnectionRecord>,
+    ) -> ConnectionHistoryDailyHostUsage {
+        let matching_connection = self
+            .connection_id
+            .as_ref()
+            .and_then(|connection_id| current_connections.get(connection_id))
+            .filter(|connection| {
+                connection.port == self.port_snapshot
+                    && connection.host.eq_ignore_ascii_case(&self.host_snapshot)
+                    && connection
+                        .username
+                        .eq_ignore_ascii_case(&self.username_snapshot)
+            });
+        let deleted = matching_connection.is_none();
+
+        ConnectionHistoryDailyHostUsage {
+            history_key: self.history_key,
+            connection_id: self.connection_id,
+            connection_name: matching_connection
+                .map(|connection| connection.name.clone())
+                .unwrap_or(self.connection_name_snapshot),
+            host: self.host_snapshot,
+            port: self.port_snapshot,
+            username: self.username_snapshot,
+            deleted,
+            connection_count: self.connection_count,
+            total_duration_seconds: self.total_duration_seconds,
+        }
+    }
 }
 
 impl HistoryHostAccumulator {
@@ -1436,6 +1864,9 @@ fn normalize_app_settings(settings: AppSettings) -> AppResult<AppSettings> {
         theme: theme.into(),
         connection_list_display_mode: settings.connection_list_display_mode,
         collapsed_groups,
+        connection_history_time_zone: normalize_connection_history_time_zone(
+            settings.connection_history_time_zone.as_str(),
+        ),
         session_recording: normalize_session_recording_settings(settings.session_recording)?,
     })
 }
@@ -1470,6 +1901,15 @@ fn normalize_session_recording_settings(
     })
 }
 
+fn normalize_connection_history_time_zone(value: &str) -> String {
+    let trimmed = value.trim();
+    if !trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+
+    iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into())
+}
+
 fn history_subject_key(connection: &ConnectionRecord) -> String {
     format!(
         "{}|{}|{}|{}",
@@ -1489,6 +1929,103 @@ fn history_range_cutoff(range: &ConnectionHistoryDateRange) -> Option<DateTime<U
     };
 
     Some(Utc::now() - ChronoDuration::days(days))
+}
+
+fn history_range_start_date(
+    range: &ConnectionHistoryDateRange,
+    offset: FixedOffset,
+) -> Option<NaiveDate> {
+    let days: i64 = match range {
+        ConnectionHistoryDateRange::Last7Days => 7,
+        ConnectionHistoryDateRange::Last30Days => 30,
+        ConnectionHistoryDateRange::Last90Days => 90,
+        ConnectionHistoryDateRange::AllTime => return None,
+    };
+
+    Some(local_date_for_timestamp(Utc::now(), offset) - ChronoDuration::days(days - 1))
+}
+
+fn connection_history_time_zone_offset(time_zone: &str) -> FixedOffset {
+    let seconds = match time_zone.trim() {
+        "Asia/Shanghai" | "Asia/Hong_Kong" | "Asia/Taipei" | "Etc/GMT-8" => 8 * 3600,
+        "Asia/Tokyo" | "Asia/Seoul" | "Etc/GMT-9" => 9 * 3600,
+        "Europe/Berlin" | "Europe/Paris" | "Etc/GMT-1" => 3600,
+        "Europe/London" | "UTC" | "Etc/UTC" | "GMT" => 0,
+        "America/New_York" | "Etc/GMT+5" => -5 * 3600,
+        "America/Los_Angeles" | "Etc/GMT+8" => -8 * 3600,
+        value => parse_fixed_offset_seconds(value).unwrap_or(0),
+    };
+
+    FixedOffset::east_opt(seconds).unwrap_or_else(|| FixedOffset::east_opt(0).expect("UTC offset"))
+}
+
+fn parse_fixed_offset_seconds(value: &str) -> Option<i32> {
+    let value = value.trim();
+    let value = value.strip_prefix("UTC").unwrap_or(value);
+    let value = value.strip_prefix("GMT").unwrap_or(value);
+    if value.is_empty() {
+        return Some(0);
+    }
+
+    let sign = match value.as_bytes().first()? {
+        b'+' => 1,
+        b'-' => -1,
+        _ => return None,
+    };
+    let rest = &value[1..];
+    let (hours, minutes) = rest
+        .split_once(':')
+        .map(|(hours, minutes)| (hours, minutes))
+        .unwrap_or((rest, "0"));
+    let hours = hours.parse::<i32>().ok()?;
+    let minutes = minutes.parse::<i32>().ok()?;
+    if hours > 23 || minutes > 59 {
+        return None;
+    }
+
+    Some(sign * (hours * 3600 + minutes * 60))
+}
+
+fn local_date_for_timestamp(timestamp: DateTime<Utc>, offset: FixedOffset) -> NaiveDate {
+    timestamp.with_timezone(&offset).date_naive()
+}
+
+fn split_history_duration_by_local_day(
+    started_at: DateTime<Utc>,
+    ended_at: DateTime<Utc>,
+    offset: FixedOffset,
+) -> Vec<(NaiveDate, u64)> {
+    if ended_at <= started_at {
+        return Vec::new();
+    }
+
+    let mut segments = Vec::new();
+    let mut cursor = started_at.with_timezone(&offset).naive_local();
+    let end = ended_at.with_timezone(&offset).naive_local();
+
+    while cursor < end {
+        let Some(next_date) = cursor.date().succ_opt() else {
+            break;
+        };
+        let Some(next_midnight) = next_date.and_hms_opt(0, 0, 0) else {
+            break;
+        };
+        let segment_end = if next_midnight < end {
+            next_midnight
+        } else {
+            end
+        };
+        let duration_seconds = segment_end
+            .signed_duration_since(cursor)
+            .num_seconds()
+            .max(0) as u64;
+        if duration_seconds > 0 {
+            segments.push((cursor.date(), duration_seconds));
+        }
+        cursor = segment_end;
+    }
+
+    segments
 }
 
 fn duration_seconds_between(started_at: &str, ended_at: &str) -> AppResult<u64> {
@@ -1621,12 +2158,15 @@ fn is_group_word_separator(character: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{history_subject_key, normalize_app_settings, normalize_group_name, Database};
+    use super::{
+        connection_history_time_zone_offset, history_subject_key, normalize_app_settings,
+        normalize_group_name, split_history_duration_by_local_day, Database,
+    };
     use crate::models::{
         AppSettings, ConnectionHistoryDateRange, ConnectionListDisplayMode, CreateConnectionInput,
         SessionRecordingMode, SessionRecordingSettings,
     };
-    use chrono::{Duration as ChronoDuration, Utc};
+    use chrono::{Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
     use rusqlite::params;
     use uuid::Uuid;
 
@@ -1654,6 +2194,7 @@ mod tests {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: vec!["home".into(), "Home".into(), "Work".into()],
+            connection_history_time_zone: "Asia/Shanghai".into(),
             session_recording: SessionRecordingSettings::default(),
         };
 
@@ -1669,6 +2210,7 @@ mod tests {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: Vec::new(),
+            connection_history_time_zone: "Asia/Shanghai".into(),
             session_recording: SessionRecordingSettings {
                 enabled: true,
                 mode: SessionRecordingMode::Full,
@@ -1685,6 +2227,23 @@ mod tests {
         assert_eq!(
             normalized.session_recording.mode,
             SessionRecordingMode::Full
+        );
+    }
+
+    #[test]
+    fn split_history_duration_by_local_day_splits_across_local_midnight() {
+        let offset = connection_history_time_zone_offset("Asia/Shanghai");
+        let started_at = Utc.with_ymd_and_hms(2026, 5, 16, 15, 50, 0).unwrap();
+        let ended_at = Utc.with_ymd_and_hms(2026, 5, 16, 16, 20, 0).unwrap();
+
+        let segments = split_history_duration_by_local_day(started_at, ended_at, offset);
+
+        assert_eq!(
+            segments,
+            vec![
+                (NaiveDate::from_ymd_opt(2026, 5, 16).unwrap(), 600),
+                (NaiveDate::from_ymd_opt(2026, 5, 17).unwrap(), 1200),
+            ]
         );
     }
 

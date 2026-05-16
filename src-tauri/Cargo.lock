@@ -3166,6 +3166,7 @@ dependencies = [
  "argon2",
  "base64 0.22.1",
  "chrono",
+ "iana-time-zone",
  "keyring",
  "keyring-core",
  "log",

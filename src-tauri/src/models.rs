@@ -53,6 +53,8 @@ pub struct AppSettings {
     pub connection_list_display_mode: ConnectionListDisplayMode,
     pub collapsed_groups: Vec<String>,
     #[serde(default)]
+    pub connection_history_time_zone: String,
+    #[serde(default)]
     pub session_recording: SessionRecordingSettings,
 }
 
@@ -63,6 +65,7 @@ impl Default for AppSettings {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: Vec::new(),
+            connection_history_time_zone: String::new(),
             session_recording: SessionRecordingSettings::default(),
         }
     }
@@ -321,8 +324,32 @@ pub struct ConnectionHistoryDurationBucket {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ConnectionHistoryDailyHostUsage {
+    pub history_key: String,
+    pub connection_id: Option<String>,
+    pub connection_name: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub deleted: bool,
+    pub connection_count: u64,
+    pub total_duration_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionHistoryDailyUsage {
+    pub date: String,
+    pub total_connection_count: u64,
+    pub total_duration_seconds: u64,
+    pub hosts: Vec<ConnectionHistoryDailyHostUsage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConnectionHistoryOverview {
     pub hosts: Vec<ConnectionHistoryHostSummary>,
+    pub daily_usage: Vec<ConnectionHistoryDailyUsage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

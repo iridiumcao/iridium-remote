@@ -42,6 +42,15 @@ const NOTICE_AUTO_DISMISS_MS = 5_000
 const NOTICE_EXIT_TRANSITION_MS = 300
 const formatMenuSelectionLabel = (label: string, selected: boolean) =>
   selected ? `✓ ${label}` : label
+const connectionHistoryTimeZoneOptions = [
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Asia/Shanghai', label: 'Asia/Shanghai' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
+  { value: 'Europe/London', label: 'Europe/London' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin' },
+  { value: 'America/New_York', label: 'America/New_York' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles' },
+]
 
 const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
   const existing = sessions.find((session) => session.sessionId === nextState.sessionId)
@@ -584,6 +593,13 @@ function App() {
     [updateSettings],
   )
 
+  const handleSelectConnectionHistoryTimeZone = useCallback(
+    (connectionHistoryTimeZone: string) => {
+      updateSettings((current) => ({ ...current, connectionHistoryTimeZone }))
+    },
+    [updateSettings],
+  )
+
   const handleSaveSessionRecordingSettings = useCallback(
     async (sessionRecording: SessionRecordingSettings, password?: string) => {
       try {
@@ -717,6 +733,21 @@ function App() {
                 })),
               },
               {
+                text: t.connectionHistoryTimeZone,
+                items: connectionHistoryTimeZoneOptions.map((option) => ({
+                  id: `settings-connection-history-time-zone-${option.value}`,
+                  text: formatMenuSelectionLabel(
+                    option.label,
+                    settings.connectionHistoryTimeZone === option.value,
+                  ),
+                  action: () => {
+                    if (!disposed) {
+                      handleSelectConnectionHistoryTimeZone(option.value)
+                    }
+                  },
+                })),
+              },
+              {
                 id: 'session-recording',
                 text: t.menuSessionRecording,
                 action: () => {
@@ -787,6 +818,7 @@ function App() {
     handleImportConnections,
     handleOpenSessionLogsDirectory,
     handleSaveSessionRecordingSettings,
+    handleSelectConnectionHistoryTimeZone,
     handleSelectLocale,
     handleSelectTheme,
     isTauriRuntime,
@@ -795,6 +827,7 @@ function App() {
     openExternalUrl,
     settings.locale,
     settings.theme,
+    settings.connectionHistoryTimeZone,
     t,
     themeOptions,
   ])
@@ -878,6 +911,14 @@ function App() {
             }}
             options={themeOptions}
             value={settings.theme}
+          />
+
+          <ToolbarSelect
+            isDark={isDark}
+            label={t.connectionHistoryTimeZone}
+            onChange={handleSelectConnectionHistoryTimeZone}
+            options={connectionHistoryTimeZoneOptions}
+            value={settings.connectionHistoryTimeZone}
           />
         </div>
       ) : null}

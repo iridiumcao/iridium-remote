@@ -10,6 +10,8 @@ This feature lets users review:
 - each session's start time, end time, and duration
 - each host's total connection count
 - each host's total connected duration
+- each local day’s total app usage time through recorded SSH connection duration
+- each local day’s duration split across different hosts
 
 The feature is intended for:
 
@@ -17,6 +19,7 @@ The feature is intended for:
 - troubleshooting
 - lightweight auditing
 - understanding how often and how long a host is used
+- understanding daily usage patterns
 
 This feature is local-only and does not sync across devices.
 
@@ -53,6 +56,7 @@ V1 goals:
 
 - show a reliable per-host connection history timeline
 - show per-host aggregate statistics
+- show daily usage statistics based on connection duration
 - survive abnormal shutdowns as well as possible
 - avoid unbounded history growth
 - preserve historical facts even after a saved connection is deleted
@@ -76,6 +80,7 @@ The `Connection History & Statistics` dialog should be split into two main areas
 1. **Host list / selector**
 2. **Selected host details**
 3. **Summary charts**
+4. **Daily usage statistics**
 
 ### Host list / selector
 
@@ -126,6 +131,8 @@ V1 should support the following charts:
 1. **Cross-host connection duration share**
 2. **Cross-host connection count share**
 3. **Per-host session-duration distribution**
+4. **Daily total usage**
+5. **Daily per-host duration share**
 
 #### Cross-host connection duration share
 
@@ -165,6 +172,43 @@ Each slice represents the number of sessions that fall into that duration bucket
 
 If a host has too few sessions to make the chart meaningful, the UI may still show the buckets with zero values or replace the chart with a simple empty-state message.
 
+#### Daily total usage
+
+The daily total usage chart shows how long the current user used the app on each local day.
+
+For V1, "usage time" means the sum of recorded SSH connection durations. It does not include time when the app is open but no SSH session is connected.
+
+This chart should normally use a bar chart or line chart rather than a pie chart, because the primary task is comparing usage across dates.
+
+Each bar or point represents one local calendar day in the active date filter.
+
+The chart should support:
+
+- total duration per day across all hosts
+- zero-value days inside the selected range, when the range is bounded
+- a clear empty state when no usage exists for the selected range
+
+#### Daily per-host duration share
+
+The daily per-host duration share view shows how a selected day’s connected duration is distributed across different hosts.
+
+A pie chart is appropriate for this view because it answers a composition question: "on this day, which hosts consumed the connected time?"
+
+Each slice represents one host.
+
+The chart should use the same host identity as the host list:
+
+- connection display name when available
+- otherwise host and username snapshot
+
+The UI should avoid rendering one pie chart per day by default, because many daily pies become difficult to scan. Instead, V1 should use one of these patterns:
+
+- select a day from the daily total usage chart and show a single per-host pie chart for that day
+- show the per-host pie chart for the most recent day with usage in the active range
+- show a compact table beside the chart with each host’s duration and percentage for the selected day
+
+When the user changes the active date filter, the selected day should remain selected only if it is still inside the new range. Otherwise the UI should choose the most recent day with usage.
+
 ### 4.3 Session status display
 
 Each historical session row should show a human-readable close status:
@@ -193,6 +237,52 @@ V1 may provide quick filters such as:
 
 Statistics, charts, and the session list should stay consistent with the active filter.
 Recent-range filters should include both completed sessions and still-running sessions whose `started_at` falls inside the selected range.
+
+Daily statistics should use the same active date filter, but the unit of grouping is the user’s configured local calendar day.
+
+### 4.5 User time zone setting
+
+Daily statistics require an explicit user time zone setting.
+
+The app should provide a setting for the user’s preferred statistics time zone.
+
+Recommended V1 behavior:
+
+- default to the operating system’s current time zone on first launch
+- store the selected time zone in app settings
+- use the selected time zone for connection-history date filters, daily grouping, and displayed daily labels
+- continue storing raw timestamps in UTC/RFC3339 so historical records remain stable
+
+The setting should use an IANA time zone identifier where available, such as:
+
+- `Asia/Shanghai`
+- `America/Los_Angeles`
+- `Europe/Berlin`
+
+If the platform cannot provide or validate an IANA time zone, the app may fall back to a fixed UTC offset for display and grouping, but IANA time zones are preferred because they handle daylight saving transitions.
+
+Changing the user time zone should not mutate historical session rows. It should only change how existing timestamps are grouped and displayed.
+
+### 4.6 Daily usage view
+
+The dialog should include a daily usage view that helps the current user understand per-day usage.
+
+The daily usage view should show:
+
+- date
+- total connected duration for that day
+- total connection count for that day
+- most-used host by duration for that day
+- optional per-host breakdown for the selected day
+
+The daily usage view should support:
+
+- selecting a day
+- showing a per-host breakdown for the selected day
+- sorting daily rows newest first in a table view
+- using the active date filter
+
+The daily usage view is user-local and based only on local connection-history records.
 
 ---
 
@@ -275,18 +365,20 @@ V1 should aggregate by:
 
 - host identity snapshot
 - calendar month
+- local calendar day for daily usage statistics
 
 Each rollup should store at least:
 
 - session count
 - total duration
+- for daily rollups, the time zone or local-date basis used to calculate the bucket
 
 ### 6.3 Retention policy
 
 Recommended V1 behavior:
 
 - keep detailed session rows for the most recent **365 days**
-- roll older rows into monthly aggregates before deleting the detailed rows
+- roll older rows into monthly and daily aggregates before deleting the detailed rows
 - keep aggregate rows long term
 
 This allows:
@@ -389,6 +481,46 @@ Suggested fields:
 
 Rollups should be recomputable from detail rows if needed.
 
+### 8.3 Daily usage rollup table
+
+Suggested table: `connection_history_daily_rollups`
+
+The daily rollup table stores per-day statistics so the daily usage view remains fast and accurate after detailed rows are trimmed.
+
+Suggested fields:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | text | primary key |
+| `local_date` | text | local calendar date, e.g. `2026-05-16` |
+| `time_zone` | text | IANA time zone used to compute `local_date`, e.g. `Asia/Shanghai` |
+| `history_key` | text nullable | host identity key; nullable or special value may represent all-host total |
+| `connection_id` | text nullable | optional reference when still applicable |
+| `connection_name_snapshot` | text nullable | display name snapshot for host-level rows |
+| `host_snapshot` | text nullable | host snapshot for host-level rows |
+| `port_snapshot` | integer nullable | port snapshot for host-level rows |
+| `username_snapshot` | text nullable | username snapshot for host-level rows |
+| `session_count` | integer | number of sessions contributing to the day/host bucket |
+| `total_duration_seconds` | integer | total duration within this local day bucket |
+| `created_at` | text/datetime | row creation time |
+| `updated_at` | text/datetime | row update time |
+
+Recommended uniqueness:
+
+- `(local_date, time_zone, history_key)` for host-level daily rows
+
+The app may derive all-host daily totals by summing host-level rows, or store explicit all-host rows if that simplifies query performance.
+
+### 8.4 Settings fields
+
+The app settings should include a connection-history statistics time zone field.
+
+Suggested field:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `connection_history_time_zone` | text nullable | IANA time zone for date filters and daily grouping; defaults to OS time zone when missing |
+
 ---
 
 ## 9. Statistics Rules
@@ -413,14 +545,54 @@ For chart calculations:
 - cross-host duration share is based on total connected duration
 - cross-host count share is based on total session count
 - per-host duration distribution is based on bucketed session counts, not per-session pie slices
+- daily total usage is based on total connected duration grouped by configured local date
+- daily per-host duration share is based on each host’s duration within the selected local day
 
 If rolled-up history is included in a charted range, the aggregation logic should still produce the same totals as the textual statistics for that range.
+
+### 9.1 Daily grouping and cross-day sessions
+
+Daily statistics must split session duration by local calendar day using the configured statistics time zone.
+
+If a session crosses midnight in the configured time zone, its duration should be split across the affected local days.
+
+Example:
+
+- configured time zone: `Asia/Shanghai`
+- session starts at `2026-05-16 23:50`
+- session ends at `2026-05-17 00:20`
+- daily usage should count 10 minutes on `2026-05-16` and 20 minutes on `2026-05-17`
+
+The same split rule applies to per-host daily duration.
+
+Still-running sessions should contribute live duration up to the current time when they are displayed in recent date filters.
+
+The sum of per-host daily durations should equal the all-host daily total for the same date, except for minor rounding differences in display formatting.
+
+### 9.2 Time zone changes and rollups
+
+Because daily buckets depend on time zone, changing the configured statistics time zone can change which local day a session belongs to.
+
+V1 should handle this in one of these ways:
+
+- recompute daily statistics from retained detail rows when the setting changes
+- maintain daily rollups per time zone
+- invalidate and rebuild affected daily rollups when possible
+
+The UI must avoid silently mixing daily rollups computed with different time zones.
+
+If older detailed rows have already been trimmed and only daily rollups remain, and the user changes the time zone, the app should either:
+
+- preserve the old rollup time zone and clearly label the limitation, or
+- rebuild only the portion that can be accurately recomputed
+
+V1 should prefer correctness and clear labeling over pretending old daily buckets can be perfectly converted without detail rows.
 
 ---
 
 ## 10. Scope Boundaries
 
-V1 is focused on host-level history and totals.
+V1 is focused on host-level history, totals, and daily usage summaries.
 
 Out of scope for V1:
 
@@ -431,6 +603,8 @@ Out of scope for V1:
 - manual editing of history rows
 - cascade-delete options for history management UI
 - highly customized chart builders, drill-down dashboards, or large numbers of chart types
+- detailed idle-time detection while a connection is open
+- measuring app-open time when no SSH session is connected
 
 ---
 
@@ -440,6 +614,7 @@ The feature should follow these principles:
 
 - prefer preserving a clearly labeled approximate record over losing the record entirely
 - preserve statistics even when old detail rows are cleaned up
+- keep daily statistics consistent with the configured user time zone
 - preserve history after connection deletion unless the product later adds an explicit destructive flow
 - keep history collection lightweight so it does not slow down SSH startup or terminal I/O
 
@@ -454,6 +629,10 @@ V1 `Connection History` should provide:
 - per-host historical session rows with start, end, duration, and close status
 - per-host total connection count and total duration
 - pie charts for cross-host duration share, cross-host count share, and selected-host duration-bucket distribution
+- daily usage statistics grouped by the user’s configured time zone
+- a daily total usage chart
+- a selected-day per-host duration share chart, preferably as a pie chart
+- a settings field for the connection-history statistics time zone
 - abnormal-shutdown recovery using a running row plus `last_activity_at`
 - bounded storage through recent detail retention plus long-term rollups
 - retained history even after the original saved connection is deleted

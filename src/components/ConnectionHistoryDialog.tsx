@@ -40,7 +40,7 @@ const durationRanges: ConnectionHistoryDateRange[] = [
 
 const chartColors = ['#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#f59e0b', '#84cc16', '#34d399', '#fb7185']
 
-const formatHistorySubtitle = (host: ConnectionHistoryHostSummary) =>
+const formatHistorySubtitle = (host: Pick<ConnectionHistoryHostSummary, 'host' | 'port' | 'username'>) =>
   `${host.username}@${host.host}${host.port === 22 ? '' : `:${host.port}`}`
 
 const rangeLabel = (
@@ -198,6 +198,83 @@ const PieChartCard = ({
   )
 }
 
+const DailyUsageCard = ({
+  data,
+  durationUnits,
+  emptyText,
+  isDark,
+  locale,
+  onSelectDate,
+  selectedDate,
+  title,
+}: {
+  data: ConnectionHistoryOverview['dailyUsage']
+  durationUnits: {
+    days: string
+    hours: string
+    minutes: string
+    seconds: string
+  }
+  emptyText: string
+  isDark: boolean
+  locale: Locale
+  onSelectDate: (date: string) => void
+  selectedDate: string | null
+  title: string
+}) => {
+  const maxDuration = Math.max(0, ...data.map((day) => day.totalDurationSeconds))
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+      }`}
+    >
+      <p className="text-sm font-medium">{title}</p>
+      {data.length > 0 && maxDuration > 0 ? (
+        <div className="mt-4 space-y-3">
+          {data.map((day) => {
+            const selected = day.date === selectedDate
+            const ratio = maxDuration === 0 ? 0 : day.totalDurationSeconds / maxDuration
+            const displayDate = new Intl.DateTimeFormat(locale, {
+              dateStyle: 'medium',
+            }).format(new Date(`${day.date}T00:00:00`))
+            return (
+              <button
+                key={day.date}
+                type="button"
+                className={`grid w-full grid-cols-[7.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition ${
+                  selected
+                    ? 'border-cyan-400 bg-cyan-400/10'
+                    : isDark
+                      ? 'border-white/10 hover:bg-white/5'
+                      : 'border-slate-200 hover:bg-white'
+                }`}
+                onClick={() => onSelectDate(day.date)}
+              >
+                <span className="truncate">{displayDate}</span>
+                <span
+                  className={`h-2 overflow-hidden rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}
+                >
+                  <span
+                    className="block h-full rounded-full bg-cyan-400"
+                    style={{ width: `${Math.max(4, Math.round(ratio * 100))}%` }}
+                  />
+                </span>
+                <span className="text-right font-medium">
+                  {formatDurationSeconds(day.totalDurationSeconds, durationUnits)}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <p className={`mt-4 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{emptyText}</p>
+      )}
+    </div>
+  )
+}
+
 export const ConnectionHistoryDialog = ({
   locale,
   onClose,
@@ -214,6 +291,7 @@ export const ConnectionHistoryDialog = ({
   const [details, setDetails] = useState<ConnectionHistoryHostDetails | null>(null)
   const [allTimeDetails, setAllTimeDetails] = useState<ConnectionHistoryHostDetails | null>(null)
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
+  const [userSelectedDailyDate, setUserSelectedDailyDate] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isDark = theme === 'dark'
   const visibleDetails = details && details.host.historyKey === selectedHistoryKey ? details : null
@@ -308,17 +386,8 @@ export const ConnectionHistoryDialog = ({
 
       if (range === 'all_time') {
         setAllTimeDetails(nextDetails)
-        return
-      }
-
-      if (nextDetails.host.totalConnectionCount > 0) {
+      } else {
         setAllTimeDetails(null)
-        return
-      }
-
-      const nextAllTimeDetails = await onLoadHostDetails(selectedHistoryKey, 'all_time')
-      if (active) {
-        setAllTimeDetails(nextAllTimeDetails)
       }
     }
 
@@ -357,30 +426,28 @@ export const ConnectionHistoryDialog = ({
   }, [open, onLoadHostDetails, range, selectedHistoryKey, t.connectionHistoryNoSessions])
 
   const chartOverview = useMemo(() => {
-    if (overview?.hosts.length) {
+    if (overview) {
       return overview
     }
 
     return hostListOverview
   }, [hostListOverview, overview])
 
-  const selectedHostSummary = useMemo(() => {
-    if (!selectedHistoryKey) {
-      return null
+  const selectedDailyDate = useMemo(() => {
+    const dailyUsage = chartOverview?.dailyUsage ?? []
+    if (userSelectedDailyDate && dailyUsage.some((day) => day.date === userSelectedDailyDate)) {
+      return userSelectedDailyDate
     }
 
-    return hostListOverview?.hosts.find((host) => host.historyKey === selectedHistoryKey) ?? null
-  }, [hostListOverview?.hosts, selectedHistoryKey])
+    return dailyUsage.find((day) => day.totalDurationSeconds > 0)?.date ?? null
+  }, [chartOverview?.dailyUsage, userSelectedDailyDate])
 
   const displayedDetails = useMemo(() => {
     if (!visibleDetails && !visibleAllTimeDetails) {
       return null
     }
 
-    if (
-      visibleDetails &&
-      (visibleDetails.host.totalConnectionCount > 0 || range === 'all_time')
-    ) {
+    if (visibleDetails) {
       return visibleDetails
     }
 
@@ -388,15 +455,8 @@ export const ConnectionHistoryDialog = ({
       return visibleAllTimeDetails
     }
 
-    if (!visibleDetails || !selectedHostSummary) {
-      return visibleDetails
-    }
-
-    return {
-      ...visibleDetails,
-      host: selectedHostSummary,
-    }
-  }, [range, selectedHostSummary, visibleAllTimeDetails, visibleDetails])
+    return null
+  }, [visibleAllTimeDetails, visibleDetails])
 
   const filteredHosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -444,12 +504,32 @@ export const ConnectionHistoryDialog = ({
 
   const selectedHostDistribution = useMemo(
     () =>
-      (details?.durationBuckets ?? []).map((bucket) => ({
+      (displayedDetails?.durationBuckets ?? []).map((bucket) => ({
         label: durationBucketLabel(bucket.bucket, t),
         value: bucket.sessionCount,
       })),
-    [details?.durationBuckets, t],
+    [displayedDetails?.durationBuckets, t],
   )
+
+  const selectedDailyUsage = useMemo(
+    () =>
+      selectedDailyDate
+        ? (chartOverview?.dailyUsage ?? []).find((day) => day.date === selectedDailyDate) ?? null
+        : null,
+    [chartOverview?.dailyUsage, selectedDailyDate],
+  )
+
+  const selectedDailyHostShareData = useMemo(
+    () =>
+      (selectedDailyUsage?.hosts ?? []).map((host) => ({
+        label: host.connectionName,
+        secondaryLabel: formatHistorySubtitle(host),
+        value: host.totalDurationSeconds,
+      })),
+    [selectedDailyUsage?.hosts],
+  )
+
+  const selectedDailyTopHost = selectedDailyUsage?.hosts[0] ?? null
 
   const summaryCardClass = `rounded-2xl border p-4 ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
@@ -677,6 +757,54 @@ export const ConnectionHistoryDialog = ({
                   title={t.connectionHistoryDistributionChart}
                   valueFormatter={(value) => `${value}`}
                 />
+              </div>
+
+              <div className={sectionClass}>
+                <div className="border-b px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-medium">{t.connectionHistoryDailyUsage}</p>
+                    {selectedDailyUsage ? (
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {t.connectionHistorySelectedDay}: {selectedDailyUsage.date}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                  <DailyUsageCard
+                    data={chartOverview?.dailyUsage ?? []}
+                    durationUnits={durationUnits}
+                    emptyText={t.connectionHistoryNoDailyUsage}
+                    isDark={isDark}
+                    locale={locale}
+                    onSelectDate={setUserSelectedDailyDate}
+                    selectedDate={selectedDailyDate}
+                    title={t.connectionHistoryDailyUsageChart}
+                  />
+                  <div className="space-y-4">
+                    <PieChartCard
+                      data={selectedDailyHostShareData}
+                      emptyText={t.connectionHistoryNoDailyUsage}
+                      isDark={isDark}
+                      title={t.connectionHistoryDailyHostShareChart}
+                      valueFormatter={(value) => formatDurationSeconds(value, durationUnits)}
+                    />
+                    <div className={summaryCardClass}>
+                      <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        {t.connectionHistoryMostUsedHost}
+                      </p>
+                      <p className="mt-2 truncate text-lg font-semibold">
+                        {selectedDailyTopHost?.connectionName ?? '—'}
+                      </p>
+                      {selectedDailyTopHost ? (
+                        <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {formatHistorySubtitle(selectedDailyTopHost)} ·{' '}
+                          {formatDurationSeconds(selectedDailyTopHost.totalDurationSeconds, durationUnits)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className={`${sectionClass} overflow-hidden`}>
