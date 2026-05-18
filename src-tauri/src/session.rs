@@ -19,10 +19,13 @@ use crate::{
     },
     recording::{RecordingManager, SessionRecorder},
     terminal_detection::{
-        append_recent_output, contains_password_prompt, contains_shell_prompt,
+        append_output_with_limit, append_recent_output, contains_password_prompt,
+        contains_shell_prompt,
         detect_connection_error_message,
     },
 };
+
+const TERMINAL_BUFFER_LIMIT: usize = 32 * 1024;
 
 struct SessionResources {
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
@@ -38,6 +41,7 @@ struct SessionResources {
 
 struct ManagedSession {
     snapshot: SessionStatePayload,
+    terminal_output: String,
     resources: Option<SessionResources>,
 }
 
@@ -145,6 +149,7 @@ impl SessionManager {
                 session_id.clone(),
                 ManagedSession {
                     snapshot: snapshot.clone(),
+                    terminal_output: String::new(),
                     resources: Some(SessionResources {
                         child: Arc::clone(&child),
                         master: pair.master,
@@ -298,6 +303,15 @@ impl SessionManager {
         Ok(())
     }
 
+    pub fn terminal_buffer(&self, session_id: &str) -> AppResult<String> {
+        let inner = self.inner.lock().expect("session mutex poisoned");
+        let session = inner.sessions.get(session_id).ok_or_else(|| {
+            AppError::no_active_session("The selected session is no longer available.")
+        })?;
+
+        Ok(session.terminal_output.clone())
+    }
+
     fn read_loop(&self, app: AppHandle, session_id: String, mut reader: Box<dyn Read + Send>) {
         let mut buffer = [0_u8; 4096];
 
@@ -375,6 +389,7 @@ impl SessionManager {
             let Some(session) = inner.sessions.get_mut(session_id) else {
                 return;
             };
+            append_output_with_limit(&mut session.terminal_output, &data, TERMINAL_BUFFER_LIMIT);
             let Some(resources) = session.resources.as_mut() else {
                 return;
             };

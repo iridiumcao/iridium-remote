@@ -100,6 +100,8 @@ const escapeCharacter = String.fromCharCode(0x1b)
 const isReplayQueryParameterCharacter = (character: string) =>
   (character >= '0' && character <= '9') || character === ';' || character === '?'
 
+const MAX_TERMINAL_BUFFER_SIZE = 500000
+
 const sanitizeReplayBuffer = (data: string) => {
   let sanitized = ''
 
@@ -123,6 +125,23 @@ const sanitizeReplayBuffer = (data: string) => {
   }
 
   return sanitized
+}
+
+const truncateTerminalBuffer = (data: string) =>
+  data.length > MAX_TERMINAL_BUFFER_SIZE ? data.slice(data.length - MAX_TERMINAL_BUFFER_SIZE) : data
+
+const mergeTerminalSnapshot = (current: string, snapshot: string) => {
+  const sanitizedSnapshot = truncateTerminalBuffer(sanitizeReplayBuffer(snapshot))
+
+  if (!sanitizedSnapshot) {
+    return current
+  }
+
+  if (!current || sanitizedSnapshot.endsWith(current)) {
+    return sanitizedSnapshot
+  }
+
+  return current
 }
 
 export const TerminalWorkspace = ({
@@ -248,9 +267,7 @@ export const TerminalWorkspace = ({
         }
 
         const current = sessionBuffersRef.current.get(payload.sessionId) ?? ''
-        const nextBuffer = sanitizeReplayBuffer(`${current}${payload.data}`)
-        const MAX_BUFFER_SIZE = 500000
-        const truncatedBuffer = nextBuffer.length > MAX_BUFFER_SIZE ? nextBuffer.slice(nextBuffer.length - MAX_BUFFER_SIZE) : nextBuffer
+        const truncatedBuffer = truncateTerminalBuffer(sanitizeReplayBuffer(`${current}${payload.data}`))
 
         sessionBuffersRef.current.set(payload.sessionId, truncatedBuffer)
 
@@ -269,6 +286,41 @@ export const TerminalWorkspace = ({
       void unsubscribePromise.then((unsubscribe) => unsubscribe())
     }
   }, [])
+
+  useEffect(() => {
+    if (!activeSession?.sessionId) {
+      return
+    }
+
+    let active = true
+
+    const loadTerminalSnapshot = async () => {
+      const snapshot = await appClient.getSessionTerminalBuffer(activeSession.sessionId)
+      if (!active) {
+        return
+      }
+
+      const current = sessionBuffersRef.current.get(activeSession.sessionId) ?? ''
+      const merged = mergeTerminalSnapshot(current, snapshot)
+
+      if (merged === current) {
+        return
+      }
+
+      sessionBuffersRef.current.set(activeSession.sessionId, merged)
+
+      if (renderedSessionIdRef.current === activeSession.sessionId) {
+        terminalInstance.current?.reset()
+        terminalInstance.current?.write(merged)
+      }
+    }
+
+    void loadTerminalSnapshot()
+
+    return () => {
+      active = false
+    }
+  }, [activeSession?.sessionId])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessions.map((session) => session.sessionId))

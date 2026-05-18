@@ -150,6 +150,14 @@ fn get_session_states(state: State<'_, Arc<AppState>>) -> AppResult<Vec<SessionS
 }
 
 #[tauri::command]
+fn get_session_terminal_buffer(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> AppResult<String> {
+    state.sessions.terminal_buffer(&session_id)
+}
+
+#[tauri::command]
 fn get_connection_history_overview(
     state: State<'_, Arc<AppState>>,
     range: ConnectionHistoryDateRange,
@@ -624,6 +632,7 @@ pub fn run() {
             disconnect_session,
             close_session,
             get_session_states,
+            get_session_terminal_buffer,
             get_connection_history_overview,
             get_connection_history_host_details,
             get_app_settings,

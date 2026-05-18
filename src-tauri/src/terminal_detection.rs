@@ -4,21 +4,25 @@ use regex::Regex;
 
 const DETECTION_BUFFER_LIMIT: usize = 512;
 
-pub fn append_recent_output(buffer: &mut String, chunk: &str) {
+pub fn append_output_with_limit(buffer: &mut String, chunk: &str, limit: usize) {
     buffer.push_str(chunk);
 
-    if buffer.len() > DETECTION_BUFFER_LIMIT {
+    if buffer.len() > limit {
         let keep_from = buffer
             .char_indices()
-            .nth_back(DETECTION_BUFFER_LIMIT - 1)
+            .nth_back(limit - 1)
             .map(|(index, _)| index)
             .unwrap_or(0);
         buffer.drain(..keep_from);
     }
 }
 
+pub fn append_recent_output(buffer: &mut String, chunk: &str) {
+    append_output_with_limit(buffer, chunk, DETECTION_BUFFER_LIMIT);
+}
+
 pub fn contains_password_prompt(buffer: &str) -> bool {
-    normalize_for_inline_prompt(buffer).contains("password:")
+    password_prompt_re().is_match(&normalize_for_inline_prompt(buffer))
 }
 
 pub fn contains_shell_prompt(buffer: &str) -> bool {
@@ -62,6 +66,13 @@ fn ansi_escape_re() -> &'static Regex {
     })
 }
 
+fn password_prompt_re() -> &'static Regex {
+    static PASSWORD_PROMPT_RE: OnceLock<Regex> = OnceLock::new();
+    PASSWORD_PROMPT_RE.get_or_init(|| {
+        Regex::new(r"(?:password|passphrase(?: for key [^:]+)?):\s*$").unwrap()
+    })
+}
+
 fn shell_prompt_re() -> &'static Regex {
     static SHELL_PROMPT_RE: OnceLock<Regex> = OnceLock::new();
     SHELL_PROMPT_RE.get_or_init(|| {
@@ -102,6 +113,16 @@ mod tests {
         append_recent_output(&mut recent_output, "word:\u{1b}[0m");
 
         assert!(contains_password_prompt(&recent_output));
+    }
+
+    #[test]
+    fn ignores_stale_password_prompt_once_shell_prompt_is_visible() {
+        let mut recent_output = String::new();
+        append_recent_output(&mut recent_output, "user@example.com's password:");
+        append_recent_output(&mut recent_output, "\r\nLast login: today\r\nuser@host:~$ ");
+
+        assert!(!contains_password_prompt(&recent_output));
+        assert!(contains_shell_prompt(&recent_output));
     }
 
     #[test]

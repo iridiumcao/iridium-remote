@@ -78,6 +78,7 @@ type MockStore = {
   }>
   sessionLogPathsBySessionId: Map<string, string>
   historySessionIdsBySessionId: Map<string, string>
+  terminalBuffersBySessionId: Map<string, string>
   sessionListeners: Set<(state: SessionState) => void>
   sessionRemovedListeners: Set<(event: SessionRemovedEvent) => void>
   terminalListeners: Set<(event: TerminalOutputEvent) => void>
@@ -85,6 +86,7 @@ type MockStore = {
 
 const MOCK_SETTINGS_STORAGE_KEY = 'iridium-remote.mock-settings'
 const MOCK_LOG_DIRECTORY = 'C:\\mock\\SessionLogs'
+const MAX_TERMINAL_BUFFER_SIZE = 500000
 
 const loadMockSettings = (): AppSettings => {
   if (typeof window === 'undefined') {
@@ -151,6 +153,7 @@ const mockStore: MockStore = {
   connectionHistorySessions: [],
   sessionLogPathsBySessionId: new Map(),
   historySessionIdsBySessionId: new Map(),
+  terminalBuffersBySessionId: new Map(),
   sessionListeners: new Set(),
   sessionRemovedListeners: new Set(),
   terminalListeners: new Set(),
@@ -215,15 +218,27 @@ const emitMockSessionRemoved = (sessionId: string) => {
   mockStore.sessions = mockStore.sessions.filter((session) => session.sessionId !== sessionId)
   mockStore.sessionLogPathsBySessionId.delete(sessionId)
   mockStore.historySessionIdsBySessionId.delete(sessionId)
+  mockStore.terminalBuffersBySessionId.delete(sessionId)
   const payload: SessionRemovedEvent = { sessionId }
   for (const listener of mockStore.sessionRemovedListeners) {
     listener(payload)
   }
 }
 
+const appendMockTerminalBuffer = (sessionId: string, data: string) => {
+  const current = mockStore.terminalBuffersBySessionId.get(sessionId) ?? ''
+  const nextBuffer = `${current}${data}`
+  const truncatedBuffer =
+    nextBuffer.length > MAX_TERMINAL_BUFFER_SIZE
+      ? nextBuffer.slice(nextBuffer.length - MAX_TERMINAL_BUFFER_SIZE)
+      : nextBuffer
+  mockStore.terminalBuffersBySessionId.set(sessionId, truncatedBuffer)
+}
+
 const emitMockOutput = (sessionId: string, data: string) => {
   const session = mockStore.sessions.find((item) => item.sessionId === sessionId)
   touchMockConnectionHistorySession(sessionId)
+  appendMockTerminalBuffer(sessionId, data)
   if (session?.recordingActive && session.recordingMode === 'full') {
     appendMockSessionLog(sessionId, sanitizeMockVisibleText(data))
   }
@@ -954,6 +969,14 @@ export const appClient = {
     }
 
     return invoke<SessionState[]>('get_session_states')
+  },
+
+  async getSessionTerminalBuffer(sessionId: string) {
+    if (!isTauriRuntime()) {
+      return mockStore.terminalBuffersBySessionId.get(sessionId) ?? ''
+    }
+
+    return invoke<string>('get_session_terminal_buffer', { sessionId })
   },
 
   async getConnectionHistoryOverview(range: ConnectionHistoryDateRange) {

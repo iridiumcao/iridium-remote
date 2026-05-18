@@ -35,6 +35,7 @@ const terminalMocks = vi.hoisted(() => {
 vi.mock('../api/client', () => ({
   appClient: {
     onTerminalOutput: vi.fn().mockResolvedValue(() => {}),
+    getSessionTerminalBuffer: vi.fn().mockResolvedValue(''),
     resizeSession: vi.fn().mockResolvedValue(undefined),
     writeSessionInput: vi.fn().mockResolvedValue(undefined),
   },
@@ -114,6 +115,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks()
   terminalMocks.terminal.getSelection.mockReturnValue('selected text')
+  vi.mocked(appClient.getSessionTerminalBuffer).mockResolvedValue('')
 })
 
 describe('TerminalWorkspace', () => {
@@ -281,5 +283,64 @@ describe('TerminalWorkspace', () => {
 
     expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith('promptready')
     expect(appClient.writeSessionInput).not.toHaveBeenCalledWith(secondSession.sessionId, '\u001b[1;1R')
+  })
+
+  it('rehydrates the active session from the backend snapshot when early SSH prompts were missed', async () => {
+    let terminalOutputListener: ((payload: TerminalOutputEvent) => void) | undefined
+    let resolveSnapshot: ((value: string) => void) | undefined
+
+    vi.mocked(appClient.onTerminalOutput).mockImplementationOnce(async (listener) => {
+      terminalOutputListener = listener
+      return () => {}
+    })
+    vi.mocked(appClient.getSessionTerminalBuffer).mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveSnapshot = resolve
+        }),
+    )
+
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    await waitFor(() => expect(terminalOutputListener).toBeDefined())
+
+    terminalOutputListener?.({
+      sessionId: session.sessionId,
+      stream: 'stdout',
+      data: `${connection.username}@${connection.host}'s password:`,
+    })
+
+    resolveSnapshot?.(
+      [
+        `The authenticity of host '${connection.host} (${connection.host})' can't be established.`,
+        'ED25519 key fingerprint is SHA256:test.',
+        "Are you sure you want to continue connecting (yes/no/[fingerprint])? yes",
+        `Warning: Permanently added '${connection.host}' (ED25519) to the list of known hosts.`,
+        `${connection.username}@${connection.host}'s password:`,
+      ].join('\r\n'),
+    )
+
+    await waitFor(() =>
+      expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith(
+        [
+          `The authenticity of host '${connection.host} (${connection.host})' can't be established.`,
+          'ED25519 key fingerprint is SHA256:test.',
+          "Are you sure you want to continue connecting (yes/no/[fingerprint])? yes",
+          `Warning: Permanently added '${connection.host}' (ED25519) to the list of known hosts.`,
+          `${connection.username}@${connection.host}'s password:`,
+        ].join('\r\n'),
+      ),
+    )
   })
 })

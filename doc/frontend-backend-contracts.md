@@ -123,6 +123,10 @@ Each `SessionState` may also include:
 - `recordingActive`
 - `recordingMode?`
 
+### `get_session_terminal_buffer(sessionId) -> string`
+
+Returns the buffered PTY output for the requested session so the frontend can replay any early SSH text that appeared before the runtime event listener finished attaching. This is especially important for first-connection prompts such as host-authenticity confirmation and password entry.
+
 ## Connection history commands
 
 ### `get_connection_history_overview(range) -> ConnectionHistoryOverview`
