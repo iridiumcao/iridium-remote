@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appClient } from './api/client'
 import { AboutDialog } from './components/AboutDialog'
-import { ConnectionHistoryDialog } from './components/ConnectionHistoryDialog'
+import { ConnectionHistoryWorkspace } from './components/ConnectionHistoryWorkspace'
 import { ConnectionFormDialog } from './components/ConnectionFormDialog'
 import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
-import { SessionLogViewerDialog } from './components/SessionLogViewerDialog'
 import { SessionRecordingDialog } from './components/SessionRecordingDialog'
+import { SessionLogsWorkspace } from './components/SessionLogsWorkspace'
 import { SessionRecordingUnlockDialog } from './components/SessionRecordingUnlockDialog'
+import { SidebarTabNav, type WorkspaceTab } from './components/SidebarTabNav'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
@@ -97,9 +98,8 @@ function App() {
   const [connectionPendingDelete, setConnectionPendingDelete] = useState<ConnectionRecord | null>(
     null,
   )
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('connections')
   const [isAboutDialogOpen, setAboutDialogOpen] = useState(false)
-  const [isConnectionHistoryDialogOpen, setConnectionHistoryDialogOpen] = useState(false)
-  const [isSessionLogViewerOpen, setSessionLogViewerOpen] = useState(false)
   const [isSessionRecordingDialogOpen, setSessionRecordingDialogOpen] = useState(false)
   const [isSessionRecordingUnlockOpen, setSessionRecordingUnlockOpen] = useState(false)
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
@@ -423,6 +423,10 @@ function App() {
     },
     [activeSessionId, sessions],
   )
+
+  const handleSelectWorkspaceTab = useCallback((tab: WorkspaceTab) => {
+    setActiveWorkspaceTab(tab)
+  }, [])
 
   const openCreateDialog = useCallback(() => {
     setEditingConnection(null)
@@ -818,24 +822,6 @@ function App() {
                 },
               },
               {
-                id: 'connection-history',
-                text: t.menuConnectionHistory,
-                action: () => {
-                  if (!disposed) {
-                    setConnectionHistoryDialogOpen(true)
-                  }
-                },
-              },
-              {
-                id: 'session-logs',
-                text: t.menuSessionLogs,
-                action: () => {
-                  if (!disposed) {
-                    setSessionLogViewerOpen(true)
-                  }
-                },
-              },
-              {
                 id: 'exit',
                 text: t.exit,
                 action: () => {
@@ -955,10 +941,7 @@ function App() {
     handleCheckForUpdates,
     handleExitApp,
     handleExportConnections,
-    handleExportSessionLogs,
     handleImportConnections,
-    handleOpenSessionLogsDirectory,
-    handleSaveSessionRecordingSettings,
     handleSelectConnectionHistoryTimeZone,
     handleSelectLocale,
     handleSelectTheme,
@@ -1021,7 +1004,7 @@ function App() {
     })
   }
 
-  const sidebarTopContent = (
+  const renderSidebarTopContent = () => (
     <div className="space-y-4">
       <div>
         <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isDark ? 'text-cyan-300' : 'text-cyan-600'}`}>
@@ -1031,6 +1014,14 @@ function App() {
           {t.appTitle}
         </h1>
       </div>
+
+      <SidebarTabNav
+        activeConnectionsCount={sessions.length}
+        activeTab={activeWorkspaceTab}
+        onChange={handleSelectWorkspaceTab}
+        t={t}
+        theme={settings.theme}
+      />
 
       {!isTauriRuntime ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -1130,45 +1121,76 @@ function App() {
         ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          <ConnectionList
-            activeConnectionCounts={activeConnectionCounts}
-            collapsedGroups={settings.collapsedGroups}
-            connections={connections}
-            displayMode={settings.connectionListDisplayMode}
-            isLoading={isLoading}
-            onConnect={connectToConnection}
-            onCreate={openCreateDialog}
-            onDelete={setConnectionPendingDelete}
-            onDisplayModeChange={(mode) =>
-              updateSettings((current) => ({
-                ...current,
-                connectionListDisplayMode: mode,
-              }))
-            }
-            onDuplicate={openDuplicateDialog}
-            onEdit={openEditDialog}
-            onSearchChange={setSearchQuery}
-            onSelect={selectConnection}
-            onToggleGroup={handleToggleGroup}
-            searchQuery={searchQuery}
-            selectedConnectionId={selectedConnectionId}
-            topContent={sidebarTopContent}
+          <div
+            hidden={activeWorkspaceTab !== 'connections'}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row"
+          >
+            <ConnectionList
+              activeConnectionCounts={activeConnectionCounts}
+              collapsedGroups={settings.collapsedGroups}
+              connections={connections}
+              displayMode={settings.connectionListDisplayMode}
+              isLoading={isLoading}
+              onConnect={connectToConnection}
+              onCreate={openCreateDialog}
+              onDelete={setConnectionPendingDelete}
+              onDisplayModeChange={(mode) =>
+                updateSettings((current) => ({
+                  ...current,
+                  connectionListDisplayMode: mode,
+                }))
+              }
+              onDuplicate={openDuplicateDialog}
+              onEdit={openEditDialog}
+              onSearchChange={setSearchQuery}
+              onSelect={selectConnection}
+              onToggleGroup={handleToggleGroup}
+              searchQuery={searchQuery}
+              selectedConnectionId={selectedConnectionId}
+              topContent={activeWorkspaceTab === 'connections' ? renderSidebarTopContent() : undefined}
+              t={t}
+              theme={settings.theme}
+            />
+
+            <TerminalWorkspace
+              activeConnection={activeConnection}
+              activeSession={activeSession}
+              isVisible={activeWorkspaceTab === 'connections'}
+              onCloseSession={closeSession}
+              onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
+              onDisconnect={disconnectSession}
+              onOpenTransfer={activeConnection ? () => setTransferDialogOpen(true) : undefined}
+              onSelectSession={selectSession}
+              selectedConnection={selectedConnection}
+              sessions={sessions}
+              t={t}
+              theme={settings.theme}
+            />
+          </div>
+
+          <ConnectionHistoryWorkspace
+            active={activeWorkspaceTab === 'history'}
+            locale={settings.locale}
+            onLoadHostDetails={handleLoadConnectionHistoryHostDetails}
+            onLoadOverview={handleLoadConnectionHistoryOverview}
             t={t}
             theme={settings.theme}
+            topContent={activeWorkspaceTab === 'history' ? renderSidebarTopContent() : undefined}
           />
 
-          <TerminalWorkspace
-            activeConnection={activeConnection}
-            activeSession={activeSession}
-            onCloseSession={closeSession}
-            onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
-            onDisconnect={disconnectSession}
-            onOpenTransfer={activeConnection ? () => setTransferDialogOpen(true) : undefined}
-            onSelectSession={selectSession}
-            selectedConnection={selectedConnection}
-            sessions={sessions}
+          <SessionLogsWorkspace
+            active={activeWorkspaceTab === 'logs'}
+            locale={settings.locale}
+            onExport={handleExportSessionLogs}
+            onListLogs={() => appClient.listSessionLogs()}
+            onOpenFolder={() => {
+              void handleOpenSessionLogsDirectory()
+            }}
+            onPreview={(paths, password) => appClient.previewSessionLogs(paths, password)}
+            status={sessionRecordingStatus}
             t={t}
             theme={settings.theme}
+            topContent={activeWorkspaceTab === 'logs' ? renderSidebarTopContent() : undefined}
           />
         </div>
       </div>
@@ -1207,18 +1229,6 @@ function App() {
         theme={settings.theme}
       />
 
-      {isConnectionHistoryDialogOpen ? (
-        <ConnectionHistoryDialog
-          locale={settings.locale}
-          onClose={() => setConnectionHistoryDialogOpen(false)}
-          onLoadHostDetails={handleLoadConnectionHistoryHostDetails}
-          onLoadOverview={handleLoadConnectionHistoryOverview}
-          open
-          t={t}
-          theme={settings.theme}
-        />
-      ) : null}
-
       {isSessionRecordingDialogOpen ? (
         <SessionRecordingDialog
           onClose={() => setSessionRecordingDialogOpen(false)}
@@ -1245,22 +1255,6 @@ function App() {
           onResetPassword={handleResetSessionRecordingPassword}
           onVerify={handleVerifySessionRecordingPassword}
           open
-          t={t}
-          theme={settings.theme}
-        />
-      ) : null}
-
-      {isSessionLogViewerOpen ? (
-        <SessionLogViewerDialog
-          onClose={() => setSessionLogViewerOpen(false)}
-          onExport={handleExportSessionLogs}
-          onOpenFolder={() => {
-            void handleOpenSessionLogsDirectory()
-          }}
-          onPickFiles={() => appClient.pickSessionLogFiles()}
-          onPreview={(paths, password) => appClient.previewSessionLogs(paths, password)}
-          open
-          status={sessionRecordingStatus}
           t={t}
           theme={settings.theme}
         />

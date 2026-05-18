@@ -178,6 +178,10 @@ Queries GitHub from the backend for the latest release and returns:
 
 ## Session log commands
 
+### `list_session_logs() -> SessionLogFileInfo[]`
+
+Returns discovered `.irlog` metadata from the configured recording directory so the `Logs` workspace can render source and file navigation without opening a file picker first.
+
 ### `preview_session_logs(paths, password) -> SessionLogPreview`
 
 Decrypts one or more `.irlog` files and returns:
@@ -247,7 +251,8 @@ Used by the frontend to remove closed tabs and clean up buffered output.
 - `saveExportConnections(payload)` opens the native save dialog in Tauri builds, then calls `write_export_file`.
 - `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the transfer dialog.
 - `checkForUpdates()` calls the Tauri `check_for_updates` command in desktop builds and falls back to a direct GitHub lookup only outside Tauri.
-- `pickSessionLogFiles()` opens the native multi-file picker for `.irlog` files.
+- `listSessionLogs()` loads discovered `.irlog` metadata for the in-window `Logs` workspace.
+- `pickSessionLogFiles()` opens the native multi-file picker for `.irlog` files when a manual file-pick flow is still needed.
 - `pickSessionLogDirectory()` opens the native directory picker for a custom recording directory.
 - `exportSessionLogs()` opens the native save dialog for the exported `.txt` file before calling `export_session_logs`.
 

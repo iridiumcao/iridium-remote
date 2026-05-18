@@ -315,6 +315,11 @@ fn preview_session_logs(
 }
 
 #[tauri::command]
+fn list_session_logs(state: State<'_, Arc<AppState>>) -> AppResult<Vec<models::SessionLogFileInfo>> {
+    state.recording.list_logs()
+}
+
+#[tauri::command]
 fn export_session_logs(
     state: State<'_, Arc<AppState>>,
     paths: Vec<String>,
@@ -647,6 +652,7 @@ pub fn run() {
             import_connections,
             check_for_updates,
             transfer_file,
+            list_session_logs,
             preview_session_logs,
             export_session_logs,
             open_session_logs_directory,

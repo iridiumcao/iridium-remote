@@ -21,6 +21,7 @@ import type {
   FileTransferResult,
   ImportConnectionsResult,
   RemotePathListing,
+  SessionLogFileInfo,
   SessionLogPreview,
   SessionRecordingMode,
   SessionRecordingSettings,
@@ -261,6 +262,22 @@ const fileNameFromPath = (path: string) => {
   const segments = normalized.split('/').filter(Boolean)
   return segments.at(-1) ?? path
 }
+
+const compareSessionLogs = (
+  left: Pick<
+    import('../lib/types').SessionLogFileInfo,
+    'createdAt' | 'host' | 'username' | 'part' | 'fileName'
+  >,
+  right: Pick<
+    import('../lib/types').SessionLogFileInfo,
+    'createdAt' | 'host' | 'username' | 'part' | 'fileName'
+  >,
+) =>
+  right.createdAt.localeCompare(left.createdAt) ||
+  left.host.localeCompare(right.host) ||
+  left.username.localeCompare(right.username) ||
+  left.part - right.part ||
+  left.fileName.localeCompare(right.fileName)
 
 const getExportFileName = (payload: ConnectionsExportPayload) => {
   const timestamp = payload.exportedAt.replace(/[:.]/g, '-')
@@ -1284,6 +1301,24 @@ export const appClient = {
     }
 
     return selection
+  },
+
+  async listSessionLogs() {
+    if (!isTauriRuntime()) {
+      return [...mockStore.sessionLogs]
+        .map((log) => ({
+          fileName: fileNameFromPath(log.path),
+          path: log.path,
+          createdAt: log.createdAt,
+          host: log.host,
+          username: log.username,
+          recordingMode: log.recordingMode,
+          part: log.part,
+        }))
+        .sort(compareSessionLogs)
+    }
+
+    return invoke<SessionLogFileInfo[]>('list_session_logs')
   },
 
   async previewSessionLogs(paths: string[], password: string) {

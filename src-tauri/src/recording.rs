@@ -302,6 +302,31 @@ impl RecordingManager {
         })
     }
 
+    pub fn list_logs(&self) -> AppResult<Vec<SessionLogFileInfo>> {
+        let logs_dir = self.logs_directory();
+        fs::create_dir_all(&logs_dir).map_err(|error| {
+            AppError::internal(
+                "Failed to initialize the session log directory.",
+                error.to_string(),
+            )
+        })?;
+
+        let mut files = existing_log_files(&logs_dir)?
+            .into_iter()
+            .map(|file| inspect_log_file(&file.path))
+            .collect::<AppResult<Vec<_>>>()?;
+        files.sort_by(|left, right| {
+            right
+                .created_at
+                .cmp(&left.created_at)
+                .then_with(|| left.host.cmp(&right.host))
+                .then_with(|| left.username.cmp(&right.username))
+                .then_with(|| left.part.cmp(&right.part))
+                .then_with(|| left.file_name.cmp(&right.file_name))
+        });
+        Ok(files)
+    }
+
     pub fn export_logs(
         &self,
         paths: Vec<String>,
@@ -684,22 +709,7 @@ fn read_log_file(path: &str, password: &str) -> AppResult<DecodedLogFile> {
         AppError::internal("Failed to open the selected session log file.", error.to_string())
     })?;
     let mut reader = BufReader::new(file);
-
-    let mut magic = String::new();
-    reader.read_line(&mut magic).map_err(|error| {
-        AppError::internal("Failed to read the session log header.", error.to_string())
-    })?;
-    if magic.trim_end_matches(['\r', '\n']) != FILE_MAGIC {
-        return Err(AppError::validation("The selected file is not a supported .irlog file."));
-    }
-
-    let mut metadata_line = String::new();
-    reader.read_line(&mut metadata_line).map_err(|error| {
-        AppError::internal("Failed to read the session log metadata.", error.to_string())
-    })?;
-    let metadata: LogMetadata = serde_json::from_str(metadata_line.trim_end()).map_err(|error| {
-        AppError::validation(format!("Failed to parse the session log metadata: {error}"))
-    })?;
+    let metadata = read_log_metadata(&mut reader)?;
 
     let salt = STANDARD
         .decode(metadata.salt.as_bytes())
@@ -762,6 +772,47 @@ fn read_log_file(path: &str, password: &str) -> AppResult<DecodedLogFile> {
             part: metadata.part,
         },
         chunks,
+    })
+}
+
+fn inspect_log_file(path: &Path) -> AppResult<SessionLogFileInfo> {
+    let file = File::open(path).map_err(|error| {
+        AppError::internal("Failed to open the selected session log file.", error.to_string())
+    })?;
+    let mut reader = BufReader::new(file);
+    let metadata = read_log_metadata(&mut reader)?;
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+    Ok(SessionLogFileInfo {
+        file_name,
+        path: path.to_string_lossy().to_string(),
+        created_at: metadata.created_at,
+        host: metadata.host,
+        username: metadata.username,
+        recording_mode: metadata.recording_mode,
+        part: metadata.part,
+    })
+}
+
+fn read_log_metadata(reader: &mut impl BufRead) -> AppResult<LogMetadata> {
+    let mut magic = String::new();
+    reader.read_line(&mut magic).map_err(|error| {
+        AppError::internal("Failed to read the session log header.", error.to_string())
+    })?;
+    if magic.trim_end_matches(['\r', '\n']) != FILE_MAGIC {
+        return Err(AppError::validation("The selected file is not a supported .irlog file."));
+    }
+
+    let mut metadata_line = String::new();
+    reader.read_line(&mut metadata_line).map_err(|error| {
+        AppError::internal("Failed to read the session log metadata.", error.to_string())
+    })?;
+    serde_json::from_str(metadata_line.trim_end()).map_err(|error| {
+        AppError::validation(format!("Failed to parse the session log metadata: {error}"))
     })
 }
 
@@ -1095,6 +1146,41 @@ mod tests {
         assert!(!paused_status.can_record);
         assert!(!paused_status.password_loaded);
         assert!(!paused_status.needs_password_verification);
+
+        let _ = std::fs::remove_dir_all(logs_dir);
+    }
+
+    #[test]
+    fn list_logs_returns_metadata_without_decryption() {
+        let logs_dir = temp_logs_dir();
+        let settings = SessionRecordingSettings {
+            enabled: true,
+            mode: SessionRecordingMode::Full,
+            max_file_size_mb: 100,
+            max_total_storage_gb: 5,
+            retention_days: 30,
+            log_directory: None,
+        };
+        let manager = RecordingManager::new(logs_dir.clone(), settings.clone(), None).expect("manager");
+        manager
+            .update_settings(settings, Some("super-secret".into()), None)
+            .expect("settings update");
+
+        let mut recorder = manager
+            .start_session(&test_connection())
+            .expect("session start")
+            .expect("active recorder");
+        recorder.record_output("hello\r\n").expect("record output");
+        recorder.finish().expect("finish");
+
+        let logs = manager.list_logs().expect("list logs");
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].host, "example.com");
+        assert_eq!(logs[0].username, "root");
+        assert_eq!(logs[0].recording_mode, SessionRecordingMode::Full);
+        assert_eq!(logs[0].part, 1);
+        assert!(logs[0].file_name.ends_with(".irlog"));
 
         let _ = std::fs::remove_dir_all(logs_dir);
     }

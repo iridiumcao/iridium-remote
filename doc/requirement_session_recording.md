@@ -460,11 +460,13 @@ Metadata MUST NOT contain:
 
 # 12. Session Log Viewer
 
-## Menu Structure
+## Workspace Structure
 
 ```text id="4i08z5"
-File
-  └── Session Logs
+Sidebar Tabs
+  ├── Connections
+  ├── History
+  └── Logs
 ```
 
 ---
@@ -473,10 +475,12 @@ File
 
 Users can:
 
-* Select one or multiple `.irlog` files
+* Open the `Logs` workspace
+* Browse discovered log sources and one or multiple `.irlog` files
 * Enter encryption password
 * Decrypt logs
 * Export logs
+* Leave and return while keeping the selected source/files but clearing the entered password and decrypted preview
 
 ---
 

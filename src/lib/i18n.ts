@@ -154,6 +154,10 @@ type Dictionary = {
   sessionRecordingModeDetailed: string
   recordingIndicator: string
   inputRecordingIndicator: string
+  workspaceTabsLabel: string
+  workspaceConnectionsTab: string
+  workspaceHistoryTab: string
+  workspaceLogsTab: string
   sessionLogViewerTitle: string
   sessionLogViewerDescription: string
   selectSessionLogs: string
@@ -162,6 +166,14 @@ type Dictionary = {
   exportSessionLogs: string
   sessionLogsPreview: string
   sessionLogsPreviewTruncated: string
+  sessionLogsSources: string
+  sessionLogsFiles: string
+  sessionLogsRefresh: string
+  sessionLogsClearSelection: string
+  sessionLogsSelectVisible: string
+  sessionLogsNoDiscoveredLogs: string
+  sessionLogsNoDiscoveredLogsDescription: string
+  sessionLogsNoSourceFiles: string
   noSessionLogsSelected: string
   sessionLogsExported: string
   connectionHistoryTitle: string
@@ -396,6 +408,10 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingModeDetailed: 'Detailed',
     recordingIndicator: '● Recording',
     inputRecordingIndicator: '● Input Recording',
+    workspaceTabsLabel: 'Workspace tabs',
+    workspaceConnectionsTab: '连接',
+    workspaceHistoryTab: '历史',
+    workspaceLogsTab: '日志',
     sessionLogViewerTitle: 'Session Logs',
     sessionLogViewerDescription:
       'Open one or more encrypted .irlog files, preview their contents, and export them as plain text.',
@@ -405,6 +421,15 @@ const dictionaries: Record<Locale, Dictionary> = {
     exportSessionLogs: 'Export as .txt',
     sessionLogsPreview: 'Preview',
     sessionLogsPreviewTruncated: 'Preview truncated. Export the logs to save the full text.',
+    sessionLogsSources: 'Sources',
+    sessionLogsFiles: 'Log files',
+    sessionLogsRefresh: 'Refresh',
+    sessionLogsClearSelection: 'Clear selection',
+    sessionLogsSelectVisible: 'Select visible',
+    sessionLogsNoDiscoveredLogs: 'No session logs have been discovered yet.',
+    sessionLogsNoDiscoveredLogsDescription:
+      'Recorded .irlog files in the configured log directory will appear here automatically.',
+    sessionLogsNoSourceFiles: 'No log files are available for the selected source.',
     noSessionLogsSelected: 'No session log files selected yet.',
     sessionLogsExported: 'Exported the decrypted session logs.',
     connectionHistoryTitle: 'Connection History & Statistics',
@@ -636,6 +661,10 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingModeDetailed: '详细',
     recordingIndicator: '● 正在录制',
     inputRecordingIndicator: '● 输入录制',
+    workspaceTabsLabel: '工作区标签页',
+    workspaceConnectionsTab: '連線',
+    workspaceHistoryTab: '歷史',
+    workspaceLogsTab: '日誌',
     sessionLogViewerTitle: '会话日志',
     sessionLogViewerDescription: '打开一个或多个加密的 .irlog 文件，预览内容并导出为纯文本。',
     selectSessionLogs: '选择会话日志',
@@ -644,6 +673,14 @@ const dictionaries: Record<Locale, Dictionary> = {
     exportSessionLogs: '导出为 .txt',
     sessionLogsPreview: '预览',
     sessionLogsPreviewTruncated: '预览内容已截断，请导出日志以保存完整文本。',
+    sessionLogsSources: '日志来源',
+    sessionLogsFiles: '日志文件',
+    sessionLogsRefresh: '刷新',
+    sessionLogsClearSelection: '清空选择',
+    sessionLogsSelectVisible: '全选当前列表',
+    sessionLogsNoDiscoveredLogs: '还没有发现会话日志。',
+    sessionLogsNoDiscoveredLogsDescription: '配置目录中的 .irlog 文件会自动显示在这里。',
+    sessionLogsNoSourceFiles: '当前来源下没有可用的日志文件。',
     noSessionLogsSelected: '尚未选择会话日志文件。',
     sessionLogsExported: '已导出解密后的会话日志。',
     connectionHistoryTitle: '连接历史与统计',
@@ -873,6 +910,10 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingModeDetailed: '詳細',
     recordingIndicator: '● 正在錄製',
     inputRecordingIndicator: '● 輸入錄製',
+    workspaceTabsLabel: '工作區標籤頁',
+    workspaceConnectionsTab: 'Connections',
+    workspaceHistoryTab: 'History',
+    workspaceLogsTab: 'Logs',
     sessionLogViewerTitle: '會話日誌',
     sessionLogViewerDescription: '開啟一個或多個加密的 .irlog 檔案，預覽內容並匯出為純文字。',
     selectSessionLogs: '選擇會話日誌',
@@ -881,6 +922,14 @@ const dictionaries: Record<Locale, Dictionary> = {
     exportSessionLogs: '匯出為 .txt',
     sessionLogsPreview: '預覽',
     sessionLogsPreviewTruncated: '預覽內容已截斷，請匯出日誌以儲存完整文字。',
+    sessionLogsSources: '日誌來源',
+    sessionLogsFiles: '日誌檔案',
+    sessionLogsRefresh: '重新整理',
+    sessionLogsClearSelection: '清除選取',
+    sessionLogsSelectVisible: '全選目前清單',
+    sessionLogsNoDiscoveredLogs: '還沒有發現會話日誌。',
+    sessionLogsNoDiscoveredLogsDescription: '設定目錄中的 .irlog 檔案會自動顯示在這裡。',
+    sessionLogsNoSourceFiles: '目前來源下沒有可用的日誌檔案。',
     noSessionLogsSelected: '尚未選取任何會話日誌檔案。',
     sessionLogsExported: '已匯出解密後的會話日誌。',
     connectionHistoryTitle: '連線歷史與統計',

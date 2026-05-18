@@ -25,28 +25,25 @@ This feature is local-only and does not sync across devices.
 
 ---
 
-## 2. Naming and Menu Placement
+## 2. Naming and Workspace Placement
 
 ### 2.1 User-facing names
 
-- Feature name: `Connection History`
-- Dialog title: `Connection History & Statistics`
+- Sidebar tab name: `History`
+- Workspace subject: `Connection History & Statistics`
 
-### 2.2 File menu placement
+### 2.2 Sidebar workspace placement
 
-The File menu should contain:
+The main left panel should contain workspace tabs:
 
 ```text
-File
-  ├── New Connection
-  ├── Import
-  ├── Export
-  ├── Connection History
-  ├── Session Logs
-  └── Exit
+Sidebar Tabs
+  ├── Connections
+  ├── History
+  └── Logs
 ```
 
-`Connection History` must appear **after `Export`** and **before `Session Logs`**.
+`History` should open an in-window workspace rather than a modal dialog.
 
 ---
 
@@ -69,13 +66,13 @@ V1 should favor clear, trustworthy data over overly complex analytics, but it ma
 
 ### 4.1 Entry point
 
-Users open the feature from `File -> Connection History`.
+Users open the feature from the left-panel `History` tab.
 
-The dialog should open as a desktop-style modal, similar to other top-level utility dialogs in the app.
+The workspace should reuse the main application shell instead of opening a desktop-style modal.
 
 ### 4.2 Dialog structure
 
-The `Connection History & Statistics` dialog should be split into two main areas:
+The `History` workspace should be split into two main areas:
 
 1. **Host list / selector**
 2. **Selected host details**
@@ -624,8 +621,8 @@ The feature should follow these principles:
 
 V1 `Connection History` should provide:
 
-- a File-menu entry named `Connection History`
-- a dialog titled `Connection History & Statistics`
+- a sidebar workspace tab named `History`
+- an in-window history workspace instead of a modal dialog
 - per-host historical session rows with start, end, duration, and close status
 - per-host total connection count and total duration
 - pie charts for cross-host duration share, cross-host count share, and selected-host duration-bucket distribution
@@ -636,3 +633,4 @@ V1 `Connection History` should provide:
 - abnormal-shutdown recovery using a running row plus `last_activity_at`
 - bounded storage through recent detail retention plus long-term rollups
 - retained history even after the original saved connection is deleted
+- preserved selected host/filter state when switching away and back

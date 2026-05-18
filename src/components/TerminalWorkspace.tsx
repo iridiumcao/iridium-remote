@@ -11,6 +11,7 @@ type TerminalWorkspaceProps = {
   activeSession: SessionState | null
   activeConnection: ConnectionRecord | null
   sessions: SessionState[]
+  isVisible?: boolean
   selectedConnection: ConnectionRecord | null
   onCloseSession: (sessionId: string) => void
   onConnect?: () => void
@@ -147,6 +148,7 @@ const mergeTerminalSnapshot = (current: string, snapshot: string) => {
 export const TerminalWorkspace = ({
   activeConnection,
   activeSession,
+  isVisible = true,
   onCloseSession,
   onConnect,
   onDisconnect,
@@ -335,7 +337,7 @@ export const TerminalWorkspace = ({
     const terminal = terminalInstance.current
     const fitAddon = fitAddonRef.current
 
-    if (!terminal || !fitAddon) {
+    if (!terminal || !fitAddon || !isVisible) {
       return
     }
 
@@ -356,7 +358,7 @@ export const TerminalWorkspace = ({
       terminal.focus()
       void appClient.resizeSession(activeSession.sessionId, terminal.cols, terminal.rows)
     }
-  }, [activeSession])
+  }, [activeSession, isVisible])
 
   const headerConnection = activeConnection ?? selectedConnection
   const headerTitle = headerConnection

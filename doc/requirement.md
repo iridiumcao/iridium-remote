@@ -16,8 +16,8 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 2. Open one or more SSH sessions from saved connections and switch between them using tabs.
 3. Interact with remote hosts directly inside the terminal, including password prompts and `sudo` prompts.
 4. Upload and download files with SFTP from the active session context.
-5. Configure optional encrypted session recording and review exported session logs.
-6. Review per-host connection history and aggregated connection statistics.
+5. Configure optional encrypted session recording and review encrypted/exported session logs from the Logs workspace.
+6. Review per-host connection history and aggregated connection statistics from the History workspace.
 7. Adjust preferences such as theme, language, and connection list display mode and keep them across restarts.
 
 ## Functional requirements
@@ -92,12 +92,13 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - The log directory must be configurable from the Session Recording dialog.
 - Recorded log files must rotate when they reach the configured max file size.
 - Old log files must be deleted automatically when they exceed the configured retention period or total storage cap.
-- Users can open one or more encrypted `.irlog` files, decrypt them with the recording password, preview them, and export them as `.txt`.
+- Users can browse recorded `.irlog` files in the `Logs` workspace, decrypt one or more files with the recording password, preview them, and export them as `.txt`.
 
 ### Connection history
 
-- The app should provide a `Connection History` entry in the File menu.
-- The connection-history dialog title should be `Connection History & Statistics`.
+- The left panel should provide a `History` workspace tab beside `Connections` and `Logs`.
+- Entering the `History` workspace should show host filters and host selection on the left plus statistics/details on the right.
+- Switching away from `History` and back should keep the previously selected host and filters visible.
 - The feature should show per-host historical sessions including start time, end time, duration, and close status.
 - The feature should show per-host aggregate totals including connection count and total connected duration.
 - The feature should include simple pie charts for cross-host duration share, cross-host connection count share, and selected-host duration distribution by duration bucket.
@@ -136,12 +137,33 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
   - `New Connection`
   - `Import`
   - `Export`
-  - `Connection History`
-  - `Session Logs`
   - `Exit`
-- `Connection History` appears after `Export` and before `Session Logs`.
+- `Connection History` and `Session Logs` must not appear in the File menu.
 - The app should suppress the default browser-like context menu across the main window.
 - Right-clicking inside the terminal workspace should open a localized, theme-aware terminal menu instead of the browser menu.
+
+#### Sidebar workspace tabs
+
+- The main left panel must expose three top-level workspace tabs:
+  - `Connections`
+  - `History`
+  - `Logs`
+- `Connections` is the default workspace on startup.
+- Switching to `History` or `Logs` must not stop existing SSH sessions.
+- Switching away from `History` and back should preserve the last selected object and filters.
+- Switching away from `Logs` and back should preserve the selected source/file list, but clear the entered decryption password and decrypted preview text.
+
+```mermaid
+flowchart LR
+    A[Connections tab] --> B[Terminal workspace]
+    C[History tab] --> D[History sidebar selectors]
+    D --> E[History details and charts]
+    F[Logs tab] --> G[Log source and file list]
+    G --> H[Decrypt preview and export pane]
+    C -. remembers selection .-> D
+    F -. remembers selected files .-> G
+    F -. clears password and preview on leave .-> H
+```
 
 #### Settings menu
 

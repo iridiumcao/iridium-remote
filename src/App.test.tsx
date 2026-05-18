@@ -21,6 +21,7 @@ const appClientMocks = vi.hoisted(() => ({
   pauseSessionRecordingForRunMock: vi.fn(),
   getConnectionHistoryOverviewMock: vi.fn(),
   getConnectionHistoryHostDetailsMock: vi.fn(),
+  listSessionLogsMock: vi.fn(),
   onSessionStateMock: vi.fn(),
   onSessionRemovedMock: vi.fn(),
 }))
@@ -79,6 +80,7 @@ vi.mock('./api/client', () => ({
     importConnections: vi.fn(),
     checkForUpdates: vi.fn(),
     updateSessionRecordingSettings: vi.fn(),
+    listSessionLogs: appClientMocks.listSessionLogsMock,
     pickSessionLogFiles: vi.fn(),
     previewSessionLogs: vi.fn(),
     exportSessionLogs: vi.fn(),
@@ -272,6 +274,7 @@ describe('App', () => {
     })
     appClientMocks.onSessionStateMock.mockResolvedValue(() => {})
     appClientMocks.onSessionRemovedMock.mockResolvedValue(() => {})
+    appClientMocks.listSessionLogsMock.mockResolvedValue([])
     vi.mocked(appClient.updateAppSettings).mockImplementation(async (settings) => settings)
   })
 
@@ -598,7 +601,7 @@ describe('App', () => {
     ).toBe(true)
   })
 
-  it('places Connection History in the File menu after Export and opens the dialog', async () => {
+  it('keeps File menu focused on connection import/export actions', async () => {
     vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
 
     render(<App />)
@@ -612,25 +615,11 @@ describe('App', () => {
       'new-connection',
       'import-connections',
       'export-connections',
-      'connection-history',
-      'session-logs',
       'exit',
     ])
-
-    const openConnectionHistory = findMenuAction(tauriMenuMocks.lastMenuItems, 'connection-history')
-    expect(openConnectionHistory).not.toBeNull()
-
-    await act(async () => {
-      openConnectionHistory?.()
-      await Promise.resolve()
-    })
-
-    expect(screen.getByRole('heading', { name: 'Connection History & Statistics' })).toBeInTheDocument()
-    expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('last_30_days')
   })
 
-  it('keeps all-time history hosts visible when the selected range has no sessions', async () => {
-    vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
+  it('keeps the selected history host visible when switching away and back', async () => {
     const allTimeHost: ConnectionHistoryHostSummary = {
       historyKey: 'history-1',
       connectionId: 'connection-1',
@@ -643,18 +632,41 @@ describe('App', () => {
       totalConnectionCount: 2,
       totalDurationSeconds: 120,
     }
+    const secondHost: ConnectionHistoryHostSummary = {
+      historyKey: 'history-2',
+      connectionId: 'connection-2',
+      connectionName: 'Beta',
+      host: '10.0.0.2',
+      port: 22,
+      username: 'deploy',
+      deleted: false,
+      latestConnectionAt: '2026-01-02T00:00:00Z',
+      totalConnectionCount: 3,
+      totalDurationSeconds: 180,
+    }
 
     appClientMocks.getConnectionHistoryOverviewMock.mockImplementation(
       async (range: ConnectionHistoryDateRange) => ({
-        hosts: range === 'all_time' ? [allTimeHost] : [],
+        hosts: range === 'all_time' ? [allTimeHost, secondHost] : [allTimeHost, secondHost],
         dailyUsage:
           range === 'all_time'
             ? [
                 {
-                  date: '2026-01-01',
-                  totalConnectionCount: 2,
-                  totalDurationSeconds: 120,
+                  date: '2026-01-02',
+                  totalConnectionCount: 5,
+                  totalDurationSeconds: 300,
                   hosts: [
+                    {
+                      historyKey: 'history-2',
+                      connectionId: 'connection-2',
+                      connectionName: 'Beta',
+                      host: '10.0.0.2',
+                      port: 22,
+                      username: 'deploy',
+                      deleted: false,
+                      connectionCount: 3,
+                      totalDurationSeconds: 180,
+                    },
                     {
                       historyKey: 'history-1',
                       connectionId: 'connection-1',
@@ -673,15 +685,17 @@ describe('App', () => {
       }),
     )
     appClientMocks.getConnectionHistoryHostDetailsMock.mockImplementation(
-      async (_historyKey: string, range: ConnectionHistoryDateRange) => ({
+      async (historyKey: string, range: ConnectionHistoryDateRange) => ({
         host:
           range === 'all_time'
-            ? allTimeHost
+            ? historyKey === 'history-2'
+              ? secondHost
+              : allTimeHost
             : {
-                ...allTimeHost,
-                latestConnectionAt: null,
-                totalConnectionCount: 0,
-                totalDurationSeconds: 0,
+                ...(historyKey === 'history-2' ? secondHost : allTimeHost),
+                latestConnectionAt: historyKey === 'history-2' ? secondHost.latestConnectionAt : null,
+                totalConnectionCount: historyKey === 'history-2' ? secondHost.totalConnectionCount : 0,
+                totalDurationSeconds: historyKey === 'history-2' ? secondHost.totalDurationSeconds : 0,
               },
         sessions: [],
         durationBuckets: [
@@ -694,29 +708,88 @@ describe('App', () => {
         summarizedDurationSeconds: 0,
       }),
     )
+    const user = userEvent.setup()
 
     render(<App />)
 
     await waitFor(() => {
-      expect(tauriMenuMocks.menuSetAsAppMenuMock).toHaveBeenCalled()
+      expect(screen.getAllByRole('tab')).toHaveLength(3)
     })
 
-    const openConnectionHistory = findMenuAction(tauriMenuMocks.lastMenuItems, 'connection-history')
-    await act(async () => {
-      openConnectionHistory?.()
-      await Promise.resolve()
-    })
+    const [, historyTab] = screen.getAllByRole('tab')
+
+    await user.click(historyTab)
 
     await waitFor(() => {
-      expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('all_time')
-      expect(appClient.getConnectionHistoryHostDetails).toHaveBeenCalledWith('history-1', 'last_30_days')
+      expect(appClient.getConnectionHistoryOverview).toHaveBeenCalledWith('last_30_days')
     })
 
-    expect(screen.getByRole('heading', { name: 'Connection History & Statistics' })).toBeInTheDocument()
-    expect(screen.getAllByText('root@192.168.1.10').length).toBeGreaterThan(0)
-    expect(screen.getByText('Total connections')).toBeInTheDocument()
-    expect(appClient.getConnectionHistoryHostDetails).not.toHaveBeenCalledWith('history-1', 'all_time')
-    expect(screen.getByText('No detailed sessions match the current filter.')).toBeInTheDocument()
-    expect(screen.queryByText('No connection history yet.')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Beta/ }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('deploy@10.0.0.2').length).toBeGreaterThan(0)
+    })
+
+    await user.click(screen.getAllByRole('tab')[0]!)
+    await user.click(screen.getAllByRole('tab')[1]!)
+
+    expect(screen.getAllByText('deploy@10.0.0.2').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument()
+  })
+
+  it('clears decrypted log state but preserves the selected log when switching tabs', async () => {
+    appClientMocks.listSessionLogsMock.mockResolvedValue([
+      {
+        fileName: '2026-01-01_root_example.com.irlog',
+        path: 'C:\\mock\\SessionLogs\\2026-01-01_root_example.com.irlog',
+        createdAt: '2026-01-01T00:00:00Z',
+        host: 'example.com',
+        username: 'root',
+        recordingMode: 'full',
+        part: 1,
+      },
+    ])
+    vi.mocked(appClient.previewSessionLogs).mockResolvedValue({
+      files: [
+        {
+          fileName: '2026-01-01_root_example.com.irlog',
+          path: 'C:\\mock\\SessionLogs\\2026-01-01_root_example.com.irlog',
+          createdAt: '2026-01-01T00:00:00Z',
+          host: 'example.com',
+          username: 'root',
+          recordingMode: 'full',
+          part: 1,
+        },
+      ],
+      previewText: 'example output',
+      truncated: false,
+    })
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab')).toHaveLength(3)
+    })
+
+    await user.click(screen.getAllByRole('tab')[2]!)
+
+    await waitFor(() => {
+      expect(appClientMocks.listSessionLogsMock).toHaveBeenCalled()
+    })
+
+    await user.type(screen.getByLabelText('Encryption password'), 'super-secret')
+    await user.click(screen.getByRole('button', { name: 'Decrypt Preview' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox')).toHaveValue('example output')
+    })
+
+    await user.click(screen.getAllByRole('tab')[0]!)
+    await user.click(screen.getAllByRole('tab')[2]!)
+
+    expect(screen.getByRole('textbox')).toHaveValue('')
+    expect(screen.getByLabelText('Encryption password')).toHaveValue('')
+    expect(screen.getAllByText('2026-01-01_root_example.com.irlog').length).toBeGreaterThan(0)
   })
 })

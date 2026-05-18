@@ -4,10 +4,20 @@
 
 The main window uses a two-column layout:
 
-- **Left sidebar:** product branding, browser-only settings controls, connection search, display controls, grouped connection list
-- **Right workspace:** terminal tabs, terminal surface, session actions
+- **Left sidebar:** product branding, workspace tabs, browser-only settings controls when needed, and the active workspace's navigator
+- **Right workspace:** the active workspace surface (`Connections`, `History`, or `Logs`)
 
 The window itself should not scroll. The sidebar scrolls independently, uses scrollbar styling that matches the active light or dark theme, and terminal scroll stays inside the xterm viewport.
+
+```mermaid
+flowchart LR
+    A[Left sidebar] --> B[Connections]
+    A --> C[History]
+    A --> D[Logs]
+    B --> E[Terminal tabs and terminal surface]
+    C --> F[Host list, filters, charts, session details]
+    D --> G[Log source list, file list, decrypt/preview/export]
+```
 
 ## Sidebar top area
 
@@ -25,8 +35,6 @@ In desktop builds, Language and Theme are not shown here because they live in th
 - New Connection
 - Import
 - Export
-- Connection History
-- Session Logs
 - Exit
 
 ### Help
@@ -55,19 +63,18 @@ The sidebar contains these layers in order:
 
 1. **Branding block**
    - app tagline and app title
-2. **Browser-only settings controls**
+2. **Workspace tabs**
+   - `Connections`
+   - `History`
+   - `Logs`
+3. **Browser-only settings controls**
    - shown only outside the desktop runtime
    - language selector
    - theme selector
-3. **Search field**
-   - filters in real time by connection name, host, and username
-4. **Display mode control**
-   - normal mode
-   - compact mode
-5. **Grouped connection list**
-   - collapsible group headers
-   - ungrouped connections appear in an `Ungrouped` section
-   - groups that differ only by letter case are merged together
+4. **Workspace-specific sidebar content**
+   - `Connections`: search field, display mode control, grouped connection list
+   - `History`: date-range filters, host search, host list
+   - `Logs`: log-source list and per-source file list
 
 ### Normal mode
 
@@ -110,7 +117,7 @@ Search results should temporarily reveal matching groups even if those groups we
 
 ## Terminal workspace
 
-The right side contains:
+The right side of the `Connections` workspace contains:
 
 - terminal tab strip for active sessions
 - workspace header showing only the active SSH target in `username@host[:port]` format
@@ -121,6 +128,26 @@ The right side contains:
 - empty state when no session is active
 
 Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session. When the remote shell is ready, the tab status changes to `Connected` and the connecting overlay disappears even for common themed prompt styles.
+
+Switching away from `Connections` must keep existing SSH sessions alive. Returning to `Connections` should restore the same terminal tabs and active session state.
+
+## History workspace
+
+The `History` workspace uses the shared left/right shell:
+
+- **Left sidebar:** date-range quick filters, host search, host list, deleted-connection markers
+- **Right panel:** selected-host summary cards, pie charts, daily usage view, and recent session detail table
+
+Switching away from `History` and back should keep the previously selected host and active filters visible.
+
+## Logs workspace
+
+The `Logs` workspace uses the shared left/right shell:
+
+- **Left sidebar:** recording-directory actions, discovered source list, discovered `.irlog` file list
+- **Right panel:** selected file summary, decryption password field, preview area, export action
+
+Switching away from `Logs` and back should keep the selected source and files, but must clear the decryption password and decrypted preview content.
 
 ## Dialogs
 
@@ -173,33 +200,7 @@ Shows:
 When recording is disabled, all dependent controls below the enable toggle are disabled and visually dimmed.
 The log-directory input and its browse/open actions should stay aligned on the same row in normal desktop widths.
 
-### Session logs dialog
-
-Shows:
-
-- file picker for one or more `.irlog` files
-- password field for decryption
-- preview area for decrypted text
-- export action for `.txt`
-- open-folder action for the recording directory
-
 The preview area's scrollbar should follow the active light or dark theme, just like the sidebar and terminal tab strip.
-
-### Connection history dialog
-
-Shows:
-
-- date-range quick filters for 7 / 30 / 90 days and all time
-- host search field and host list
-- deleted-connection marker when the saved connection no longer matches the historical snapshot
-- per-host summary cards for connection count, total duration, and latest connection time
-- cross-host pie charts for duration share and connection-count share
-- per-host pie chart for duration-bucket distribution
-- recent per-session detail table with start time, end time, duration, close status, estimated markers, and in-progress rows for still-running sessions
-
-The host list scroll region and the session-detail scroll region should keep the active light or dark theme scrollbar styling.
-When all-time totals include older rolled-up history, the dialog should show a short note that older sessions are summarized in totals and charts.
-Switching the date-range tabs should clear stale selection/error state before the new range loads, so a previous host selection does not produce a false empty-state or stale error message.
 
 ## Visual behavior
 

@@ -4,7 +4,7 @@
 
 Iridium Remote is a split frontend/backend desktop application:
 
-- **React frontend** renders the connection manager, dialogs, menus, and terminal host surface.
+- **React frontend** renders the connection manager, sidebar workspaces, dialogs, menus, and terminal host surface.
 - **Tauri backend** exposes commands, manages persistence, launches SSH sessions, opens SFTP clients, and emits session events.
 - **SQLite** stores connection metadata and app settings.
 - **System keyring** stores passwords.
@@ -19,7 +19,7 @@ Iridium Remote is a split frontend/backend desktop application:
 
 - loading connections and app settings
 - loading session-recording runtime status
-- opening the connection-history dialog and delegating history queries through the bridge
+- tracking the active top-level workspace and delegating history/log workspace queries through the bridge
 - menu registration
 - dialog visibility
 - active session selection
@@ -27,13 +27,14 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform. Group names are normalized case-insensitively into a shared Title Case form before they are stored or grouped in the UI.
-In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, plus File-menu entries for Connection History and Session Logs. The shell no longer renders a separate top panel; instead it passes the app branding block into the left sidebar. Browser-only mock mode keeps inline Language and Theme controls in that sidebar area because it does not have the native desktop application menu available.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, while the File menu is limited to connection import/export actions plus exit. The shell uses a shared left sidebar with `Connections`, `History`, and `Logs` workspace tabs. Browser-only mock mode keeps inline Language and Theme controls in the active sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
 
 `src\components\ConnectionList.tsx` renders:
 
 - the product branding block at the top of the sidebar
+- the shared workspace-tab strip supplied by the parent
 - browser-only fallback settings controls supplied by the parent
 - search query state from the parent
 - display mode switch
@@ -60,6 +61,7 @@ The horizontally scrolling tab strip also uses theme-aware scrollbar styling so 
 Per-session terminal history is buffered on the frontend for fast tab restoration, but replay-only buffers strip terminal status-query escape sequences so activating a tab does not send synthetic input back to the SSH session. Tab activation also updates the selected connection in the sidebar so the left panel stays synchronized with the active workspace session.
 The workspace header itself is intentionally minimal: it shows only the active SSH target in `username@host[:port]` format and does not repeat the saved connection name or render a separate status pill. When the active session is being recorded, the same header shows a compact recording badge so users always know when capture is active.
 The session-log preview textarea reuses the same theme-aware scrollbar classes as the sidebar and tab strip, and the session-recording dialog keeps the log-directory path plus browse/open actions on a single aligned input row at normal desktop widths.
+`src\components\ConnectionHistoryWorkspace.tsx` and `src\components\SessionLogsWorkspace.tsx` reuse the same shell split but switch the right panel from terminal content to history statistics or log preview tools. Their React state remains alive across tab switches so selection/filter context is preserved, while the Logs workspace clears runtime decryption secrets when it becomes inactive.
 
 ### Frontend bridge
 
@@ -69,7 +71,7 @@ The session-log preview textarea reuses the same theme-aware scrollbar classes a
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence, session-history recording, and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
-In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/connection-history/session-log/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes connection-history overview/detail queries, session-recording status, settings updates with runtime-only passwords plus persisted password-verifier state, first-connect password verification, pause-for-run control, multi-file `.irlog` selection, decrypt previews, export, log-directory picking, and log-directory opening.
+In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes connection-history overview/detail queries, session-log discovery, session-recording status, settings updates with runtime-only passwords plus persisted password-verifier state, first-connect password verification, pause-for-run control, decrypt previews, export, log-directory picking, and log-directory opening.
 
 ## Backend architecture
 
@@ -79,7 +81,7 @@ In packaged Tauri builds, the app menu exposes File, Settings, and Help sections
 
 - connection CRUD
 - session lifecycle and terminal I/O
-- session recording status, verification/pause controls, settings, decrypt preview, export, and directory opening
+- session recording status, verification/pause controls, settings, session-log discovery, decrypt preview, export, and directory opening
 - file transfer
 - app settings load/update
 - connection export/import
