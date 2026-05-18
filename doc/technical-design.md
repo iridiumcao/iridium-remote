@@ -69,7 +69,7 @@ The session-log preview textarea reuses the same theme-aware scrollbar classes a
 - browser mode uses a mock implementation for UI-only development
 
 The mock now mirrors settings persistence, session-history recording, and import/export behavior closely enough for non-Tauri development. In packaged Tauri builds, the manual update check runs through the Rust backend instead of a frontend-only fetch so GitHub requests are not blocked by browser-style constraints. The backend first tries the latest-release API with an explicit user agent and then falls back to the public `releases/latest` redirect page before returning the release download URL when a newer version is available. The frontend renders the resulting status in an in-app banner that auto-dismisses after about 5 seconds with a short exit transition.
-In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/connection-history/session-log/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes connection-history overview/detail queries, session-recording status, settings updates with runtime-only passwords, multi-file `.irlog` selection, decrypt previews, export, log-directory picking, and log-directory opening.
+In packaged Tauri builds, the app menu exposes File, Settings, and Help sections. File owns new/import/export/connection-history/session-log/exit actions, while Settings owns Language, Theme, and a last-position Session Recording action. The bridge also exposes connection-history overview/detail queries, session-recording status, settings updates with runtime-only passwords plus persisted password-verifier state, first-connect password verification, pause-for-run control, multi-file `.irlog` selection, decrypt previews, export, log-directory picking, and log-directory opening.
 
 ## Backend architecture
 
@@ -79,7 +79,7 @@ In packaged Tauri builds, the app menu exposes File, Settings, and Help sections
 
 - connection CRUD
 - session lifecycle and terminal I/O
-- session recording status, settings, decrypt preview, export, and directory opening
+- session recording status, verification/pause controls, settings, decrypt preview, export, and directory opening
 - file transfer
 - app settings load/update
 - connection export/import
@@ -96,7 +96,7 @@ The desktop runtime also registers a single-instance guard so a second launch fo
 3. `connection_history_sessions`
 4. `connection_history_rollups`
 
-Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend. Session-recording preferences, including the optional custom log-directory path, live inside that payload, but the recording password remains runtime-only and is never persisted.
+Connection rows are stored directly in SQLite. App settings are stored as a serialized `AppSettings` JSON payload under the `app` key and materialized into a typed `AppSettings` value for the frontend. Session-recording preferences, including the optional custom log-directory path, live inside that payload. The recording password itself remains runtime-only and is never persisted, but the backend now stores a separate Argon2 password-verifier string under `session_recording_password_verifier` so a restarted app can ask the user to verify the existing password before recording resumes.
 Connection history uses a detail-plus-rollup model: the backend inserts a running detail row as soon as SSH launch succeeds, throttles `last_activity_at` while the session is active, recovers unfinished rows as abnormal estimated sessions on startup, and rolls detail rows older than 365 days into monthly host rollups that preserve total counts, total duration, latest activity, and duration-bucket counts for all-time charts. Range-filtered history queries now include still-running detail rows by computing their current duration from `started_at` to `now`, while all-time rollups remain limited to finalized rows.
 
 ### Session manager
@@ -125,6 +125,7 @@ The backend also watches the SSH child-process lifecycle directly instead of rel
 Responsibilities:
 
 - keep the recording password in runtime memory only
+- keep a persisted password verifier that can validate the existing password after restart without storing the password itself
 - create the session-log directory and report current storage usage
 - derive AES-256-GCM keys from the user password through Argon2
 - compress visible session text with zstd before encryption
@@ -132,6 +133,25 @@ Responsibilities:
 - rotate files at the configured size
 - delete old files when retention or total-storage limits are exceeded
 - decrypt selected `.irlog` files for preview and `.txt` export
+
+The frontend gates the first post-restart connection when recording is enabled but no runtime password is loaded.
+
+```mermaid
+flowchart TD
+    A[User clicks Connect] --> B{Recording enabled and needs verification?}
+    B -- No --> C[Call connect_session]
+    B -- Yes --> D[Open verification dialog]
+    D --> E{User action}
+    E -- Verify password --> F[verify_session_recording_password]
+    F --> G[Update recording status and show mode notice]
+    G --> C
+    E -- Pause for this run --> H[pause_session_recording_for_run]
+    H --> I[Update status and continue without recording]
+    I --> C
+    E -- Reset password --> J[update_session_recording_settings with new password]
+    J --> K[Persist new verifier and load new runtime password]
+    K --> C
+```
 
 ### Credentials
 

@@ -30,9 +30,9 @@ Iridium Remote is designed for a practical desktop workflow:
 | **File transfer** | Upload/download files and directories, local file/folder pickers, remote SFTP path browser |
 | **Connection history** | File-menu history dialog, per-host session timeline, abnormal-shutdown recovery, all-time totals, and pie-chart summaries |
 | **Preferences** | Light/dark theme, English / Simplified Chinese / Traditional Chinese, persisted sidebar state and display mode |
-| **Session recording** | Optional input-only or full-session recording, AES-256-GCM encrypted `.irlog` files, rotation/retention controls, and `.txt` export |
+| **Session recording** | Optional input-only or full-session recording, AES-256-GCM encrypted `.irlog` files, restart-time password verification, pause-for-run support, rotation/retention controls, and `.txt` export |
 | **Reliability** | Clear session status updates, immediate connection failure feedback, disconnect detection when the SSH process exits, session cleanup on close, single-instance desktop behavior |
-| **Data safety** | Passwords are never stored in SQLite, recording passwords stay runtime-only, and exported backups never contain secrets |
+| **Data safety** | Passwords are never stored in SQLite, recording passwords stay runtime-only, only a non-decrypting verifier is persisted for restart-time checks, and exported backups never contain secrets |
 
 ## Detailed Features
 
@@ -65,8 +65,9 @@ Iridium Remote is designed for a practical desktop workflow:
 
 - Optional `Input Only` and `Full Session Recording` modes
 - AES-256-GCM encrypted `.irlog` files with Argon2-derived keys
-- Runtime-only recording passwords that must be re-entered after app restart
+- Runtime-only recording passwords that must be verified on the first post-restart connection before recording resumes
 - Masked password placeholder when a runtime recording password is already loaded
+- Wrong-password retry, password reset with an older-log warning, and pause-recording-for-this-run actions
 - Chunked compressed writes with automatic file rotation
 - Automatic retention and total-storage cleanup
 - Configurable log directory from the Session Recording dialog

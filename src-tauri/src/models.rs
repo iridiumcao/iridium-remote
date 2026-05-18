@@ -230,8 +230,11 @@ pub struct UpdateCheckResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionRecordingStatus {
     pub configured_enabled: bool,
+    pub password_configured: bool,
     pub password_loaded: bool,
     pub can_record: bool,
+    pub paused_for_run: bool,
+    pub needs_password_verification: bool,
     pub log_directory: String,
     pub current_storage_bytes: u64,
 }

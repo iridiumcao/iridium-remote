@@ -10,7 +10,10 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use argon2::Argon2;
+use argon2::{
+    password_hash::{rand_core::OsRng as PasswordOsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use rand::RngCore;
@@ -39,6 +42,8 @@ struct RecordingManagerState {
     logs_dir: PathBuf,
     settings: SessionRecordingSettings,
     password: Option<String>,
+    password_verifier: Option<String>,
+    paused_for_run: bool,
 }
 
 pub struct SessionRecorder {
@@ -92,7 +97,11 @@ struct ExistingLogFile {
 }
 
 impl RecordingManager {
-    pub fn new(default_logs_dir: PathBuf, settings: SessionRecordingSettings) -> AppResult<Self> {
+    pub fn new(
+        default_logs_dir: PathBuf,
+        settings: SessionRecordingSettings,
+        password_verifier: Option<String>,
+    ) -> AppResult<Self> {
         let logs_dir = resolve_logs_dir(&default_logs_dir, &settings);
         fs::create_dir_all(&logs_dir).map_err(|error| {
             AppError::internal(
@@ -107,6 +116,8 @@ impl RecordingManager {
                 logs_dir,
                 settings,
                 password: None,
+                password_verifier,
+                paused_for_run: false,
             })),
         };
         manager.cleanup_storage()?;
@@ -115,10 +126,16 @@ impl RecordingManager {
 
     pub fn status(&self) -> AppResult<SessionRecordingStatus> {
         let inner = self.inner.lock().expect("recording mutex poisoned");
+        let password_configured = inner.password.is_some() || inner.password_verifier.is_some();
         Ok(SessionRecordingStatus {
             configured_enabled: inner.settings.enabled,
+            password_configured,
             password_loaded: inner.password.is_some(),
-            can_record: inner.settings.enabled && inner.password.is_some(),
+            can_record: inner.settings.enabled && inner.password.is_some() && !inner.paused_for_run,
+            paused_for_run: inner.paused_for_run,
+            needs_password_verification: inner.settings.enabled
+                && inner.password.is_none()
+                && !inner.paused_for_run,
             log_directory: inner.logs_dir.display().to_string(),
             current_storage_bytes: storage_usage_bytes(&inner.logs_dir)?,
         })
@@ -128,21 +145,27 @@ impl RecordingManager {
         &self,
         settings: SessionRecordingSettings,
         password: Option<String>,
+        password_verifier: Option<String>,
     ) -> AppResult<SessionRecordingStatus> {
         let mut inner = self.inner.lock().expect("recording mutex poisoned");
         inner.settings = settings;
         inner.logs_dir = resolve_logs_dir(&inner.default_logs_dir, &inner.settings);
+        if let Some(verifier) = password_verifier {
+            inner.password_verifier = Some(verifier);
+        }
 
         if inner.settings.enabled {
             if let Some(password) = normalize_password(password) {
                 inner.password = Some(password);
-            } else if inner.password.is_none() {
+                inner.paused_for_run = false;
+            } else if inner.password.is_none() && inner.password_verifier.is_none() {
                 return Err(AppError::validation(
                     "Session recording requires an encryption password with at least 8 characters.",
                 ));
             }
         } else {
             inner.password = None;
+            inner.paused_for_run = false;
         }
 
         fs::create_dir_all(&inner.logs_dir).map_err(|error| {
@@ -159,12 +182,18 @@ impl RecordingManager {
         self.status()
     }
 
-    pub fn sync_settings(&self, settings: SessionRecordingSettings) -> AppResult<SessionRecordingStatus> {
+    pub fn sync_settings(
+        &self,
+        settings: SessionRecordingSettings,
+        password_verifier: Option<String>,
+    ) -> AppResult<SessionRecordingStatus> {
         let mut inner = self.inner.lock().expect("recording mutex poisoned");
         inner.settings = settings;
         inner.logs_dir = resolve_logs_dir(&inner.default_logs_dir, &inner.settings);
+        inner.password_verifier = password_verifier;
         if !inner.settings.enabled {
             inner.password = None;
+            inner.paused_for_run = false;
         }
         let logs_dir = inner.logs_dir.clone();
         let settings = inner.settings.clone();
@@ -176,13 +205,13 @@ impl RecordingManager {
 
     pub fn start_session(&self, connection: &ConnectionRecord) -> AppResult<Option<SessionRecorder>> {
         let inner = self.inner.lock().expect("recording mutex poisoned");
-        if !inner.settings.enabled {
+        if !inner.settings.enabled || inner.paused_for_run {
             return Ok(None);
         }
 
         let Some(password) = inner.password.clone() else {
             return Err(AppError::validation(
-                "Session recording is enabled but the encryption password is not loaded. Open Settings > Session Recording and enter it again.",
+                "Session recording is enabled but the encryption password still needs to be verified before recording can continue.",
             ));
         };
 
@@ -192,6 +221,52 @@ impl RecordingManager {
 
         cleanup_storage(&logs_dir, &settings)?;
         SessionRecorder::new(logs_dir, settings, password, connection).map(Some)
+    }
+
+    pub fn has_password_configured(&self) -> bool {
+        let inner = self.inner.lock().expect("recording mutex poisoned");
+        inner.password.is_some() || inner.password_verifier.is_some()
+    }
+
+    pub fn verify_password(
+        &self,
+        password: String,
+        password_verifier: Option<String>,
+    ) -> AppResult<SessionRecordingStatus> {
+        let normalized_password = normalize_password(Some(password)).ok_or_else(|| {
+            AppError::validation(
+                "Enter the session recording password with at least 8 characters before continuing.",
+            )
+        })?;
+        let mut inner = self.inner.lock().expect("recording mutex poisoned");
+        if !inner.settings.enabled {
+            return Err(AppError::validation(
+                "Session recording is not enabled, so no verification is required.",
+            ));
+        }
+
+        if let Some(stored_verifier) = inner.password_verifier.as_deref() {
+            verify_password_against_verifier(&normalized_password, stored_verifier)?;
+        } else if let Some(verifier) = password_verifier {
+            inner.password_verifier = Some(verifier);
+        }
+
+        inner.password = Some(normalized_password);
+        inner.paused_for_run = false;
+        drop(inner);
+        self.status()
+    }
+
+    pub fn pause_for_run(&self) -> AppResult<SessionRecordingStatus> {
+        let mut inner = self.inner.lock().expect("recording mutex poisoned");
+        if inner.settings.enabled {
+            inner.password = None;
+            inner.paused_for_run = true;
+        } else {
+            inner.paused_for_run = false;
+        }
+        drop(inner);
+        self.status()
     }
 
     pub fn preview_logs(&self, paths: Vec<String>, password: String) -> AppResult<SessionLogPreview> {
@@ -703,6 +778,35 @@ fn derive_key(password: &str, salt: &[u8]) -> AppResult<[u8; 32]> {
     Ok(key)
 }
 
+pub fn build_password_verifier(password: &str) -> AppResult<String> {
+    let salt = SaltString::generate(&mut PasswordOsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|hash| hash.to_string())
+        .map_err(|error| {
+            AppError::internal(
+                "Failed to prepare the session recording password verifier.",
+                error.to_string(),
+            )
+        })
+}
+
+fn verify_password_against_verifier(password: &str, verifier: &str) -> AppResult<()> {
+    let hash = PasswordHash::new(verifier).map_err(|error| {
+        AppError::internal(
+            "Failed to decode the session recording password verifier.",
+            error.to_string(),
+        )
+    })?;
+    Argon2::default()
+        .verify_password(password.as_bytes(), &hash)
+        .map_err(|_| {
+            AppError::validation(
+                "The session recording password is incorrect. Enter it again, pause recording for this run, or reset the password.",
+            )
+        })
+}
+
 fn normalize_password(password: Option<String>) -> Option<String> {
     password
         .map(|value| value.trim().to_string())
@@ -856,7 +960,7 @@ fn existing_log_files(logs_dir: &Path) -> AppResult<Vec<ExistingLogFile>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{existing_log_files, RecordingManager, SessionRecorder};
+    use super::{build_password_verifier, existing_log_files, RecordingManager, SessionRecorder};
     use crate::models::{ConnectionRecord, SessionRecordingMode, SessionRecordingSettings};
     use std::env;
     use uuid::Uuid;
@@ -890,9 +994,9 @@ mod tests {
             retention_days: 30,
             log_directory: None,
         };
-        let manager = RecordingManager::new(logs_dir.clone(), settings.clone()).expect("manager");
+        let manager = RecordingManager::new(logs_dir.clone(), settings.clone(), None).expect("manager");
         manager
-            .update_settings(settings, Some("super-secret".into()))
+            .update_settings(settings, Some("super-secret".into()), None)
             .expect("settings update");
 
         let mut recorder = manager
@@ -943,7 +1047,7 @@ mod tests {
             .expect("record output");
         recorder.finish().expect("finish");
 
-        let manager = RecordingManager::new(logs_dir.clone(), SessionRecordingSettings::default())
+        let manager = RecordingManager::new(logs_dir.clone(), SessionRecordingSettings::default(), None)
             .expect("manager");
         let paths = existing_log_files(&logs_dir)
             .expect("list files")
@@ -955,6 +1059,42 @@ mod tests {
             .expect("preview");
 
         assert_eq!(preview.preview_text, "root@example.com$ ls\nfile.txt\n");
+
+        let _ = std::fs::remove_dir_all(logs_dir);
+    }
+
+    #[test]
+    fn verify_password_loads_existing_password_and_pause_disables_recording_for_run() {
+        let logs_dir = temp_logs_dir();
+        let settings = SessionRecordingSettings {
+            enabled: true,
+            mode: SessionRecordingMode::InputOnly,
+            max_file_size_mb: 100,
+            max_total_storage_gb: 5,
+            retention_days: 30,
+            log_directory: None,
+        };
+        let verifier = build_password_verifier("super-secret").expect("verifier");
+        let manager = RecordingManager::new(logs_dir.clone(), settings.clone(), Some(verifier))
+            .expect("manager");
+
+        let initial_status = manager.status().expect("status");
+        assert!(initial_status.password_configured);
+        assert!(initial_status.needs_password_verification);
+        assert!(!initial_status.password_loaded);
+
+        let verified_status = manager
+            .verify_password("super-secret".into(), None)
+            .expect("verify password");
+        assert!(verified_status.password_loaded);
+        assert!(verified_status.can_record);
+        assert!(!verified_status.needs_password_verification);
+
+        let paused_status = manager.pause_for_run().expect("pause");
+        assert!(paused_status.paused_for_run);
+        assert!(!paused_status.can_record);
+        assert!(!paused_status.password_loaded);
+        assert!(!paused_status.needs_password_verification);
 
         let _ = std::fs::remove_dir_all(logs_dir);
     }

@@ -70,6 +70,7 @@ export const SessionRecordingDialog = ({
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
   const disabledSectionClass = !formState.enabled ? 'opacity-50' : ''
+  const isPasswordConfigured = Boolean(status?.passwordConfigured)
   const isPasswordLoaded = Boolean(status?.passwordLoaded)
 
   const handleSave = async () => {
@@ -102,7 +103,7 @@ export const SessionRecordingDialog = ({
         return
       }
 
-      if (!password && !status?.passwordLoaded) {
+      if (!password && !status?.passwordConfigured) {
         setError(t.validationPasswordLength)
         return
       }
@@ -242,10 +243,10 @@ export const SessionRecordingDialog = ({
                 onChange={(event) => {
                   setFormState((current) => ({ ...current, password: event.target.value }))
                 }}
-                placeholder={isPasswordLoaded ? '********' : undefined}
-                type="password"
-                value={formState.password}
-              />
+                 placeholder={isPasswordConfigured ? '********' : undefined}
+                 type="password"
+                 value={formState.password}
+               />
             </label>
 
             <label className="block text-sm">
@@ -263,9 +264,13 @@ export const SessionRecordingDialog = ({
             </label>
 
             <p className={helperClass}>
-              {isPasswordLoaded
-                ? t.sessionRecordingPasswordLoaded
-                : t.sessionRecordingPasswordMissing}
+              {status?.pausedForRun
+                ? t.sessionRecordingPausedForRun
+                : isPasswordLoaded
+                  ? t.sessionRecordingPasswordLoaded
+                  : isPasswordConfigured
+                    ? t.sessionRecordingPasswordNeedsVerification
+                    : t.sessionRecordingPasswordMissing}
             </p>
           </div>
         </fieldset>

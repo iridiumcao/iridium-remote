@@ -21,6 +21,8 @@ use crate::{
 };
 
 const CONNECTION_HISTORY_DETAIL_RETENTION_DAYS: i64 = 365;
+const APP_SETTINGS_KEY: &str = "app";
+const SESSION_RECORDING_PASSWORD_VERIFIER_KEY: &str = "session_recording_password_verifier";
 
 #[derive(Clone)]
 pub struct Database {
@@ -138,26 +140,7 @@ impl Database {
 
     pub fn get_app_settings(&self) -> AppResult<AppSettings> {
         let connection = self.connect()?;
-        let raw = connection
-            .query_row(
-                "SELECT value FROM app_settings WHERE key = 'app'",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(|error| {
-                AppError::database("Failed to load app settings.", error.to_string())
-            })?;
-
-        match raw {
-            Some(value) => {
-                let settings = serde_json::from_str::<AppSettings>(&value).map_err(|error| {
-                    AppError::database("Failed to decode app settings.", error.to_string())
-                })?;
-                normalize_app_settings(settings)
-            }
-            None => Ok(AppSettings::default()),
-        }
+        Self::load_app_settings_from_connection(&connection)
     }
 
     pub fn set_app_settings(&self, settings: &AppSettings) -> AppResult<AppSettings> {
@@ -167,17 +150,91 @@ impl Database {
         })?;
         let connection = self.connect()?;
 
-        connection
-            .execute(
-                "INSERT INTO app_settings (key, value) VALUES ('app', ?1)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                [payload],
-            )
-            .map_err(|error| {
-                AppError::database("Failed to save app settings.", error.to_string())
-            })?;
+        Self::upsert_app_setting_value(&connection, APP_SETTINGS_KEY, &payload, "save app settings")?;
 
         Ok(normalized)
+    }
+
+    pub fn save_session_recording_settings(
+        &self,
+        settings: SessionRecordingSettings,
+        password_verifier: Option<&str>,
+    ) -> AppResult<AppSettings> {
+        let mut app_settings = self.get_app_settings()?;
+        app_settings.session_recording = settings;
+        let normalized = normalize_app_settings(app_settings)?;
+        let payload = serde_json::to_string(&normalized).map_err(|error| {
+            AppError::database("Failed to encode app settings.", error.to_string())
+        })?;
+        let mut connection = self.connect()?;
+        let transaction = connection.transaction().map_err(|error| {
+            AppError::database(
+                "Failed to start the session recording settings transaction.",
+                error.to_string(),
+            )
+        })?;
+
+        Self::upsert_app_setting_value(&transaction, APP_SETTINGS_KEY, &payload, "save app settings")?;
+        if let Some(verifier) = password_verifier {
+            Self::upsert_app_setting_value(
+                &transaction,
+                SESSION_RECORDING_PASSWORD_VERIFIER_KEY,
+                verifier,
+                "save the session recording password verifier",
+            )?;
+        }
+        transaction.commit().map_err(|error| {
+            AppError::database(
+                "Failed to commit the session recording settings transaction.",
+                error.to_string(),
+            )
+        })?;
+
+        Ok(normalized)
+    }
+
+    pub fn get_session_recording_password_verifier(&self) -> AppResult<Option<String>> {
+        let connection = self.connect()?;
+        connection
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = ?1",
+                [SESSION_RECORDING_PASSWORD_VERIFIER_KEY],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| {
+                AppError::database(
+                    "Failed to load the session recording password verifier.",
+                    error.to_string(),
+                )
+            })
+    }
+
+    pub fn set_session_recording_password_verifier(&self, verifier: Option<&str>) -> AppResult<()> {
+        let connection = self.connect()?;
+        match verifier {
+            Some(value) => Self::upsert_app_setting_value(
+                &connection,
+                SESSION_RECORDING_PASSWORD_VERIFIER_KEY,
+                value,
+                "save the session recording password verifier",
+            )?,
+            None => {
+                connection
+                    .execute(
+                        "DELETE FROM app_settings WHERE key = ?1",
+                        [SESSION_RECORDING_PASSWORD_VERIFIER_KEY],
+                    )
+                    .map_err(|error| {
+                        AppError::database(
+                            "Failed to clear the session recording password verifier.",
+                            error.to_string(),
+                        )
+                    })?;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn list_connections(&self) -> AppResult<Vec<ConnectionRecord>> {
@@ -390,16 +447,7 @@ impl Database {
             let payload = serde_json::to_string(&settings).map_err(|error| {
                 AppError::database("Failed to encode app settings.", error.to_string())
             })?;
-
-            transaction
-                .execute(
-                    "INSERT INTO app_settings (key, value) VALUES ('app', ?1)
-                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    [payload],
-                )
-                .map_err(|error| {
-                    AppError::database("Failed to import app settings.", error.to_string())
-                })?;
+            Self::upsert_app_setting_value(&transaction, APP_SETTINGS_KEY, &payload, "import app settings")?;
         }
 
         let mut imported = 0;
@@ -1028,6 +1076,47 @@ impl Database {
                 .total_duration_seconds
                 .saturating_sub(detail_duration_seconds),
         })
+    }
+
+    fn load_app_settings_from_connection(connection: &Connection) -> AppResult<AppSettings> {
+        let raw = connection
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = ?1",
+                [APP_SETTINGS_KEY],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| {
+                AppError::database("Failed to load app settings.", error.to_string())
+            })?;
+
+        match raw {
+            Some(value) => {
+                let settings = serde_json::from_str::<AppSettings>(&value).map_err(|error| {
+                    AppError::database("Failed to decode app settings.", error.to_string())
+                })?;
+                normalize_app_settings(settings)
+            }
+            None => Ok(AppSettings::default()),
+        }
+    }
+
+    fn upsert_app_setting_value(
+        connection: &Connection,
+        key: &str,
+        value: &str,
+        action: &str,
+    ) -> AppResult<()> {
+        connection
+            .execute(
+                "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [key, value],
+            )
+            .map_err(|error| {
+                AppError::database(format!("Failed to {action}."), error.to_string())
+            })?;
+        Ok(())
     }
 
     fn connect(&self) -> AppResult<Connection> {

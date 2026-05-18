@@ -37,19 +37,42 @@ Stores and returns the normalized settings payload.
 Returns the current runtime recording status:
 
 - `configuredEnabled`
+- `passwordConfigured`
 - `passwordLoaded`
 - `canRecord`
+- `pausedForRun`
+- `needsPasswordVerification`
 - `logDirectory`
 - `currentStorageBytes`
 
 ### `update_session_recording_settings(settings, password?) -> UpdateSessionRecordingSettingsResult`
 
-Stores the session-recording settings, updates the runtime password when supplied, and returns:
+Stores the session-recording settings, updates the runtime password when supplied, updates the persisted password verifier when a new password is supplied, and returns:
 
 - `appSettings`
 - `status`
 
-`settings` also carries the optional custom `logDirectory` path that becomes the effective recording directory when non-empty.
+`settings` also carries the optional custom `logDirectory` path that becomes the effective recording directory when non-empty. When recording is enabled and `password` is omitted, the backend keeps the existing verifier if one is already configured, so users can save other recording settings without re-entering and confirming a new password.
+
+### `verify_session_recording_password(password) -> SessionRecordingStatus`
+
+Validates the existing recording password for the current app run, loads it into runtime memory, clears any pause-for-run flag, and returns the updated status.
+
+### `pause_session_recording_for_run() -> SessionRecordingStatus`
+
+Marks recording as paused for the current app run only, clears the runtime password, and returns the updated status.
+
+```mermaid
+flowchart TD
+    A[get_session_recording_status] --> B{needsPasswordVerification?}
+    B -- No --> C[connect_session]
+    B -- Yes --> D[Frontend shows verification dialog]
+    D --> E{User action}
+    E -- Verify --> F[verify_session_recording_password]
+    F --> C
+    E -- Pause --> G[pause_session_recording_for_run]
+    G --> C
+```
 
 ## Import / export commands
 
@@ -73,7 +96,7 @@ Merges the supplied backup payload into the local database and returns:
 
 ### `connect_session(connectionId) -> SessionState`
 
-Starts an SSH session for the selected connection.
+Starts an SSH session for the selected connection. If recording is enabled but the current app run still needs password verification, the command returns a validation error and the frontend must resolve that recording gate first.
 
 ### `write_session_input(sessionId, data) -> void`
 
@@ -231,7 +254,7 @@ When the app is not running inside Tauri:
 - connections are mocked in memory
 - settings are persisted via browser storage
 - sessions are simulated
-- session recording settings and runtime password state are simulated in memory
+- session recording settings, persisted verifier state, and runtime password / pause-for-run state are simulated in memory
 - connection history is simulated in memory and finalized when mock sessions close
 - import/export works against the mock store, including settings when present
 - exports fall back to the browser download flow because the Tauri native save dialog is not available

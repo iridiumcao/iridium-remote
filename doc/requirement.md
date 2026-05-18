@@ -81,6 +81,13 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - Input-only recording must exclude hidden/password input.
 - Full-session recording must write encrypted local `.irlog` files without plaintext disk writes.
 - Encryption passwords must never be stored permanently.
+- After app restart, if session recording is still enabled but no runtime recording password is loaded, the first connection attempt must open a password-verification dialog instead of forcing the user to set a brand-new password.
+- The verification dialog must let the user:
+  - enter the existing password once to continue
+  - retry after a wrong password
+  - reset the recording password after warning that older logs will still require the previous password
+  - pause session recording for the current app run and continue without recording
+- Pausing recording for the current app run must not disable the persisted setting. The next restart should require verification again.
 - When a runtime password is already loaded, the password field should show a masked placeholder instead of appearing blank.
 - The log directory must be configurable from the Session Recording dialog.
 - Recorded log files must rotate when they reach the configured max file size.

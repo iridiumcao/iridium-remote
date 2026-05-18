@@ -20,7 +20,7 @@ use models::{
     SessionRecordingSettings, SessionRecordingStatus, SessionStatePayload,
     UpdateCheckResult, UpdateConnectionInput, UpdateSessionRecordingSettingsResult,
 };
-use recording::RecordingManager;
+use recording::{build_password_verifier, RecordingManager};
 use session::SessionManager;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
@@ -205,9 +205,10 @@ fn update_app_settings(
     settings: AppSettings,
 ) -> AppResult<AppSettings> {
     let saved = state.database.set_app_settings(&settings)?;
+    let password_verifier = state.database.get_session_recording_password_verifier()?;
     state
         .recording
-        .sync_settings(saved.session_recording.clone())?;
+        .sync_settings(saved.session_recording.clone(), password_verifier)?;
     log::info!("Updated app settings.");
     Ok(saved)
 }
@@ -236,24 +237,64 @@ fn update_session_recording_settings(
             ));
         }
     }
-    let current_status = state.recording.status()?;
-    if settings.enabled && trimmed_password.is_none() && !current_status.password_loaded {
+    if settings.enabled && trimmed_password.is_none() && !state.recording.has_password_configured() {
         return Err(AppError::validation(
             "Session recording requires an encryption password with at least 8 characters.",
         ));
     }
 
-    let mut app_settings = state.database.get_app_settings()?;
-    app_settings.session_recording = settings;
-    let saved = state.database.set_app_settings(&app_settings)?;
+    let password_verifier = trimmed_password
+        .map(build_password_verifier)
+        .transpose()?;
+    let saved = state
+        .database
+        .save_session_recording_settings(settings, password_verifier.as_deref())?;
     let status = state
         .recording
-        .update_settings(saved.session_recording.clone(), password)?;
+        .update_settings(saved.session_recording.clone(), password, password_verifier)?;
 
     Ok(UpdateSessionRecordingSettingsResult {
         app_settings: saved,
         status,
     })
+}
+
+#[tauri::command]
+fn verify_session_recording_password(
+    state: State<'_, Arc<AppState>>,
+    password: String,
+) -> AppResult<SessionRecordingStatus> {
+    let normalized_password = password.trim().to_string();
+    if normalized_password.len() < 8 {
+        return Err(AppError::validation(
+            "Session recording requires an encryption password with at least 8 characters.",
+        ));
+    }
+    if !state.recording.status()?.configured_enabled {
+        return Err(AppError::validation(
+            "Session recording is not enabled, so no verification is required.",
+        ));
+    }
+
+    let has_verifier = state.database.get_session_recording_password_verifier()?.is_some();
+    let verifier = if has_verifier {
+        None
+    } else {
+        let verifier = build_password_verifier(&normalized_password)?;
+        state
+            .database
+            .set_session_recording_password_verifier(Some(&verifier))?;
+        Some(verifier)
+    };
+
+    state.recording.verify_password(normalized_password, verifier)
+}
+
+#[tauri::command]
+fn pause_session_recording_for_run(
+    state: State<'_, Arc<AppState>>,
+) -> AppResult<SessionRecordingStatus> {
+    state.recording.pause_for_run()
 }
 
 #[tauri::command]
@@ -342,10 +383,14 @@ fn import_connections(
     payload: ConnectionsExportPayload,
 ) -> AppResult<ImportConnectionsResult> {
     let result = state.database.import_connections(payload)?;
+    if result.settings_applied {
+        state.database.set_session_recording_password_verifier(None)?;
+    }
     let settings = state.database.get_app_settings()?;
+    let password_verifier = state.database.get_session_recording_password_verifier()?;
     state
         .recording
-        .sync_settings(settings.session_recording)?;
+        .sync_settings(settings.session_recording, password_verifier)?;
     log::info!(
         "Imported {} connections, skipped {} duplicates, settings restored: {}.",
         result.imported,
@@ -397,9 +442,14 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
     let recovered_history_rows = database.recover_connection_history_sessions()?;
     database.cleanup_connection_history()?;
     let app_settings = database.get_app_settings()?;
+    let password_verifier = database.get_session_recording_password_verifier()?;
 
     let credentials = credentials::CredentialStore::new()?;
-    let recording = RecordingManager::new(resolve_session_logs_dir()?, app_settings.session_recording)?;
+    let recording = RecordingManager::new(
+        resolve_session_logs_dir()?,
+        app_settings.session_recording,
+        password_verifier,
+    )?;
     let sessions = SessionManager::new(database.clone(), recording.clone());
 
     if recovered_history_rows > 0 {
@@ -580,6 +630,8 @@ pub fn run() {
             update_app_settings,
             get_session_recording_status,
             update_session_recording_settings,
+            verify_session_recording_password,
+            pause_session_recording_for_run,
             list_remote_directory,
             export_connections,
             write_export_file,

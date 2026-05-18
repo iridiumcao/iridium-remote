@@ -6,8 +6,11 @@ import { SessionRecordingDialog } from './SessionRecordingDialog'
 
 const baseStatus: SessionRecordingStatus = {
   configuredEnabled: false,
+  passwordConfigured: true,
   passwordLoaded: true,
   canRecord: false,
+  pausedForRun: false,
+  needsPasswordVerification: false,
   logDirectory: 'C:\\Users\\iridi\\AppData\\Local\\Iridium Remote\\SessionLogs',
   currentStorageBytes: 1024,
 }

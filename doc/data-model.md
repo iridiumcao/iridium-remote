@@ -24,6 +24,7 @@ Additional persistence notes:
 - Connection history and usage statistics are stored in the `connection_history_sessions` and `connection_history_rollups` tables inside the same SQLite database.
 - Session recording files are the main user-operation log artifact on disk. They are optional and exist only when session recording is enabled.
 - The session-recording password is runtime-only and is never stored on disk.
+- A separate persisted session-recording password verifier is stored in SQLite so the app can verify the existing password after restart without storing the password itself.
 
 ## `connections` table
 
@@ -53,6 +54,7 @@ App preferences are stored as key/value rows.
 Current key:
 
 - `app` - serialized `AppSettings` JSON payload
+- `session_recording_password_verifier` - Argon2 verifier for the existing recording password; used only for restart-time verification and not included in exported backups
 
 ## `connection_history_sessions` table
 
@@ -146,7 +148,7 @@ Frontend and backend share a connection model with:
 - `retentionDays`
 - `logDirectory?`
 
-The recording password is runtime-only and is never stored in SQLite.
+The recording password is runtime-only and is never stored in SQLite. The persisted verifier is stored separately from `SessionRecordingSettings` so exported app settings can stay free of password-derived material.
 
 ### Session
 
@@ -195,8 +197,11 @@ Terminal output events contain:
 Runtime-only session recording status contains:
 
 - `configuredEnabled`
+- `passwordConfigured`
 - `passwordLoaded`
 - `canRecord`
+- `pausedForRun`
+- `needsPasswordVerification`
 - `logDirectory`
 - `currentStorageBytes`
 

@@ -7,6 +7,7 @@ import { ConnectionList } from './components/ConnectionList'
 import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
 import { SessionLogViewerDialog } from './components/SessionLogViewerDialog'
 import { SessionRecordingDialog } from './components/SessionRecordingDialog'
+import { SessionRecordingUnlockDialog } from './components/SessionRecordingUnlockDialog'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
@@ -100,9 +101,14 @@ function App() {
   const [isConnectionHistoryDialogOpen, setConnectionHistoryDialogOpen] = useState(false)
   const [isSessionLogViewerOpen, setSessionLogViewerOpen] = useState(false)
   const [isSessionRecordingDialogOpen, setSessionRecordingDialogOpen] = useState(false)
+  const [isSessionRecordingUnlockOpen, setSessionRecordingUnlockOpen] = useState(false)
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
   const [sessionRecordingStatus, setSessionRecordingStatus] =
     useState<SessionRecordingStatus | null>(null)
+  const [sessionRecordingUnlockError, setSessionRecordingUnlockError] = useState<string | null>(null)
+  const [isSessionRecordingUnlockPending, setSessionRecordingUnlockPending] = useState(false)
+  const [connectionPendingRecordingVerification, setConnectionPendingRecordingVerification] =
+    useState<ConnectionRecord | null>(null)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const settingsRef = useRef(settings)
@@ -491,10 +497,15 @@ function App() {
     }
   }
 
-  const connectToConnection = useCallback(async (connection: ConnectionRecord) => {
+  const connectSessionToConnection = useCallback(async (
+    connection: ConnectionRecord,
+    options?: { preserveNotice?: boolean },
+  ) => {
     try {
       setError(null)
-      setNotice(null)
+      if (!options?.preserveNotice) {
+        setNotice(null)
+      }
       setSelectedConnectionId(connection.id)
       const nextState = await appClient.connectSession(connection.id)
       setSessions((current) => {
@@ -506,6 +517,20 @@ function App() {
       setError(appClient.normalizeError(cause))
     }
   }, [selectSession])
+
+  const connectToConnection = useCallback(async (connection: ConnectionRecord) => {
+    setError(null)
+    setNotice(null)
+    setSelectedConnectionId(connection.id)
+    if (sessionRecordingStatus?.needsPasswordVerification) {
+      setConnectionPendingRecordingVerification(connection)
+      setSessionRecordingUnlockError(null)
+      setSessionRecordingUnlockOpen(true)
+      return
+    }
+
+    await connectSessionToConnection(connection)
+  }, [connectSessionToConnection, sessionRecordingStatus?.needsPasswordVerification])
 
   const disconnectSession = async (sessionId: string) => {
     try {
@@ -619,6 +644,122 @@ function App() {
     },
     [showNotice, t.sessionRecordingSaveSuccess],
   )
+
+  const getSessionRecordingModeLabel = useCallback(
+    (mode: SessionRecordingSettings['mode']) =>
+      mode === 'full' ? t.sessionRecordingModeDetailed : t.sessionRecordingModeCompact,
+    [t.sessionRecordingModeCompact, t.sessionRecordingModeDetailed],
+  )
+
+  const closeSessionRecordingUnlockDialog = useCallback(() => {
+    setSessionRecordingUnlockOpen(false)
+    setSessionRecordingUnlockError(null)
+    setSessionRecordingUnlockPending(false)
+    setConnectionPendingRecordingVerification(null)
+  }, [])
+
+  const handleVerifySessionRecordingPassword = useCallback(
+    async (password: string) => {
+      const pendingConnection = connectionPendingRecordingVerification
+
+      try {
+        setError(null)
+        setSessionRecordingUnlockPending(true)
+        setSessionRecordingUnlockError(null)
+        const status = await appClient.verifySessionRecordingPassword(password)
+        setSessionRecordingStatus(status)
+        closeSessionRecordingUnlockDialog()
+        showNotice({
+          message: t.sessionRecordingVerifiedNotice(
+            getSessionRecordingModeLabel(settingsRef.current.sessionRecording.mode),
+          ),
+          autoDismissMs: NOTICE_AUTO_DISMISS_MS,
+        })
+        if (pendingConnection) {
+          await connectSessionToConnection(pendingConnection, { preserveNotice: true })
+        }
+      } catch (cause) {
+        setSessionRecordingUnlockError(appClient.normalizeError(cause).message)
+        setSessionRecordingUnlockPending(false)
+      }
+    },
+    [
+      closeSessionRecordingUnlockDialog,
+      connectSessionToConnection,
+      connectionPendingRecordingVerification,
+      getSessionRecordingModeLabel,
+      showNotice,
+      t,
+    ],
+  )
+
+  const handleResetSessionRecordingPassword = useCallback(
+    async (password: string) => {
+      const pendingConnection = connectionPendingRecordingVerification
+
+      try {
+        setError(null)
+        setSessionRecordingUnlockPending(true)
+        setSessionRecordingUnlockError(null)
+        const result = await appClient.updateSessionRecordingSettings(
+          settingsRef.current.sessionRecording,
+          password,
+        )
+        setSettings(result.appSettings)
+        setSessionRecordingStatus(result.status)
+        closeSessionRecordingUnlockDialog()
+        showNotice({
+          message: t.sessionRecordingResetNotice(
+            getSessionRecordingModeLabel(result.appSettings.sessionRecording.mode),
+          ),
+          autoDismissMs: NOTICE_AUTO_DISMISS_MS,
+        })
+        if (pendingConnection) {
+          await connectSessionToConnection(pendingConnection, { preserveNotice: true })
+        }
+      } catch (cause) {
+        setSessionRecordingUnlockError(appClient.normalizeError(cause).message)
+        setSessionRecordingUnlockPending(false)
+      }
+    },
+    [
+      closeSessionRecordingUnlockDialog,
+      connectSessionToConnection,
+      connectionPendingRecordingVerification,
+      getSessionRecordingModeLabel,
+      showNotice,
+      t,
+    ],
+  )
+
+  const handlePauseSessionRecordingForRun = useCallback(async () => {
+    const pendingConnection = connectionPendingRecordingVerification
+
+    try {
+      setError(null)
+      setSessionRecordingUnlockPending(true)
+      setSessionRecordingUnlockError(null)
+      const status = await appClient.pauseSessionRecordingForRun()
+      setSessionRecordingStatus(status)
+      closeSessionRecordingUnlockDialog()
+      showNotice({
+        message: t.sessionRecordingPausedNotice,
+        autoDismissMs: NOTICE_AUTO_DISMISS_MS,
+      })
+      if (pendingConnection) {
+        await connectSessionToConnection(pendingConnection, { preserveNotice: true })
+      }
+    } catch (cause) {
+      setSessionRecordingUnlockError(appClient.normalizeError(cause).message)
+      setSessionRecordingUnlockPending(false)
+    }
+  }, [
+    closeSessionRecordingUnlockDialog,
+    connectSessionToConnection,
+    connectionPendingRecordingVerification,
+    showNotice,
+    t.sessionRecordingPausedNotice,
+  ])
 
   const handleExportSessionLogs = useCallback(
     async (paths: string[], password: string) => {
@@ -1089,6 +1230,21 @@ function App() {
           open
           settings={settings.sessionRecording}
           status={sessionRecordingStatus}
+          t={t}
+          theme={settings.theme}
+        />
+      ) : null}
+
+      {isSessionRecordingUnlockOpen ? (
+        <SessionRecordingUnlockDialog
+          error={sessionRecordingUnlockError}
+          onClearError={() => setSessionRecordingUnlockError(null)}
+          isSubmitting={isSessionRecordingUnlockPending}
+          onClose={closeSessionRecordingUnlockDialog}
+          onPause={handlePauseSessionRecordingForRun}
+          onResetPassword={handleResetSessionRecordingPassword}
+          onVerify={handleVerifySessionRecordingPassword}
+          open
           t={t}
           theme={settings.theme}
         />

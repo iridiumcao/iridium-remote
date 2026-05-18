@@ -50,6 +50,8 @@ type MockStore = {
   connections: ConnectionRecord[]
   sessions: SessionState[]
   sessionRecordingPassword: string | null
+  sessionRecordingPasswordConfigured: boolean
+  sessionRecordingPausedForRun: boolean
   sessionLogs: Array<{
     path: string
     text: string
@@ -143,6 +145,8 @@ const mockStore: MockStore = {
   connections: [],
   sessions: [],
   sessionRecordingPassword: null,
+  sessionRecordingPasswordConfigured: false,
+  sessionRecordingPausedForRun: false,
   sessionLogs: [],
   connectionHistorySessions: [],
   sessionLogPathsBySessionId: new Map(),
@@ -157,9 +161,18 @@ const getMockLogDirectory = () =>
 
 const buildMockRecordingStatus = (): SessionRecordingStatus => ({
   configuredEnabled: mockStore.settings.sessionRecording.enabled,
+  passwordConfigured:
+    mockStore.sessionRecordingPasswordConfigured || Boolean(mockStore.sessionRecordingPassword),
   passwordLoaded: Boolean(mockStore.sessionRecordingPassword),
+  pausedForRun: mockStore.settings.sessionRecording.enabled && mockStore.sessionRecordingPausedForRun,
+  needsPasswordVerification:
+    mockStore.settings.sessionRecording.enabled &&
+    !mockStore.sessionRecordingPausedForRun &&
+    !mockStore.sessionRecordingPassword,
   canRecord:
-    mockStore.settings.sessionRecording.enabled && Boolean(mockStore.sessionRecordingPassword),
+    mockStore.settings.sessionRecording.enabled &&
+    !mockStore.sessionRecordingPausedForRun &&
+    Boolean(mockStore.sessionRecordingPassword),
   logDirectory: getMockLogDirectory(),
   currentStorageBytes: mockStore.sessionLogs
     .filter((log) => log.path.startsWith(`${getMockLogDirectory()}\\`))
@@ -822,15 +835,23 @@ export const appClient = {
         recordingMode: null,
       }
 
-      if (mockStore.settings.sessionRecording.enabled && !mockStore.sessionRecordingPassword) {
+      if (
+        mockStore.settings.sessionRecording.enabled &&
+        !mockStore.sessionRecordingPausedForRun &&
+        !mockStore.sessionRecordingPassword
+      ) {
         throw {
           code: 'VALIDATION_ERROR',
           message:
-            'Session recording is enabled but the encryption password is not loaded. Open Settings > Session Recording and enter it again.',
+            'Session recording is enabled but the encryption password still needs to be verified before recording can continue.',
         } satisfies AppError
       }
 
-      if (mockStore.settings.sessionRecording.enabled && mockStore.sessionRecordingPassword) {
+      if (
+        mockStore.settings.sessionRecording.enabled &&
+        !mockStore.sessionRecordingPausedForRun &&
+        mockStore.sessionRecordingPassword
+      ) {
         session.recordingActive = true
         session.recordingMode = mockStore.settings.sessionRecording.mode
         const createdAt = now()
@@ -1026,6 +1047,9 @@ export const appClient = {
         }
         mockStore.settings = normalizeMockSettings(mockStore.settings)
         persistMockSettings(mockStore.settings)
+        mockStore.sessionRecordingPassword = null
+        mockStore.sessionRecordingPasswordConfigured = false
+        mockStore.sessionRecordingPausedForRun = false
         settingsApplied = true
       }
 
@@ -1108,7 +1132,12 @@ export const appClient = {
         } satisfies AppError
       }
 
-      if (settings.enabled && !normalizedPassword && !mockStore.sessionRecordingPassword) {
+      if (
+        settings.enabled &&
+        !normalizedPassword &&
+        !mockStore.sessionRecordingPassword &&
+        !mockStore.sessionRecordingPasswordConfigured
+      ) {
         throw {
           code: 'VALIDATION_ERROR',
           message: 'Session recording requires an encryption password with at least 8 characters.',
@@ -1123,9 +1152,14 @@ export const appClient = {
         },
       })
       persistMockSettings(mockStore.settings)
-      mockStore.sessionRecordingPassword = settings.enabled
-        ? normalizedPassword || mockStore.sessionRecordingPassword
-        : null
+      if (normalizedPassword) {
+        mockStore.sessionRecordingPassword = normalizedPassword
+        mockStore.sessionRecordingPasswordConfigured = true
+        mockStore.sessionRecordingPausedForRun = false
+      } else if (!settings.enabled) {
+        mockStore.sessionRecordingPassword = null
+        mockStore.sessionRecordingPausedForRun = false
+      }
 
       return {
         appSettings: mockStore.settings,
@@ -1137,6 +1171,54 @@ export const appClient = {
       settings,
       password,
     })
+  },
+
+  async verifySessionRecordingPassword(password: string) {
+    if (!isTauriRuntime()) {
+      const normalizedPassword = password.trim()
+      if (normalizedPassword.length < 8) {
+        throw {
+          code: 'VALIDATION_ERROR',
+          message: 'Session recording requires an encryption password with at least 8 characters.',
+        } satisfies AppError
+      }
+
+      if (!mockStore.settings.sessionRecording.enabled) {
+        throw {
+          code: 'VALIDATION_ERROR',
+          message: 'Session recording is not enabled, so no verification is required.',
+        } satisfies AppError
+      }
+
+      if (
+        mockStore.sessionRecordingPasswordConfigured &&
+        mockStore.sessionRecordingPassword !== null &&
+        normalizedPassword !== mockStore.sessionRecordingPassword
+      ) {
+        throw {
+          code: 'VALIDATION_ERROR',
+          message:
+            'The session recording password is incorrect. Enter it again, pause recording for this run, or reset the password.',
+        } satisfies AppError
+      }
+
+      mockStore.sessionRecordingPassword = normalizedPassword
+      mockStore.sessionRecordingPasswordConfigured = true
+      mockStore.sessionRecordingPausedForRun = false
+      return buildMockRecordingStatus()
+    }
+
+    return invoke<SessionRecordingStatus>('verify_session_recording_password', { password })
+  },
+
+  async pauseSessionRecordingForRun() {
+    if (!isTauriRuntime()) {
+      mockStore.sessionRecordingPassword = null
+      mockStore.sessionRecordingPausedForRun = mockStore.settings.sessionRecording.enabled
+      return buildMockRecordingStatus()
+    }
+
+    return invoke<SessionRecordingStatus>('pause_session_recording_for_run')
   },
 
   async pickSessionLogFiles() {

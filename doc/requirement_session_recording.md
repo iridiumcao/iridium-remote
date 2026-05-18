@@ -137,7 +137,7 @@ Default:
 
 ## 6.3 Encryption Password
 
-Users must provide:
+When the user is setting a new recording password for the first time, or explicitly resetting it, the dialog must require:
 
 * Encryption Password
 * Confirm Password
@@ -146,11 +146,78 @@ Requirements:
 
 * Minimum length: 8 characters
 
+If an existing password has already been configured, users may leave these fields blank when they are only changing other recording settings and do not want to replace the password.
+
 The password is used to encrypt session log files.
 
 The application MUST NOT permanently store this password.
 
 If a password is already loaded for the current app run, the password field should show a masked placeholder such as `********` instead of appearing empty.
+If a password is already configured but not loaded after restart, the settings dialog may keep the password fields empty and defer the actual password check to the first-connection verification dialog.
+
+---
+
+## 6.4 Password Verification After Restart
+
+If session recording remains enabled after the app restarts, the recording password is no longer loaded in runtime memory.
+
+In that state:
+
+* The first connection attempt MUST open a verification dialog
+* The dialog MUST ask for the existing recording password only once
+* The dialog MUST NOT force the user to enter `Confirm Password` unless the user explicitly chooses to reset the password
+
+```mermaid
+flowchart TD
+    A[App starts] --> B{Session recording enabled?}
+    B -- No --> C[Connect normally]
+    B -- Yes --> D{Runtime password loaded?}
+    D -- Yes --> C
+    D -- No --> E[User opens first connection]
+    E --> F[Show recording-password verification dialog]
+    F --> G{Password correct?}
+    G -- Yes --> H[Load runtime password]
+    H --> I[Resume recording and continue connect]
+    G -- No --> J[Allow retry]
+    J --> F
+```
+
+---
+
+## 6.5 Wrong Password, Reset, and Pause
+
+If verification fails, the application SHOULD explain that the password is incorrect and allow the user to:
+
+* try again
+* reset the password
+* pause session recording for the current app run
+
+If the user chooses **Reset Password**:
+
+* The application MUST require:
+  * Encryption Password
+  * Confirm Password
+* The application MUST warn that previously recorded logs still require the old password and cannot be opened with the new one
+
+If the user chooses **Pause Recording**:
+
+* Recording stays disabled only for the current app run
+* The persisted `enabled` setting remains unchanged
+* The next app restart MUST require verification again before recording resumes
+
+```mermaid
+flowchart TD
+    A[Verification dialog] --> B{User action}
+    B -- Retry with password --> C[Validate password]
+    C -- Success --> D[Continue connect with recording]
+    C -- Failure --> A
+    B -- Reset password --> E[Show reset form with confirm password]
+    E --> F[Warn old logs still need previous password]
+    F --> G[Save new password for current run and new verifier]
+    G --> D
+    B -- Pause recording --> H[Pause recording for this app run]
+    H --> I[Continue connect without recording]
+```
 
 ---
 
@@ -180,14 +247,11 @@ Use:
 
 Flow:
 
-```text id="dr4cdz"
-User Password
-    ↓
-Argon2
-    ↓
-Derived Key
-    ↓
-AES-256-GCM
+```mermaid
+flowchart TD
+    A[User password] --> B[Argon2]
+    B --> C[Derived key]
+    C --> D[AES-256-GCM encryption]
 ```
 
 ---
@@ -299,18 +363,14 @@ The application uses chunk-based encrypted streaming.
 
 Flow:
 
-```text id="wtjlwm"
-Terminal Activity
-    ↓
-Memory Buffer
-    ↓
-Chunk Size Reached
-    ↓
-Compress
-    ↓
-Encrypt
-    ↓
-Append to .irlog
+```mermaid
+flowchart TD
+    A[Terminal activity] --> B[Runtime memory buffer]
+    B --> C{Chunk size reached?}
+    C -- No --> B
+    C -- Yes --> D[Compress with zstd]
+    D --> E[Encrypt chunk]
+    E --> F[Append encrypted chunk to .irlog]
 ```
 
 ---

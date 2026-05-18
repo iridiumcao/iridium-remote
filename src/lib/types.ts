@@ -181,8 +181,11 @@ export type UpdateCheckResult = {
 
 export type SessionRecordingStatus = {
   configuredEnabled: boolean
+  passwordConfigured: boolean
   passwordLoaded: boolean
   canRecord: boolean
+  pausedForRun: boolean
+  needsPasswordVerification: boolean
   logDirectory: string
   currentStorageBytes: number
 }

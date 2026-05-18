@@ -17,6 +17,8 @@ const appClientMocks = vi.hoisted(() => ({
   getSessionStatesMock: vi.fn<() => Promise<SessionState[]>>(),
   getAppSettingsMock: vi.fn<() => Promise<typeof defaultAppSettings>>(),
   getSessionRecordingStatusMock: vi.fn(),
+  verifySessionRecordingPasswordMock: vi.fn(),
+  pauseSessionRecordingForRunMock: vi.fn(),
   getConnectionHistoryOverviewMock: vi.fn(),
   getConnectionHistoryHostDetailsMock: vi.fn(),
   onSessionStateMock: vi.fn(),
@@ -53,6 +55,8 @@ vi.mock('./api/client', () => ({
     getSessionStates: appClientMocks.getSessionStatesMock,
     getAppSettings: appClientMocks.getAppSettingsMock,
     getSessionRecordingStatus: appClientMocks.getSessionRecordingStatusMock,
+    verifySessionRecordingPassword: appClientMocks.verifySessionRecordingPasswordMock,
+    pauseSessionRecordingForRun: appClientMocks.pauseSessionRecordingForRunMock,
     getConnectionHistoryOverview: appClientMocks.getConnectionHistoryOverviewMock,
     getConnectionHistoryHostDetails: appClientMocks.getConnectionHistoryHostDetailsMock,
     onSessionState: appClientMocks.onSessionStateMock,
@@ -87,11 +91,13 @@ vi.mock('./api/client', () => ({
 vi.mock('./components/ConnectionList', () => ({
   ConnectionList: ({
     connections,
+    onConnect,
     onSelect,
     selectedConnectionId,
     topContent,
   }: {
     connections: ConnectionRecord[]
+    onConnect?: (connection: ConnectionRecord) => void
     onSelect: (connectionId: string) => void
     selectedConnectionId: string | null
     topContent?: ReactNode
@@ -100,13 +106,22 @@ vi.mock('./components/ConnectionList', () => ({
       {topContent}
       <div data-testid="selected-connection">{selectedConnectionId ?? 'none'}</div>
       {connections.map((connection) => (
-        <button
-          key={connection.id}
-          type="button"
-          onClick={() => onSelect(connection.id)}
-        >
-          Select {connection.name}
-        </button>
+        <div key={connection.id}>
+          <button
+            type="button"
+            onClick={() => onSelect(connection.id)}
+          >
+            Select {connection.name}
+          </button>
+          {onConnect ? (
+            <button
+              type="button"
+              onClick={() => onConnect(connection)}
+            >
+              Connect {connection.name}
+            </button>
+          ) : null}
+        </div>
       ))}
     </aside>
   ),
@@ -205,8 +220,31 @@ describe('App', () => {
     appClientMocks.getAppSettingsMock.mockResolvedValue(defaultAppSettings)
     appClientMocks.getSessionRecordingStatusMock.mockResolvedValue({
       configuredEnabled: false,
+      passwordConfigured: false,
       passwordLoaded: false,
       canRecord: false,
+      pausedForRun: false,
+      needsPasswordVerification: false,
+      logDirectory: 'C:\\mock\\SessionLogs',
+      currentStorageBytes: 0,
+    })
+    appClientMocks.verifySessionRecordingPasswordMock.mockResolvedValue({
+      configuredEnabled: true,
+      passwordConfigured: true,
+      passwordLoaded: true,
+      canRecord: true,
+      pausedForRun: false,
+      needsPasswordVerification: false,
+      logDirectory: 'C:\\mock\\SessionLogs',
+      currentStorageBytes: 0,
+    })
+    appClientMocks.pauseSessionRecordingForRunMock.mockResolvedValue({
+      configuredEnabled: true,
+      passwordConfigured: true,
+      passwordLoaded: false,
+      canRecord: false,
+      pausedForRun: true,
+      needsPasswordVerification: false,
       logDirectory: 'C:\\mock\\SessionLogs',
       currentStorageBytes: 0,
     })
@@ -270,6 +308,90 @@ describe('App', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-alpha')
     expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
+  })
+
+  it('verifies the session recording password before the first connection when recording is awaiting verification', async () => {
+    appClientMocks.getAppSettingsMock.mockResolvedValue({
+      ...defaultAppSettings,
+      sessionRecording: {
+        ...defaultAppSettings.sessionRecording,
+        enabled: true,
+        mode: 'full',
+      },
+    })
+    appClientMocks.getSessionRecordingStatusMock.mockResolvedValue({
+      configuredEnabled: true,
+      passwordConfigured: true,
+      passwordLoaded: false,
+      canRecord: false,
+      pausedForRun: false,
+      needsPasswordVerification: true,
+      logDirectory: 'C:\\mock\\SessionLogs',
+      currentStorageBytes: 0,
+    })
+    vi.mocked(appClient.connectSession).mockResolvedValue(sessionAlpha)
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Connect Alpha' }))
+
+    expect(screen.getByRole('heading', { name: 'Verify Session Recording Password' })).toBeInTheDocument()
+    expect(appClient.connectSession).not.toHaveBeenCalled()
+
+    await user.type(screen.getByLabelText('Encryption password'), 'super-secret')
+    await user.click(screen.getByRole('button', { name: 'Verify and Continue' }))
+
+    await waitFor(() => {
+      expect(appClient.verifySessionRecordingPassword).toHaveBeenCalledWith('super-secret')
+    })
+    await waitFor(() => {
+      expect(appClient.connectSession).toHaveBeenCalledWith('connection-1')
+    })
+    expect(screen.getByText('Password verified. Detailed session recording is active for this app run.')).toBeInTheDocument()
+  })
+
+  it('can pause session recording for the current run and continue connecting', async () => {
+    appClientMocks.getAppSettingsMock.mockResolvedValue({
+      ...defaultAppSettings,
+      sessionRecording: {
+        ...defaultAppSettings.sessionRecording,
+        enabled: true,
+      },
+    })
+    appClientMocks.getSessionRecordingStatusMock.mockResolvedValue({
+      configuredEnabled: true,
+      passwordConfigured: true,
+      passwordLoaded: false,
+      canRecord: false,
+      pausedForRun: false,
+      needsPasswordVerification: true,
+      logDirectory: 'C:\\mock\\SessionLogs',
+      currentStorageBytes: 0,
+    })
+    vi.mocked(appClient.connectSession).mockResolvedValue(sessionAlpha)
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Connect Alpha' }))
+    await user.click(screen.getByRole('button', { name: 'Pause Recording' }))
+
+    await waitFor(() => {
+      expect(appClient.pauseSessionRecordingForRun).toHaveBeenCalled()
+    })
+    await waitFor(() => {
+      expect(appClient.connectSession).toHaveBeenCalledWith('connection-1')
+    })
+    expect(screen.getByText('Session recording is paused for this app run.')).toBeInTheDocument()
   })
 
   it('keeps the current tab active when the clicked connection has no open session', async () => {
