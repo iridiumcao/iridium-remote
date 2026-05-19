@@ -27,6 +27,10 @@ export type ConnectionHistoryDurationBucketKind =
   | 'between_30_minutes_and_2_hours'
   | 'over_2_hours'
 
+export type ConnectionHistorySidebarSection = 'overview' | 'hosts'
+
+export type ConnectionHistoryShareSortMode = 'metric' | 'latest'
+
 export type SessionRecordingSettings = {
   enabled: boolean
   mode: SessionRecordingMode
@@ -41,6 +45,7 @@ export type AppSettings = {
   theme: AppTheme
   connectionListDisplayMode: ConnectionListDisplayMode
   collapsedGroups: string[]
+  connectionHistoryCollapsedSections: ConnectionHistorySidebarSection[]
   connectionHistoryTimeZone: string
   sessionRecording: SessionRecordingSettings
 }
@@ -50,6 +55,7 @@ export const defaultAppSettings: AppSettings = {
   theme: 'dark',
   connectionListDisplayMode: 'normal',
   collapsedGroups: [],
+  connectionHistoryCollapsedSections: [],
   connectionHistoryTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   sessionRecording: {
     enabled: false,

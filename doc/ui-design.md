@@ -136,8 +136,8 @@ Switching away from `Connections` must keep existing SSH sessions alive. Returni
 
 The `History` workspace uses the shared left/right shell:
 
-- **Left sidebar:** date-range quick filters, an `Overall statistics` section with links for `Cross-host duration share`, `Cross-host connection count share`, and `Daily usage`, plus a `Host statistics` section with host search, host list, and deleted-connection markers
-- **Right panel:** whichever view matches the current left-side selection; overall items show only their corresponding charts/views, while host items show selected-host summary cards, duration-distribution charts, and recent session detail tables
+- **Left sidebar:** date-range quick filters, a collapsible `Overall statistics` section with links for `Cross-host duration share`, `Cross-host connection count share`, and `Daily usage`, plus a collapsible `Host statistics` section with host search, host list, and deleted-connection markers
+- **Right panel:** whichever view matches the current left-side selection; overall share views pair the pie chart with a sortable host list that supports `By current metric` and `By latest connection` ordering plus proportional horizontal value bars, while host items show selected-host summary cards, duration-distribution charts, and recent session detail tables
 
 Switching away from `History` and back should keep the previously selected host and active filters visible.
 

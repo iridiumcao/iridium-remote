@@ -1978,12 +1978,21 @@ fn normalize_app_settings(settings: AppSettings) -> AppResult<AppSettings> {
         .collect::<Vec<_>>();
     collapsed_groups.sort();
     collapsed_groups.dedup();
+    let mut connection_history_collapsed_sections = settings
+        .connection_history_collapsed_sections
+        .into_iter()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| matches!(value.as_str(), "overview" | "hosts"))
+        .collect::<Vec<_>>();
+    connection_history_collapsed_sections.sort();
+    connection_history_collapsed_sections.dedup();
 
     Ok(AppSettings {
         locale: locale.into(),
         theme: theme.into(),
         connection_list_display_mode: settings.connection_list_display_mode,
         collapsed_groups,
+        connection_history_collapsed_sections,
         connection_history_time_zone: normalize_connection_history_time_zone(
             settings.connection_history_time_zone.as_str(),
         ),
@@ -2314,6 +2323,11 @@ mod tests {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: vec!["home".into(), "Home".into(), "Work".into()],
+            connection_history_collapsed_sections: vec![
+                "hosts".into(),
+                "overview".into(),
+                "HOSTS".into(),
+            ],
             connection_history_time_zone: "Asia/Shanghai".into(),
             session_recording: SessionRecordingSettings::default(),
         };
@@ -2321,6 +2335,10 @@ mod tests {
         let normalized = normalize_app_settings(settings).expect("settings should normalize");
 
         assert_eq!(normalized.collapsed_groups, vec!["Home", "Work"]);
+        assert_eq!(
+            normalized.connection_history_collapsed_sections,
+            vec!["hosts", "overview"]
+        );
     }
 
     #[test]
@@ -2330,6 +2348,7 @@ mod tests {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: Vec::new(),
+            connection_history_collapsed_sections: Vec::new(),
             connection_history_time_zone: "Asia/Shanghai".into(),
             session_recording: SessionRecordingSettings {
                 enabled: true,

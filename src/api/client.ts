@@ -15,6 +15,7 @@ import type {
   ConnectionHistoryHostDetails,
   ConnectionHistoryHostSummary,
   ConnectionHistoryOverview,
+  ConnectionHistorySidebarSection,
   ConnectionsExportPayload,
   CreateConnectionInput,
   FileTransferInput,
@@ -88,6 +89,7 @@ type MockStore = {
 const MOCK_SETTINGS_STORAGE_KEY = 'iridium-remote.mock-settings'
 const MOCK_LOG_DIRECTORY = 'C:\\mock\\SessionLogs'
 const MAX_TERMINAL_BUFFER_SIZE = 500000
+const historySidebarSections: ConnectionHistorySidebarSection[] = ['overview', 'hosts']
 
 const loadMockSettings = (): AppSettings => {
   if (typeof window === 'undefined') {
@@ -114,6 +116,25 @@ const loadMockSettings = (): AppSettings => {
   }
 }
 
+const syncMockSessionRecordingState = () => {
+  if (buildMockRecordingStatus().canRecord) {
+    return
+  }
+
+  const sessionsToUpdate = mockStore.sessions
+    .filter((session) => session.recordingActive || session.recordingMode)
+    .map((session) => ({
+      ...session,
+      recordingActive: false,
+      recordingMode: null,
+    }))
+
+  for (const session of sessionsToUpdate) {
+    mockStore.sessionLogPathsBySessionId.delete(session.sessionId)
+    emitMockSession(session)
+  }
+}
+
 const persistMockSettings = (settings: AppSettings) => {
   if (typeof window === 'undefined') {
     return
@@ -129,6 +150,13 @@ const normalizeMockSettings = (settings: AppSettings): AppSettings => ({
     Intl.DateTimeFormat().resolvedOptions().timeZone ||
     'UTC',
   collapsedGroups: normalizeCollapsedGroups(settings.collapsedGroups),
+  connectionHistoryCollapsedSections: Array.from(
+    new Set(
+      (settings.connectionHistoryCollapsedSections ?? []).filter(
+        (value): value is ConnectionHistorySidebarSection => historySidebarSections.includes(value),
+      ),
+    ),
+  ),
 })
 
 const sanitizeMockVisibleText = (data: string) =>
@@ -766,7 +794,12 @@ export const appClient = {
     if (!isTauriRuntime()) {
       const normalized = normalizeMockSettings(settings)
       mockStore.settings = normalized
+      if (!normalized.sessionRecording.enabled) {
+        mockStore.sessionRecordingPassword = null
+        mockStore.sessionRecordingPausedForRun = false
+      }
       persistMockSettings(normalized)
+      syncMockSessionRecordingState()
       return normalized
     }
 
@@ -956,6 +989,8 @@ export const appClient = {
         ...existing,
         status: 'disconnected',
         message: 'Session closed.',
+        recordingActive: false,
+        recordingMode: null,
       }
 
       finalizeMockConnectionHistorySession(sessionId, 'normal')
@@ -1090,6 +1125,7 @@ export const appClient = {
         mockStore.sessionRecordingPassword = null
         mockStore.sessionRecordingPasswordConfigured = false
         mockStore.sessionRecordingPausedForRun = false
+        syncMockSessionRecordingState()
         settingsApplied = true
       }
 
@@ -1200,6 +1236,7 @@ export const appClient = {
         mockStore.sessionRecordingPassword = null
         mockStore.sessionRecordingPausedForRun = false
       }
+      syncMockSessionRecordingState()
 
       return {
         appSettings: mockStore.settings,

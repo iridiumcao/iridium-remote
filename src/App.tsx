@@ -18,6 +18,7 @@ import { getLocaleDisplayName, getTranslations } from './lib/i18n'
 import type {
   AppError,
   AppSettings,
+  ConnectionHistorySidebarSection,
   ConnectionFormSeed,
   ConnectionRecord,
   ConnectionsExportPayload,
@@ -1040,6 +1041,24 @@ function App() {
     })
   }
 
+  const handleToggleConnectionHistorySection = useCallback(
+    (section: ConnectionHistorySidebarSection) => {
+      updateSettings((current) => {
+        const connectionHistoryCollapsedSections = current.connectionHistoryCollapsedSections.includes(
+          section,
+        )
+          ? current.connectionHistoryCollapsedSections.filter((value) => value !== section)
+          : [...current.connectionHistoryCollapsedSections, section]
+
+        return {
+          ...current,
+          connectionHistoryCollapsedSections,
+        }
+      })
+    },
+    [updateSettings],
+  )
+
   const renderSidebarTopContent = () => (
     <div className="space-y-4">
       <div>
@@ -1207,9 +1226,11 @@ function App() {
 
           <ConnectionHistoryWorkspace
             active={currentWorkspaceTab === 'history'}
+            collapsedSections={settings.connectionHistoryCollapsedSections}
             locale={settings.locale}
             onLoadHostDetails={handleLoadConnectionHistoryHostDetails}
             onLoadOverview={handleLoadConnectionHistoryOverview}
+            onToggleSection={handleToggleConnectionHistorySection}
             t={t}
             theme={settings.theme}
             topContent={currentWorkspaceTab === 'history' ? renderSidebarTopContent() : undefined}

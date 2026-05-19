@@ -247,6 +247,8 @@ impl SessionManager {
                 .kill();
             session.snapshot.status = SessionStatus::Disconnected;
             session.snapshot.message = Some("Session closed.".into());
+            session.snapshot.recording_active = false;
+            session.snapshot.recording_mode = None;
             session.snapshot.clone()
         };
 
@@ -310,6 +312,44 @@ impl SessionManager {
         })?;
 
         Ok(session.terminal_output.clone())
+    }
+
+    pub fn stop_recording_for_active_sessions(&self, app: &AppHandle) -> AppResult<()> {
+        let sessions_to_update = {
+            let mut inner = self.inner.lock().expect("session mutex poisoned");
+            let mut sessions_to_update = Vec::new();
+            let session_order = inner.order.clone();
+
+            for session_id in session_order {
+                let Some(session) = inner.sessions.get_mut(&session_id) else {
+                    continue;
+                };
+
+                let recorder = session
+                    .resources
+                    .as_mut()
+                    .and_then(|resources| resources.recorder.take());
+                let snapshot_was_recording = session.snapshot.recording_active
+                    || session.snapshot.recording_mode.is_some();
+
+                if !snapshot_was_recording && recorder.is_none() {
+                    continue;
+                }
+
+                session.snapshot.recording_active = false;
+                session.snapshot.recording_mode = None;
+                sessions_to_update.push((recorder, session.snapshot.clone()));
+            }
+
+            sessions_to_update
+        };
+
+        for (mut recorder, snapshot) in sessions_to_update {
+            Self::finish_recorder(recorder.as_mut())?;
+            self.emit_status(app, &snapshot)?;
+        }
+
+        Ok(())
     }
 
     fn read_loop(&self, app: AppHandle, session_id: String, mut reader: Box<dyn Read + Send>) {
@@ -489,6 +529,8 @@ impl SessionManager {
             }
             session.snapshot.status = final_status;
             session.snapshot.message = Some(final_message);
+            session.snapshot.recording_active = false;
+            session.snapshot.recording_mode = None;
             session.snapshot.clone()
         };
 

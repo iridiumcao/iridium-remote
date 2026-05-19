@@ -119,6 +119,7 @@ In the Settings menu, `Session Recording` should appear after the existing Langu
 Disabled by default.
 
 When unchecked, all other controls in the Session Recording dialog should be disabled visually and functionally.
+If recording is turned off while an SSH tab is already open, that tab must stop recording immediately and any visible recording indicator must disappear.
 
 ---
 
@@ -508,6 +509,8 @@ or:
 ```text id="qbpkmm"
 ● Input Recording
 ```
+
+If recording stops for the active session because the feature was disabled, the indicator should be removed immediately.
 
 This indicator helps ensure transparency and user awareness.
 

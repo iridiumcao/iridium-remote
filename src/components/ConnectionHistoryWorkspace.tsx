@@ -8,17 +8,21 @@ import type {
   ConnectionHistoryHostDetails,
   ConnectionHistoryHostSummary,
   ConnectionHistoryOverview,
+  ConnectionHistoryShareSortMode,
+  ConnectionHistorySidebarSection,
   Locale,
 } from '../lib/types'
 
 type ConnectionHistoryWorkspaceProps = {
   active: boolean
+  collapsedSections: ConnectionHistorySidebarSection[]
   locale: Locale
   onLoadHostDetails: (
     historyKey: string,
     range: ConnectionHistoryDateRange,
   ) => Promise<ConnectionHistoryHostDetails>
   onLoadOverview: (range: ConnectionHistoryDateRange) => Promise<ConnectionHistoryOverview>
+  onToggleSection: (section: ConnectionHistorySidebarSection) => void
   t: ReturnType<typeof getTranslations>
   theme: AppTheme
   topContent?: ReactNode
@@ -27,6 +31,7 @@ type ConnectionHistoryWorkspaceProps = {
 type PieSlice = {
   label: string
   secondaryLabel?: string
+  latestConnectionAt?: string | null
   value: number
 }
 
@@ -93,20 +98,43 @@ const getConnectionHistoryErrorMessage = (cause: unknown, fallback: string) => {
   return fallback
 }
 
+const compareLatestConnection = (
+  left: Pick<PieSlice, 'label' | 'latestConnectionAt'>,
+  right: Pick<PieSlice, 'label' | 'latestConnectionAt'>,
+) =>
+  (right.latestConnectionAt ?? '').localeCompare(left.latestConnectionAt ?? '') ||
+  left.label.localeCompare(right.label)
+
+const sortShareData = (data: PieSlice[], mode: ConnectionHistoryShareSortMode) =>
+  [...data].sort((left, right) =>
+    mode === 'latest'
+      ? compareLatestConnection(left, right)
+      : right.value - left.value || compareLatestConnection(left, right),
+  )
+
 const PieChartCard = ({
+  actions,
+  barScaleMax,
   data,
   emptyText,
   isDark,
+  showBars = false,
+  testId,
   title,
   valueFormatter,
 }: {
+  actions?: ReactNode
+  barScaleMax?: number
   data: PieSlice[]
   emptyText: string
   isDark: boolean
+  showBars?: boolean
+  testId?: string
   title: string
   valueFormatter: (value: number) => string
 }) => {
   const total = data.reduce((sum, item) => sum + item.value, 0)
+  const maxBarValue = barScaleMax ?? Math.max(0, ...data.map((item) => item.value))
   const radius = 36
   const circumference = 2 * Math.PI * radius
   const segments = useMemo(
@@ -139,8 +167,12 @@ const PieChartCard = ({
       className={`rounded-2xl border p-4 ${
         isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
       }`}
+      data-testid={testId}
     >
-      <p className="text-sm font-medium">{title}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium">{title}</p>
+        {actions}
+      </div>
       {total > 0 ? (
         <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-center">
           <div className="mx-auto shrink-0">
@@ -187,6 +219,25 @@ const PieChartCard = ({
                       <p className={`mt-1 truncate pl-5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {item.secondaryLabel}
                       </p>
+                    ) : null}
+                    {showBars ? (
+                      <span
+                        className={`mt-2 ml-5 block h-1.5 overflow-hidden rounded-full ${
+                          isDark ? 'bg-slate-800' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          className="block h-full rounded-full"
+                          data-testid={testId ? `${testId}-bar-${index}` : undefined}
+                          style={{
+                            backgroundColor: chartColors[index % chartColors.length],
+                            width:
+                              maxBarValue > 0 && item.value > 0
+                                ? `${Math.max(4, Math.round((item.value / maxBarValue) * 100))}%`
+                                : '0%',
+                          }}
+                        />
+                      </span>
                     ) : null}
                   </div>
                   <div className="shrink-0 text-right">
@@ -284,15 +335,18 @@ const DailyUsageCard = ({
 
 export const ConnectionHistoryWorkspace = ({
   active,
+  collapsedSections,
   locale,
   onLoadHostDetails,
   onLoadOverview,
+  onToggleSection,
   t,
   theme,
   topContent,
 }: ConnectionHistoryWorkspaceProps) => {
   const [range, setRange] = useState<ConnectionHistoryDateRange>('last_30_days')
   const [searchQuery, setSearchQuery] = useState('')
+  const [shareSortMode, setShareSortMode] = useState<ConnectionHistoryShareSortMode>('metric')
   const [overview, setOverview] = useState<ConnectionHistoryOverview | null>(null)
   const [hostListOverview, setHostListOverview] = useState<ConnectionHistoryOverview | null>(null)
   const [details, setDetails] = useState<ConnectionHistoryHostDetails | null>(null)
@@ -494,22 +548,30 @@ export const ConnectionHistoryWorkspace = ({
 
   const durationShareData = useMemo(
     () =>
-      (chartOverview?.hosts ?? []).map((host) => ({
-        label: host.connectionName,
-        secondaryLabel: formatHistorySubtitle(host),
-        value: host.totalDurationSeconds,
-      })),
-    [chartOverview?.hosts],
+      sortShareData(
+        (chartOverview?.hosts ?? []).map((host) => ({
+          label: host.connectionName,
+          secondaryLabel: formatHistorySubtitle(host),
+          latestConnectionAt: host.latestConnectionAt,
+          value: host.totalDurationSeconds,
+        })),
+        shareSortMode,
+      ),
+    [chartOverview?.hosts, shareSortMode],
   )
 
   const countShareData = useMemo(
     () =>
-      (chartOverview?.hosts ?? []).map((host) => ({
-        label: host.connectionName,
-        secondaryLabel: formatHistorySubtitle(host),
-        value: host.totalConnectionCount,
-      })),
-    [chartOverview?.hosts],
+      sortShareData(
+        (chartOverview?.hosts ?? []).map((host) => ({
+          label: host.connectionName,
+          secondaryLabel: formatHistorySubtitle(host),
+          latestConnectionAt: host.latestConnectionAt,
+          value: host.totalConnectionCount,
+        })),
+        shareSortMode,
+      ),
+    [chartOverview?.hosts, shareSortMode],
   )
 
   const selectedHostDistribution = useMemo(
@@ -540,6 +602,8 @@ export const ConnectionHistoryWorkspace = ({
   )
 
   const selectedDailyTopHost = selectedDailyUsage?.hosts[0] ?? null
+  const overviewCollapsed = collapsedSections.includes('overview')
+  const hostsCollapsed = collapsedSections.includes('hosts')
   const sectionClass = `rounded-2xl border ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
@@ -567,6 +631,44 @@ export const ConnectionHistoryWorkspace = ({
       description: t.connectionHistoryDailyUsageChart,
     },
   ]
+  const renderShareSortActions = () => (
+    <div className="flex items-center gap-2">
+      <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+        {t.connectionHistorySortLabel}
+      </span>
+      <div
+        className={`inline-flex overflow-hidden rounded-lg border ${
+          isDark ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'
+        }`}
+      >
+        {([
+          ['metric', t.connectionHistorySortByMetric],
+          ['latest', t.connectionHistorySortByLatest],
+        ] as const).map(([mode, label]) => {
+          const selected = shareSortMode === mode
+          return (
+            <button
+              key={mode}
+              aria-pressed={selected}
+              className={`px-3 py-1.5 text-xs font-medium transition ${
+                selected
+                  ? 'bg-cyan-400 text-slate-950'
+                  : isDark
+                    ? 'text-slate-200 hover:bg-white/5'
+                    : 'text-slate-700 hover:bg-slate-100'
+              }`}
+              onClick={() => {
+                setShareSortMode(mode)
+              }}
+              type="button"
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 
   if (!active) {
     return null
@@ -628,121 +730,151 @@ export const ConnectionHistoryWorkspace = ({
         >
           <div className="space-y-4">
             <section>
-              <div className="mb-2 flex items-center justify-between px-2">
-                <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {t.connectionHistoryOverviewSection}
-                </p>
-              </div>
-              <div className="space-y-2">
-                {overviewItems.map((item) => {
-                  const selected =
-                    selection.kind === 'overview' && selection.panel === item.id
+              <button
+                aria-expanded={!overviewCollapsed}
+                className={`mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left ${
+                  isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                }`}
+                onClick={() => onToggleSection('overview')}
+                type="button"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                    {overviewCollapsed ? '▸' : '▾'}
+                  </span>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {t.connectionHistoryOverviewSection}
+                  </p>
+                </div>
+              </button>
+              {!overviewCollapsed ? (
+                <div className="space-y-2">
+                  {overviewItems.map((item) => {
+                    const selected =
+                      selection.kind === 'overview' && selection.panel === item.id
 
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                        selected
-                          ? 'border-cyan-400 bg-cyan-400/10'
-                          : isDark
-                            ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                      onClick={() => {
-                        setError(null)
-                        setSelection({ kind: 'overview', panel: item.id })
-                      }}
-                    >
-                      <div className="font-medium">{item.title}</div>
-                      <p className={`mt-1 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                        {item.description}
-                      </p>
-                    </button>
-                  )
-                })}
-              </div>
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                          selected
+                            ? 'border-cyan-400 bg-cyan-400/10'
+                            : isDark
+                              ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                        onClick={() => {
+                          setError(null)
+                          setSelection({ kind: 'overview', panel: item.id })
+                        }}
+                      >
+                        <div className="font-medium">{item.title}</div>
+                        <p className={`mt-1 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                          {item.description}
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
             </section>
 
             <section>
-              <div className="mb-2 flex items-center justify-between px-2">
-                <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {t.connectionHistoryHostsSection}
-                </p>
+              <button
+                aria-expanded={!hostsCollapsed}
+                className={`mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left ${
+                  isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                }`}
+                onClick={() => onToggleSection('hosts')}
+                type="button"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                    {hostsCollapsed ? '▸' : '▾'}
+                  </span>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {t.connectionHistoryHostsSection}
+                  </p>
+                </div>
                 <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                   {filteredHosts.length}
                 </span>
-              </div>
+              </button>
 
-              <input
-                className={`mb-3 w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
-                  isDark
-                    ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
-                    : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
-                }`}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                }}
-                placeholder={t.connectionHistorySearchHosts}
-                value={searchQuery}
-              />
+              {!hostsCollapsed ? (
+                <>
+                  <input
+                    className={`mb-3 w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
+                      isDark
+                        ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
+                        : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
+                    }`}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value)
+                    }}
+                    placeholder={t.connectionHistorySearchHosts}
+                    value={searchQuery}
+                  />
 
-              {hostListOverview !== null && filteredHosts.length === 0 ? (
-                <div className={`rounded-2xl border border-dashed px-4 py-6 ${isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-50'}`}>
-                  <p className={`text-base font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    {t.connectionHistoryNoHosts}
-                  </p>
-                  <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {t.connectionHistoryNoHostsDescription}
-                  </p>
-                </div>
+                  {hostListOverview !== null && filteredHosts.length === 0 ? (
+                    <div className={`rounded-2xl border border-dashed px-4 py-6 ${isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-50'}`}>
+                      <p className={`text-base font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        {t.connectionHistoryNoHosts}
+                      </p>
+                      <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {t.connectionHistoryNoHostsDescription}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    {filteredHosts.map((host) => {
+                      const selected = host.historyKey === selectedHistoryKey
+                      return (
+                        <button
+                          key={host.historyKey}
+                          type="button"
+                          className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                            selected
+                              ? 'border-cyan-400 bg-cyan-400/10'
+                              : isDark
+                                ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                          onClick={() => {
+                            setError(null)
+                            setDetails(null)
+                            setSelection({ kind: 'host', historyKey: host.historyKey })
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium">{host.connectionName}</div>
+                              <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                {formatHistorySubtitle(host)}
+                              </p>
+                            </div>
+                            {host.deleted ? (
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs ${
+                                  isDark ? 'bg-amber-500/15 text-amber-100' : 'bg-amber-100 text-amber-700'
+                                }`}
+                              >
+                                {t.connectionHistoryDeletedConnection}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className={`mt-3 flex items-center justify-between gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <span>{formatDateTime(host.latestConnectionAt, locale)}</span>
+                            <span>{host.totalConnectionCount}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
               ) : null}
-
-              <div className="space-y-2">
-                {filteredHosts.map((host) => {
-                  const selected = host.historyKey === selectedHistoryKey
-                  return (
-                    <button
-                      key={host.historyKey}
-                      type="button"
-                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                        selected
-                          ? 'border-cyan-400 bg-cyan-400/10'
-                          : isDark
-                            ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                      onClick={() => {
-                        setError(null)
-                        setDetails(null)
-                        setSelection({ kind: 'host', historyKey: host.historyKey })
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{host.connectionName}</div>
-                          <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                            {formatHistorySubtitle(host)}
-                          </p>
-                        </div>
-                        {host.deleted ? (
-                          <span
-                            className={`rounded-full px-2 py-1 text-xs ${
-                              isDark ? 'bg-amber-500/15 text-amber-100' : 'bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            {t.connectionHistoryDeletedConnection}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className={`mt-3 flex items-center justify-between gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        <span>{formatDateTime(host.latestConnectionAt, locale)}</span>
-                        <span>{host.totalConnectionCount}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
             </section>
           </div>
         </div>
@@ -769,9 +901,12 @@ export const ConnectionHistoryWorkspace = ({
               <>
                 {selection.panel === 'duration_share' ? (
                   <PieChartCard
+                    actions={renderShareSortActions()}
                     data={durationShareData}
                     emptyText={t.connectionHistoryChartEmpty}
                     isDark={isDark}
+                    showBars
+                    testId="history-duration-share-card"
                     title={t.connectionHistoryDurationShareChart}
                     valueFormatter={(value) => formatDurationSeconds(value, durationUnits)}
                   />
@@ -779,9 +914,12 @@ export const ConnectionHistoryWorkspace = ({
 
                 {selection.panel === 'count_share' ? (
                   <PieChartCard
+                    actions={renderShareSortActions()}
                     data={countShareData}
                     emptyText={t.connectionHistoryChartEmpty}
                     isDark={isDark}
+                    showBars
+                    testId="history-count-share-card"
                     title={t.connectionHistoryCountShareChart}
                     valueFormatter={(value) => `${value}`}
                   />

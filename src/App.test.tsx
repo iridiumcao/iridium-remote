@@ -142,6 +142,9 @@ vi.mock('./components/TerminalWorkspace', () => ({
     <div>
       <div>Terminal Workspace</div>
       <div data-testid="active-session">{activeSession?.sessionId ?? 'none'}</div>
+      <div data-testid="active-session-recording">
+        {activeSession?.recordingActive ? 'recording' : 'not-recording'}
+      </div>
       {sessions.map((session) => (
         <button
           key={session.sessionId}
@@ -464,6 +467,33 @@ describe('App', () => {
     })
   })
 
+  it('updates the active session recording state when a session-status event stops recording', async () => {
+    let sessionStateListener: ((state: SessionState) => void) | undefined
+    appClientMocks.getSessionStatesMock.mockResolvedValue([
+      { ...sessionAlpha, recordingActive: true, recordingMode: 'full' },
+    ])
+    appClientMocks.onSessionStateMock.mockImplementation(async (listener) => {
+      sessionStateListener = listener
+      return () => {}
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-session-recording')).toHaveTextContent('recording')
+    })
+
+    act(() => {
+      sessionStateListener?.({
+        ...sessionAlpha,
+        recordingActive: false,
+        recordingMode: null,
+      })
+    })
+
+    expect(screen.getByTestId('active-session-recording')).toHaveTextContent('not-recording')
+  })
+
   it('shows the Logs workspace tab only when session recording is enabled', async () => {
     const { unmount } = render(<App />)
 
@@ -484,6 +514,31 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getAllByRole('tab')).toHaveLength(3)
+    })
+  })
+
+  it('persists collapsed history sidebar sections in app settings', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab')).toHaveLength(2)
+    })
+
+    await user.click(screen.getByRole('tab', { name: 'History' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Overall statistics/ })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Overall statistics/ }))
+
+    await waitFor(() => {
+      expect(appClient.updateAppSettings).toHaveBeenCalledWith({
+        ...defaultAppSettings,
+        connectionHistoryCollapsedSections: ['overview'],
+      })
     })
   })
 

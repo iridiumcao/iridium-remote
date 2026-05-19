@@ -123,6 +123,7 @@ If a session is still running, the current filter should still show it as an in-
 ### Summary charts
 
 The dialog should support simple pie-chart summaries that stay synchronized with the active date filter.
+The `Overall statistics` and `Host statistics` groups in the left navigation should be collapsible so users can focus on the area they are currently using.
 
 V1 should support the following charts:
 
@@ -143,6 +144,12 @@ The chart should use the same host identity as the host list:
 - connection display name when available
 - otherwise host and username snapshot
 
+The companion host list beside this chart should:
+
+- default to descending order by total duration for the current filter
+- allow switching to descending order by latest connection time
+- render a horizontal value bar for each host, scaled relative to the largest duration in the current result set
+
 #### Cross-host connection count share
 
 This pie chart shows how total connection count is distributed across different hosts in the current filter range.
@@ -150,6 +157,12 @@ This pie chart shows how total connection count is distributed across different 
 Each slice represents one host.
 
 This helps users quickly understand which hosts are used most frequently, even when those hosts are not the ones with the longest total duration.
+
+The companion host list beside this chart should:
+
+- default to descending order by total connection count for the current filter
+- allow switching to descending order by latest connection time
+- render a horizontal value bar for each host, scaled relative to the largest connection count in the current result set
 
 #### Per-host session-duration distribution
 

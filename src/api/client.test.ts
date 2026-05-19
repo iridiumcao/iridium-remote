@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultAppSettings } from '../lib/types'
 import type { ConnectionsExportPayload } from '../lib/types'
 
 const invokeMock = vi.fn()
@@ -28,6 +29,7 @@ const payload: ConnectionsExportPayload = {
     theme: 'dark',
     connectionListDisplayMode: 'normal',
     collapsedGroups: [],
+    connectionHistoryCollapsedSections: [],
     connectionHistoryTimeZone: 'UTC',
     sessionRecording: {
       enabled: false,
@@ -190,6 +192,50 @@ describe('appClient.saveExportConnections', () => {
       { name: 'var', path: '/var', isDirectory: true },
       { name: 'README.txt', path: '/README.txt', isDirectory: false },
     ])
+  })
+
+  it('stops mock recording for active sessions when recording is disabled', async () => {
+    const { appClient } = await import('./client')
+    const sessionListener = vi.fn()
+    await appClient.onSessionState(sessionListener)
+
+    const connection = await appClient.createConnection({
+      name: 'Alpha',
+      host: 'example.com',
+      username: 'root',
+    })
+
+    await appClient.updateSessionRecordingSettings(
+      {
+        ...defaultAppSettings.sessionRecording,
+        enabled: true,
+      },
+      'super-secret',
+    )
+
+    const session = await appClient.connectSession(connection.id)
+    expect(session.recordingActive).toBe(true)
+    expect(session.recordingMode).toBe('input_only')
+
+    await appClient.updateSessionRecordingSettings({
+      ...defaultAppSettings.sessionRecording,
+      enabled: false,
+    })
+
+    await expect(appClient.getSessionStates()).resolves.toEqual([
+      expect.objectContaining({
+        sessionId: session.sessionId,
+        recordingActive: false,
+        recordingMode: null,
+      }),
+    ])
+    expect(sessionListener).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sessionId: session.sessionId,
+        recordingActive: false,
+        recordingMode: null,
+      }),
+    )
   })
 
   it('reports when the current version is already up to date', async () => {

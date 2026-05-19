@@ -213,6 +213,9 @@ type Dictionary = {
   connectionHistoryMostUsedHost: string
   connectionHistoryNoDailyUsage: string
   connectionHistoryChartEmpty: string
+  connectionHistorySortLabel: string
+  connectionHistorySortByMetric: string
+  connectionHistorySortByLatest: string
   connectionHistoryBucketUnder5Minutes: string
   connectionHistoryBucket5To30Minutes: string
   connectionHistoryBucket30MinutesTo2Hours: string
@@ -473,6 +476,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryMostUsedHost: 'Most-used host',
     connectionHistoryNoDailyUsage: 'No daily usage is available for the current filter.',
     connectionHistoryChartEmpty: 'No chart data is available for the current filter.',
+    connectionHistorySortLabel: 'Sort',
+    connectionHistorySortByMetric: 'By current metric',
+    connectionHistorySortByLatest: 'By latest connection',
     connectionHistoryBucketUnder5Minutes: '< 5 minutes',
     connectionHistoryBucket5To30Minutes: '5 to 30 minutes',
     connectionHistoryBucket30MinutesTo2Hours: '30 minutes to 2 hours',
@@ -724,6 +730,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryMostUsedHost: '使用最多的主机',
     connectionHistoryNoDailyUsage: '当前筛选条件下没有每日使用数据。',
     connectionHistoryChartEmpty: '当前筛选条件下没有可展示的图表数据。',
+    connectionHistorySortLabel: '排序',
+    connectionHistorySortByMetric: '按当前指标',
+    connectionHistorySortByLatest: '按最近连接',
     connectionHistoryBucketUnder5Minutes: '5 分钟以内',
     connectionHistoryBucket5To30Minutes: '5 到 30 分钟',
     connectionHistoryBucket30MinutesTo2Hours: '30 分钟到 2 小时',
@@ -975,6 +984,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryMostUsedHost: '使用最多的主機',
     connectionHistoryNoDailyUsage: '目前篩選條件下沒有每日使用資料。',
     connectionHistoryChartEmpty: '目前篩選條件下沒有可顯示的圖表資料。',
+    connectionHistorySortLabel: '排序',
+    connectionHistorySortByMetric: '按目前指標',
+    connectionHistorySortByLatest: '按最近連線',
     connectionHistoryBucketUnder5Minutes: '5 分鐘以內',
     connectionHistoryBucket5To30Minutes: '5 到 30 分鐘',
     connectionHistoryBucket30MinutesTo2Hours: '30 分鐘到 2 小時',

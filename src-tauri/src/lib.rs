@@ -209,14 +209,18 @@ fn get_app_settings(state: State<'_, Arc<AppState>>) -> AppResult<AppSettings> {
 
 #[tauri::command]
 fn update_app_settings(
+    app: AppHandle,
     state: State<'_, Arc<AppState>>,
     settings: AppSettings,
 ) -> AppResult<AppSettings> {
     let saved = state.database.set_app_settings(&settings)?;
     let password_verifier = state.database.get_session_recording_password_verifier()?;
-    state
+    let status = state
         .recording
         .sync_settings(saved.session_recording.clone(), password_verifier)?;
+    if !status.can_record {
+        state.sessions.stop_recording_for_active_sessions(&app)?;
+    }
     log::info!("Updated app settings.");
     Ok(saved)
 }
@@ -230,6 +234,7 @@ fn get_session_recording_status(
 
 #[tauri::command]
 fn update_session_recording_settings(
+    app: AppHandle,
     state: State<'_, Arc<AppState>>,
     settings: SessionRecordingSettings,
     password: Option<String>,
@@ -260,6 +265,9 @@ fn update_session_recording_settings(
     let status = state
         .recording
         .update_settings(saved.session_recording.clone(), password, password_verifier)?;
+    if !status.can_record {
+        state.sessions.stop_recording_for_active_sessions(&app)?;
+    }
 
     Ok(UpdateSessionRecordingSettingsResult {
         app_settings: saved,
@@ -300,9 +308,14 @@ fn verify_session_recording_password(
 
 #[tauri::command]
 fn pause_session_recording_for_run(
+    app: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> AppResult<SessionRecordingStatus> {
-    state.recording.pause_for_run()
+    let status = state.recording.pause_for_run()?;
+    if !status.can_record {
+        state.sessions.stop_recording_for_active_sessions(&app)?;
+    }
+    Ok(status)
 }
 
 #[tauri::command]
@@ -392,6 +405,7 @@ fn write_export_file(path: String, payload: ConnectionsExportPayload) -> AppResu
 
 #[tauri::command]
 fn import_connections(
+    app: AppHandle,
     state: State<'_, Arc<AppState>>,
     payload: ConnectionsExportPayload,
 ) -> AppResult<ImportConnectionsResult> {
@@ -401,9 +415,12 @@ fn import_connections(
     }
     let settings = state.database.get_app_settings()?;
     let password_verifier = state.database.get_session_recording_password_verifier()?;
-    state
+    let status = state
         .recording
         .sync_settings(settings.session_recording, password_verifier)?;
+    if !status.can_record {
+        state.sessions.stop_recording_for_active_sessions(&app)?;
+    }
     log::info!(
         "Imported {} connections, skipped {} duplicates, settings restored: {}.",
         result.imported,
