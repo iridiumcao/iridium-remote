@@ -1006,14 +1006,16 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Encryption password'), 'super-secret')
     await user.click(screen.getByRole('button', { name: 'Decrypt Preview' }))
 
+    const previewCard = screen.getByTestId('session-logs-preview-card')
+
     await waitFor(() => {
-      expect(screen.getByRole('textbox')).toHaveValue('example output')
+      expect(within(previewCard).getByRole('textbox')).toHaveValue('example output')
     })
 
     await user.click(screen.getAllByRole('tab')[0]!)
     await user.click(screen.getAllByRole('tab')[2]!)
 
-    expect(screen.getByRole('textbox')).toHaveValue('')
+    expect(within(screen.getByTestId('session-logs-preview-card')).getByRole('textbox')).toHaveValue('')
     expect(screen.getByLabelText('Encryption password')).toHaveValue('')
     expect(screen.getAllByText('2026-01-01_root_example.com.irlog').length).toBeGreaterThan(0)
   })

@@ -146,7 +146,7 @@ Switching away from `History` and back should keep the previously selected host 
 The `Logs` workspace appears only when session recording is enabled and uses the shared left/right shell:
 
 - **Left sidebar:** recording-directory actions and discovered source list
-- **Right panel:** selected source details, per-source `.irlog` file list, decryption password field, preview area, and export action
+- **Right panel:** a compact log-directory summary card, then a two-column content area where the left column shows an inline `Encryption password` label+field row, decrypt/export actions, a lower `Selected logs` block with clear-selection control plus read-only multiline file list, and then the per-source `.irlog` file list while the right column keeps the preview area
 
 Switching away from `Logs` and back should keep the selected source and files, but must clear the decryption password and decrypted preview content.
 
