@@ -429,6 +429,101 @@ describe('App', () => {
     expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
   })
 
+  it('reveals a collapsed group when switching to a session from that connection', async () => {
+    const groupedConnections: ConnectionRecord[] = [
+      {
+        ...connections[0]!,
+        groupName: 'Alpha Group',
+      },
+      {
+        ...connections[1]!,
+        groupName: 'Beta Group',
+      },
+    ]
+    appClientMocks.listConnectionsMock.mockResolvedValue(groupedConnections)
+    appClientMocks.getSessionStatesMock.mockResolvedValue([sessionBeta, sessionAlpha])
+    appClientMocks.getAppSettingsMock.mockResolvedValue({
+      ...defaultAppSettings,
+      collapsedGroups: ['Alpha Group'],
+    })
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-2')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Session Alpha' }))
+
+    await waitFor(() => {
+      expect(appClient.updateAppSettings).toHaveBeenCalledWith({
+        ...defaultAppSettings,
+        collapsedGroups: [],
+      })
+    })
+  })
+
+  it('shows the Logs workspace tab only when session recording is enabled', async () => {
+    const { unmount } = render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab')).toHaveLength(2)
+    })
+
+    appClientMocks.getAppSettingsMock.mockResolvedValue({
+      ...defaultAppSettings,
+      sessionRecording: {
+        ...defaultAppSettings.sessionRecording,
+        enabled: true,
+      },
+    })
+
+    unmount()
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab')).toHaveLength(3)
+    })
+  })
+
+  it('localizes workspace tab labels for each supported locale', async () => {
+    appClientMocks.getAppSettingsMock.mockResolvedValue({
+      ...defaultAppSettings,
+      sessionRecording: {
+        ...defaultAppSettings.sessionRecording,
+        enabled: true,
+      },
+    })
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Connections' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'History' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Logs' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('combobox', { name: 'Language' }))
+    await user.click(screen.getByRole('option', { name: '简体中文' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: '连接' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: '历史' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: '日志' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('combobox', { name: '语言' }))
+    await user.click(screen.getByRole('option', { name: '繁體中文' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: '連線' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: '歷史' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: '日誌' })).toBeInTheDocument()
+    })
+  })
+
   it('prevents the browser context menu outside the terminal panel', async () => {
     render(<App />)
 
@@ -713,7 +808,7 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getAllByRole('tab')).toHaveLength(3)
+      expect(screen.getAllByRole('tab')).toHaveLength(2)
     })
 
     const [, historyTab] = screen.getAllByRole('tab')
@@ -737,7 +832,82 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument()
   })
 
+  it('separates overall and host history navigation', async () => {
+    const allTimeHost: ConnectionHistoryHostSummary = {
+      historyKey: 'history-1',
+      connectionId: 'connection-1',
+      connectionName: 'Alpha',
+      host: '192.168.1.10',
+      port: 22,
+      username: 'root',
+      deleted: false,
+      latestConnectionAt: '2026-01-01T00:00:00Z',
+      totalConnectionCount: 2,
+      totalDurationSeconds: 120,
+    }
+
+    appClientMocks.getConnectionHistoryOverviewMock.mockResolvedValue({
+      hosts: [allTimeHost],
+      dailyUsage: [
+        {
+          date: '2026-01-02',
+          totalConnectionCount: 2,
+          totalDurationSeconds: 120,
+          hosts: [
+            {
+              historyKey: 'history-1',
+              connectionId: 'connection-1',
+              connectionName: 'Alpha',
+              host: '192.168.1.10',
+              port: 22,
+              username: 'root',
+              deleted: false,
+              connectionCount: 2,
+              totalDurationSeconds: 120,
+            },
+          ],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab')).toHaveLength(2)
+    })
+
+    await user.click(screen.getByRole('tab', { name: 'History' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Overall statistics')).toBeInTheDocument()
+      expect(screen.getByText('Host statistics')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Daily usage/i }))
+
+    expect(screen.getByText('Selected-day host duration share')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
+  })
+
   it('clears decrypted log state but preserves the selected log when switching tabs', async () => {
+    appClientMocks.getAppSettingsMock.mockResolvedValue({
+      ...defaultAppSettings,
+      sessionRecording: {
+        ...defaultAppSettings.sessionRecording,
+        enabled: true,
+      },
+    })
+    appClientMocks.getSessionRecordingStatusMock.mockResolvedValue({
+      configuredEnabled: true,
+      passwordConfigured: false,
+      passwordLoaded: false,
+      canRecord: false,
+      pausedForRun: false,
+      needsPasswordVerification: false,
+      logDirectory: 'C:\\mock\\SessionLogs',
+      currentStorageBytes: 0,
+    })
     appClientMocks.listSessionLogsMock.mockResolvedValue([
       {
         fileName: '2026-01-01_root_example.com.irlog',

@@ -5,7 +5,7 @@
 The main window uses a two-column layout:
 
 - **Left sidebar:** product branding, workspace tabs, browser-only settings controls when needed, and the active workspace's navigator
-- **Right workspace:** the active workspace surface (`Connections`, `History`, or `Logs`)
+- **Right workspace:** the active workspace surface (`Connections`, `History`, or `Logs` when session recording is enabled)
 
 The window itself should not scroll. The sidebar scrolls independently, uses scrollbar styling that matches the active light or dark theme, and terminal scroll stays inside the xterm viewport.
 
@@ -13,10 +13,10 @@ The window itself should not scroll. The sidebar scrolls independently, uses scr
 flowchart LR
     A[Left sidebar] --> B[Connections]
     A --> C[History]
-    A --> D[Logs]
+    A --> D[Optional Logs]
     B --> E[Terminal tabs and terminal surface]
-    C --> F[Host list, filters, charts, session details]
-    D --> G[Log source list, file list, decrypt/preview/export]
+    C --> F[Overview links, host list, charts, session details]
+    D --> G[Log source list, file selection, decrypt/preview/export]
 ```
 
 ## Sidebar top area
@@ -66,15 +66,16 @@ The sidebar contains these layers in order:
 2. **Workspace tabs**
    - `Connections`
    - `History`
-   - `Logs`
+   - `Logs` only when session recording is enabled
+   - visually styled like a lightly stacked folder/tab strip rather than flat segmented buttons
 3. **Browser-only settings controls**
    - shown only outside the desktop runtime
    - language selector
    - theme selector
 4. **Workspace-specific sidebar content**
    - `Connections`: search field, display mode control, grouped connection list
-   - `History`: date-range filters, host search, host list
-   - `Logs`: log-source list and per-source file list
+   - `History`: date-range filters, overall-statistics links, host search, host list
+   - `Logs`: recording-directory actions and log-source list
 
 ### Normal mode
 
@@ -109,7 +110,7 @@ Each connection entry supports:
 
 Single-clicking a connection row should keep that connection highlighted. If the connection already has an open session tab, the single click should also switch the workspace to that tab.
 Double-clicking a connection row should open a new session tab for that connection immediately.
-Switching to a session tab should update the highlighted connection row in the left sidebar.
+Switching to a session tab should update the highlighted connection row in the left sidebar and automatically expand its group if that group was collapsed.
 
 File transfer is launched from the active workspace header for the currently selected connection, not from each sidebar row.
 
@@ -127,7 +128,7 @@ The right side of the `Connections` workspace contains:
 - active terminal area
 - empty state when no session is active
 
-Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session. When the remote shell is ready, the tab status changes to `Connected` and the connecting overlay disappears even for common themed prompt styles.
+Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally, and the tabs themselves should feel closer to a lightly stacked folder strip than three flat buttons. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session. When the remote shell is ready, the tab status changes to `Connected` and the connecting overlay disappears even for common themed prompt styles.
 
 Switching away from `Connections` must keep existing SSH sessions alive. Returning to `Connections` should restore the same terminal tabs and active session state.
 
@@ -135,17 +136,17 @@ Switching away from `Connections` must keep existing SSH sessions alive. Returni
 
 The `History` workspace uses the shared left/right shell:
 
-- **Left sidebar:** date-range quick filters, host search, host list, deleted-connection markers
-- **Right panel:** selected-host summary cards, pie charts, daily usage view, and recent session detail table
+- **Left sidebar:** date-range quick filters, an `Overall statistics` section with links for `Cross-host duration share`, `Cross-host connection count share`, and `Daily usage`, plus a `Host statistics` section with host search, host list, and deleted-connection markers
+- **Right panel:** whichever view matches the current left-side selection; overall items show only their corresponding charts/views, while host items show selected-host summary cards, duration-distribution charts, and recent session detail tables
 
 Switching away from `History` and back should keep the previously selected host and active filters visible.
 
 ## Logs workspace
 
-The `Logs` workspace uses the shared left/right shell:
+The `Logs` workspace appears only when session recording is enabled and uses the shared left/right shell:
 
-- **Left sidebar:** recording-directory actions, discovered source list, discovered `.irlog` file list
-- **Right panel:** selected file summary, decryption password field, preview area, export action
+- **Left sidebar:** recording-directory actions and discovered source list
+- **Right panel:** selected source details, per-source `.irlog` file list, decryption password field, preview area, and export action
 
 Switching away from `Logs` and back should keep the selected source and files, but must clear the decryption password and decrypted preview content.
 

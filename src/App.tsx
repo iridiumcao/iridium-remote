@@ -13,7 +13,7 @@ import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
-import { collectGroupNames } from './lib/groups'
+import { collectGroupNames, getGroupKey } from './lib/groups'
 import { getLocaleDisplayName, getTranslations } from './lib/i18n'
 import type {
   AppError,
@@ -114,6 +114,9 @@ function App() {
   const settingsRef = useRef(settings)
   const t = useMemo(() => getTranslations(settings.locale), [settings.locale])
   const isDark = settings.theme === 'dark'
+  const isLogsWorkspaceEnabled = settings.sessionRecording.enabled
+  const currentWorkspaceTab =
+    !isLogsWorkspaceEnabled && activeWorkspaceTab === 'logs' ? 'connections' : activeWorkspaceTab
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.sessionId === activeSessionId) ?? null,
@@ -389,6 +392,34 @@ function App() {
     [saveSettings],
   )
 
+  const revealConnectionGroup = useCallback(
+    (connectionId: string | null) => {
+      if (!connectionId) {
+        return
+      }
+
+      const connection = connections.find((item) => item.id === connectionId)
+      if (!connection) {
+        return
+      }
+
+      const groupKey = getGroupKey(connection.groupName)
+      if (!settingsRef.current.collapsedGroups.includes(groupKey)) {
+        return
+      }
+
+      updateSettings((current) => ({
+        ...current,
+        collapsedGroups: current.collapsedGroups.filter((value) => value !== groupKey),
+      }))
+    },
+    [connections, updateSettings],
+  )
+
+  useEffect(() => {
+    revealConnectionGroup(activeSession?.connectionId ?? null)
+  }, [activeSession?.connectionId, revealConnectionGroup])
+
   const refreshConnections = async () => {
     const loadedConnections = await appClient.listConnections()
     setConnections(loadedConnections)
@@ -425,8 +456,13 @@ function App() {
   )
 
   const handleSelectWorkspaceTab = useCallback((tab: WorkspaceTab) => {
+    if (tab === 'logs' && !isLogsWorkspaceEnabled) {
+      setActiveWorkspaceTab('connections')
+      return
+    }
+
     setActiveWorkspaceTab(tab)
-  }, [])
+  }, [isLogsWorkspaceEnabled])
 
   const openCreateDialog = useCallback(() => {
     setEditingConnection(null)
@@ -1017,8 +1053,9 @@ function App() {
 
       <SidebarTabNav
         activeConnectionsCount={sessions.length}
-        activeTab={activeWorkspaceTab}
+        activeTab={currentWorkspaceTab}
         onChange={handleSelectWorkspaceTab}
+        showLogsTab={isLogsWorkspaceEnabled}
         t={t}
         theme={settings.theme}
       />
@@ -1122,7 +1159,7 @@ function App() {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <div
-            hidden={activeWorkspaceTab !== 'connections'}
+            hidden={currentWorkspaceTab !== 'connections'}
             className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row"
           >
             <ConnectionList
@@ -1147,7 +1184,7 @@ function App() {
               onToggleGroup={handleToggleGroup}
               searchQuery={searchQuery}
               selectedConnectionId={selectedConnectionId}
-              topContent={activeWorkspaceTab === 'connections' ? renderSidebarTopContent() : undefined}
+              topContent={currentWorkspaceTab === 'connections' ? renderSidebarTopContent() : undefined}
               t={t}
               theme={settings.theme}
             />
@@ -1155,7 +1192,7 @@ function App() {
             <TerminalWorkspace
               activeConnection={activeConnection}
               activeSession={activeSession}
-              isVisible={activeWorkspaceTab === 'connections'}
+              isVisible={currentWorkspaceTab === 'connections'}
               onCloseSession={closeSession}
               onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
               onDisconnect={disconnectSession}
@@ -1169,29 +1206,31 @@ function App() {
           </div>
 
           <ConnectionHistoryWorkspace
-            active={activeWorkspaceTab === 'history'}
+            active={currentWorkspaceTab === 'history'}
             locale={settings.locale}
             onLoadHostDetails={handleLoadConnectionHistoryHostDetails}
             onLoadOverview={handleLoadConnectionHistoryOverview}
             t={t}
             theme={settings.theme}
-            topContent={activeWorkspaceTab === 'history' ? renderSidebarTopContent() : undefined}
+            topContent={currentWorkspaceTab === 'history' ? renderSidebarTopContent() : undefined}
           />
 
-          <SessionLogsWorkspace
-            active={activeWorkspaceTab === 'logs'}
-            locale={settings.locale}
-            onExport={handleExportSessionLogs}
-            onListLogs={() => appClient.listSessionLogs()}
-            onOpenFolder={() => {
-              void handleOpenSessionLogsDirectory()
-            }}
-            onPreview={(paths, password) => appClient.previewSessionLogs(paths, password)}
-            status={sessionRecordingStatus}
-            t={t}
-            theme={settings.theme}
-            topContent={activeWorkspaceTab === 'logs' ? renderSidebarTopContent() : undefined}
-          />
+          {isLogsWorkspaceEnabled ? (
+            <SessionLogsWorkspace
+              active={currentWorkspaceTab === 'logs'}
+              locale={settings.locale}
+              onExport={handleExportSessionLogs}
+              onListLogs={() => appClient.listSessionLogs()}
+              onOpenFolder={() => {
+                void handleOpenSessionLogsDirectory()
+              }}
+              onPreview={(paths, password) => appClient.previewSessionLogs(paths, password)}
+              status={sessionRecordingStatus}
+              t={t}
+              theme={settings.theme}
+              topContent={currentWorkspaceTab === 'logs' ? renderSidebarTopContent() : undefined}
+            />
+          ) : null}
         </div>
       </div>
 

@@ -352,14 +352,9 @@ export const SessionLogsWorkspace = ({
 
         <div className={`border-b px-5 py-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {t.workspaceLogsTab}
-              </h2>
-              <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {t.sessionLogViewerDescription}
-              </p>
-            </div>
+            <p className={`max-w-[18rem] text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {t.sessionLogViewerDescription}
+            </p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={actionButtonClass} onClick={onOpenFolder}>
                 {t.openFolder}
@@ -458,71 +453,6 @@ export const SessionLogsWorkspace = ({
                   })}
                 </div>
               </section>
-
-              <section>
-                <div className="mb-2 flex items-center justify-between px-2">
-                  <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {t.sessionLogsFiles}
-                  </p>
-                  {visibleFiles.length > 0 ? (
-                    <button
-                      type="button"
-                      className={`text-xs font-medium ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}
-                      onClick={() => {
-                        setSelectedPaths(visibleFiles.map((file) => file.path))
-                        dispatch({ type: 'clearPreviewError' })
-                      }}
-                    >
-                      {t.sessionLogsSelectVisible}
-                    </button>
-                  ) : null}
-                </div>
-                {visibleFiles.length > 0 ? (
-                  <div className="space-y-2">
-                    {visibleFiles.map((file) => {
-                      const selected = selectedPaths.includes(file.path)
-                      const modeLabel =
-                        file.recordingMode === 'full'
-                          ? t.sessionRecordingModeDetailed
-                          : t.sessionRecordingModeCompact
-                      return (
-                        <button
-                          key={file.path}
-                          type="button"
-                          className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                            selected
-                              ? 'border-cyan-400 bg-cyan-400/10'
-                              : isDark
-                                ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
-                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                          onClick={() => handleToggleFile(file.path)}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{file.fileName}</p>
-                              <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                {formatLogTimestamp(file.createdAt, locale)}
-                              </p>
-                            </div>
-                            <span
-                              className={`rounded-full px-2 py-1 text-xs ${
-                                isDark ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {modeLabel}
-                            </span>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className={`${sectionClass} p-4 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {t.sessionLogsNoSourceFiles}
-                  </div>
-                )}
-              </section>
             </div>
           ) : null}
         </div>
@@ -571,6 +501,76 @@ export const SessionLogsWorkspace = ({
               </p>
             ) : null}
 
+            <div className={`${sectionClass} p-4`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{t.sessionLogsFiles}</p>
+                  <p className={`mt-1 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {selectedSource?.label ?? '—'}
+                  </p>
+                </div>
+                {visibleFiles.length > 0 ? (
+                  <button
+                    type="button"
+                    className={actionButtonClass}
+                    onClick={() => {
+                      setSelectedPaths(visibleFiles.map((file) => file.path))
+                      dispatch({ type: 'clearPreviewError' })
+                    }}
+                  >
+                    {t.sessionLogsSelectVisible}
+                  </button>
+                ) : null}
+              </div>
+
+              {visibleFiles.length > 0 ? (
+                <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                  {visibleFiles.map((file) => {
+                    const selected = selectedPaths.includes(file.path)
+                    const modeLabel =
+                      file.recordingMode === 'full'
+                        ? t.sessionRecordingModeDetailed
+                        : t.sessionRecordingModeCompact
+
+                    return (
+                      <button
+                        key={file.path}
+                        type="button"
+                        className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                          selected
+                            ? 'border-cyan-400 bg-cyan-400/10'
+                            : isDark
+                              ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                        onClick={() => handleToggleFile(file.path)}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{file.fileName}</p>
+                            <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                              {formatLogTimestamp(file.createdAt, locale)}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs ${
+                              isDark ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {modeLabel}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className={`mt-4 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {t.sessionLogsNoSourceFiles}
+                </p>
+              )}
+            </div>
+
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
               <div className={`${sectionClass} p-4`}>
                 <div className="flex items-center justify-between gap-3">
@@ -580,19 +580,11 @@ export const SessionLogsWorkspace = ({
                   </span>
                 </div>
 
-                {selectedFileNames.length > 0 ? (
-                  <ul className={`mt-3 space-y-2 text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                    {selectedFileNames.map((fileName) => (
-                      <li key={fileName} className="break-all rounded-xl border px-3 py-2">
-                        {fileName}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className={`mt-3 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {t.noSessionLogsSelected}
-                  </p>
-                )}
+                <p className={`mt-3 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {selectedFileNames.length > 0
+                    ? selectedFileNames.join(', ')
+                    : t.noSessionLogsSelected}
+                </p>
 
                 <label className="mt-4 block text-sm">
                   <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>

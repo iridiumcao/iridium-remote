@@ -178,6 +178,8 @@ type Dictionary = {
   sessionLogsExported: string
   connectionHistoryTitle: string
   connectionHistoryDescription: string
+  connectionHistoryOverviewSection: string
+  connectionHistoryHostsSection: string
   connectionHistorySearchHosts: string
   connectionHistoryHostList: string
   connectionHistoryNoHosts: string
@@ -409,9 +411,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     recordingIndicator: '● Recording',
     inputRecordingIndicator: '● Input Recording',
     workspaceTabsLabel: 'Workspace tabs',
-    workspaceConnectionsTab: '连接',
-    workspaceHistoryTab: '历史',
-    workspaceLogsTab: '日志',
+    workspaceConnectionsTab: 'Connections',
+    workspaceHistoryTab: 'History',
+    workspaceLogsTab: 'Logs',
     sessionLogViewerTitle: 'Session Logs',
     sessionLogViewerDescription:
       'Open one or more encrypted .irlog files, preview their contents, and export them as plain text.',
@@ -435,6 +437,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     connectionHistoryTitle: 'Connection History & Statistics',
     connectionHistoryDescription:
       'Review recent per-host connection sessions, totals, and simple usage charts.',
+    connectionHistoryOverviewSection: 'Overall statistics',
+    connectionHistoryHostsSection: 'Host statistics',
     connectionHistorySearchHosts: 'Search hosts',
     connectionHistoryHostList: 'Hosts',
     connectionHistoryNoHosts: 'No connection history yet.',
@@ -662,9 +666,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     recordingIndicator: '● 正在录制',
     inputRecordingIndicator: '● 输入录制',
     workspaceTabsLabel: '工作区标签页',
-    workspaceConnectionsTab: '連線',
-    workspaceHistoryTab: '歷史',
-    workspaceLogsTab: '日誌',
+    workspaceConnectionsTab: '连接',
+    workspaceHistoryTab: '历史',
+    workspaceLogsTab: '日志',
     sessionLogViewerTitle: '会话日志',
     sessionLogViewerDescription: '打开一个或多个加密的 .irlog 文件，预览内容并导出为纯文本。',
     selectSessionLogs: '选择会话日志',
@@ -685,6 +689,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsExported: '已导出解密后的会话日志。',
     connectionHistoryTitle: '连接历史与统计',
     connectionHistoryDescription: '查看每个主机的近期连接明细、累计统计和简要占比图。',
+    connectionHistoryOverviewSection: '总体统计',
+    connectionHistoryHostsSection: '主机统计',
     connectionHistorySearchHosts: '搜索主机',
     connectionHistoryHostList: '主机列表',
     connectionHistoryNoHosts: '还没有连接历史。',
@@ -911,9 +917,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     recordingIndicator: '● 正在錄製',
     inputRecordingIndicator: '● 輸入錄製',
     workspaceTabsLabel: '工作區標籤頁',
-    workspaceConnectionsTab: 'Connections',
-    workspaceHistoryTab: 'History',
-    workspaceLogsTab: 'Logs',
+    workspaceConnectionsTab: '連線',
+    workspaceHistoryTab: '歷史',
+    workspaceLogsTab: '日誌',
     sessionLogViewerTitle: '會話日誌',
     sessionLogViewerDescription: '開啟一個或多個加密的 .irlog 檔案，預覽內容並匯出為純文字。',
     selectSessionLogs: '選擇會話日誌',
@@ -934,6 +940,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsExported: '已匯出解密後的會話日誌。',
     connectionHistoryTitle: '連線歷史與統計',
     connectionHistoryDescription: '檢視每個主機的近期連線明細、累計統計與簡要占比圖。',
+    connectionHistoryOverviewSection: '總體統計',
+    connectionHistoryHostsSection: '主機統計',
     connectionHistorySearchHosts: '搜尋主機',
     connectionHistoryHostList: '主機清單',
     connectionHistoryNoHosts: '還沒有連線歷史。',

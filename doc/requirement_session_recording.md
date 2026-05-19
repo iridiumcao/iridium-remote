@@ -466,7 +466,7 @@ Metadata MUST NOT contain:
 Sidebar Tabs
   ├── Connections
   ├── History
-  └── Logs
+  └── Logs (only when session recording is enabled)
 ```
 
 ---
@@ -476,7 +476,8 @@ Sidebar Tabs
 Users can:
 
 * Open the `Logs` workspace
-* Browse discovered log sources and one or multiple `.irlog` files
+* Browse discovered log sources in the left sidebar
+* Browse one or multiple `.irlog` files for the selected source in the right panel
 * Enter encryption password
 * Decrypt logs
 * Export logs

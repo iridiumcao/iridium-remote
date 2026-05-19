@@ -30,6 +30,14 @@ type PieSlice = {
   value: number
 }
 
+type HistoryOverviewPanel = 'duration_share' | 'count_share' | 'daily_usage'
+
+type HistorySelection =
+  | { kind: 'overview'; panel: HistoryOverviewPanel }
+  | { kind: 'host'; historyKey: string }
+
+const defaultHistorySelection: HistorySelection = { kind: 'overview', panel: 'duration_share' }
+
 const durationRanges: ConnectionHistoryDateRange[] = [
   'last_7_days',
   'last_30_days',
@@ -289,10 +297,11 @@ export const ConnectionHistoryWorkspace = ({
   const [hostListOverview, setHostListOverview] = useState<ConnectionHistoryOverview | null>(null)
   const [details, setDetails] = useState<ConnectionHistoryHostDetails | null>(null)
   const [allTimeDetails, setAllTimeDetails] = useState<ConnectionHistoryHostDetails | null>(null)
-  const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null)
+  const [selection, setSelection] = useState<HistorySelection>(defaultHistorySelection)
   const [userSelectedDailyDate, setUserSelectedDailyDate] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isDark = theme === 'dark'
+  const selectedHistoryKey = selection.kind === 'host' ? selection.historyKey : null
   const visibleDetails = details && details.host.historyKey === selectedHistoryKey ? details : null
   const visibleAllTimeDetails =
     allTimeDetails && allTimeDetails.host.historyKey === selectedHistoryKey ? allTimeDetails : null
@@ -315,10 +324,12 @@ export const ConnectionHistoryWorkspace = ({
         if (range === 'all_time') {
           setOverview(nextOverview)
         }
-        setSelectedHistoryKey((current) =>
-          current && nextOverview.hosts.some((host) => host.historyKey === current)
+        setSelection((current) =>
+          current.kind === 'host' && nextOverview.hosts.some((host) => host.historyKey === current.historyKey)
             ? current
-            : nextOverview.hosts[0]?.historyKey ?? null,
+            : current.kind === 'overview'
+              ? current
+              : defaultHistorySelection,
         )
       })
       .catch((cause) => {
@@ -329,7 +340,7 @@ export const ConnectionHistoryWorkspace = ({
         setHostListOverview(null)
         setDetails(null)
         setAllTimeDetails(null)
-        setSelectedHistoryKey(null)
+        setSelection(defaultHistorySelection)
         setError(getConnectionHistoryErrorMessage(cause, t.connectionHistoryNoHosts))
       })
 
@@ -535,6 +546,27 @@ export const ConnectionHistoryWorkspace = ({
   const summaryCardClass = `rounded-2xl border p-4 ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
+  const overviewItems: Array<{
+    id: HistoryOverviewPanel
+    title: string
+    description: string
+  }> = [
+    {
+      id: 'duration_share',
+      title: t.connectionHistoryDurationShareChart,
+      description: t.connectionHistoryTotalDuration,
+    },
+    {
+      id: 'count_share',
+      title: t.connectionHistoryCountShareChart,
+      description: t.connectionHistoryTotalConnections,
+    },
+    {
+      id: 'daily_usage',
+      title: t.connectionHistoryDailyUsage,
+      description: t.connectionHistoryDailyUsageChart,
+    },
+  ]
 
   if (!active) {
     return null
@@ -558,10 +590,7 @@ export const ConnectionHistoryWorkspace = ({
         ) : null}
 
         <div className={`border-b px-5 py-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {t.workspaceHistoryTab}
-          </h2>
-          <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {t.connectionHistoryDescription}
           </p>
 
@@ -590,19 +619,6 @@ export const ConnectionHistoryWorkspace = ({
               )
             })}
           </div>
-
-          <input
-            className={`mt-4 w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
-              isDark
-                ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
-                : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
-            }`}
-            onChange={(event) => {
-              setSearchQuery(event.target.value)
-            }}
-            placeholder={t.connectionHistorySearchHosts}
-            value={searchQuery}
-          />
         </div>
 
         <div
@@ -610,61 +626,124 @@ export const ConnectionHistoryWorkspace = ({
             isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
           }`}
         >
-          {hostListOverview !== null && filteredHosts.length === 0 ? (
-            <div className={`rounded-2xl border border-dashed px-4 py-6 ${isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-50'}`}>
-              <p className={`text-base font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {t.connectionHistoryNoHosts}
-              </p>
-              <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {t.connectionHistoryNoHostsDescription}
-              </p>
-            </div>
-          ) : null}
+          <div className="space-y-4">
+            <section>
+              <div className="mb-2 flex items-center justify-between px-2">
+                <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {t.connectionHistoryOverviewSection}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {overviewItems.map((item) => {
+                  const selected =
+                    selection.kind === 'overview' && selection.panel === item.id
 
-          <div className="space-y-2">
-            {filteredHosts.map((host) => {
-              const selected = host.historyKey === selectedHistoryKey
-              return (
-                <button
-                  key={host.historyKey}
-                  type="button"
-                  className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                    selected
-                      ? 'border-cyan-400 bg-cyan-400/10'
-                      : isDark
-                        ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                  onClick={() => {
-                    setError(null)
-                    setDetails(null)
-                    setSelectedHistoryKey(host.historyKey)
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{host.connectionName}</div>
-                      <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                        {formatHistorySubtitle(host)}
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        selected
+                          ? 'border-cyan-400 bg-cyan-400/10'
+                          : isDark
+                            ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                      onClick={() => {
+                        setError(null)
+                        setSelection({ kind: 'overview', panel: item.id })
+                      }}
+                    >
+                      <div className="font-medium">{item.title}</div>
+                      <p className={`mt-1 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        {item.description}
                       </p>
-                    </div>
-                    {host.deleted ? (
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs ${
-                          isDark ? 'bg-amber-500/15 text-amber-100' : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {t.connectionHistoryDeletedConnection}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className={`mt-3 flex items-center justify-between gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    <span>{formatDateTime(host.latestConnectionAt, locale)}</span>
-                    <span>{host.totalConnectionCount}</span>
-                  </div>
-                </button>
-              )
-            })}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-2 flex items-center justify-between px-2">
+                <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {t.connectionHistoryHostsSection}
+                </p>
+                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  {filteredHosts.length}
+                </span>
+              </div>
+
+              <input
+                className={`mb-3 w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
+                  isDark
+                    ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
+                    : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
+                }`}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value)
+                }}
+                placeholder={t.connectionHistorySearchHosts}
+                value={searchQuery}
+              />
+
+              {hostListOverview !== null && filteredHosts.length === 0 ? (
+                <div className={`rounded-2xl border border-dashed px-4 py-6 ${isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-50'}`}>
+                  <p className={`text-base font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {t.connectionHistoryNoHosts}
+                  </p>
+                  <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {t.connectionHistoryNoHostsDescription}
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                {filteredHosts.map((host) => {
+                  const selected = host.historyKey === selectedHistoryKey
+                  return (
+                    <button
+                      key={host.historyKey}
+                      type="button"
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        selected
+                          ? 'border-cyan-400 bg-cyan-400/10'
+                          : isDark
+                            ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                      onClick={() => {
+                        setError(null)
+                        setDetails(null)
+                        setSelection({ kind: 'host', historyKey: host.historyKey })
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{host.connectionName}</div>
+                          <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {formatHistorySubtitle(host)}
+                          </p>
+                        </div>
+                        {host.deleted ? (
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs ${
+                              isDark ? 'bg-amber-500/15 text-amber-100' : 'bg-amber-100 text-amber-700'
+                            }`}
+                          >
+                            {t.connectionHistoryDeletedConnection}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className={`mt-3 flex items-center justify-between gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <span>{formatDateTime(host.latestConnectionAt, locale)}</span>
+                        <span>{host.totalConnectionCount}</span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
           </div>
         </div>
       </aside>
@@ -686,7 +765,79 @@ export const ConnectionHistoryWorkspace = ({
           ) : null}
 
           <div className="space-y-4">
-            {displayedDetails?.host ? (
+            {selection.kind === 'overview' ? (
+              <>
+                {selection.panel === 'duration_share' ? (
+                  <PieChartCard
+                    data={durationShareData}
+                    emptyText={t.connectionHistoryChartEmpty}
+                    isDark={isDark}
+                    title={t.connectionHistoryDurationShareChart}
+                    valueFormatter={(value) => formatDurationSeconds(value, durationUnits)}
+                  />
+                ) : null}
+
+                {selection.panel === 'count_share' ? (
+                  <PieChartCard
+                    data={countShareData}
+                    emptyText={t.connectionHistoryChartEmpty}
+                    isDark={isDark}
+                    title={t.connectionHistoryCountShareChart}
+                    valueFormatter={(value) => `${value}`}
+                  />
+                ) : null}
+
+                {selection.panel === 'daily_usage' ? (
+                  <div className={sectionClass}>
+                    <div className="border-b px-4 py-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-sm font-medium">{t.connectionHistoryDailyUsage}</p>
+                        {selectedDailyUsage ? (
+                          <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {t.connectionHistorySelectedDay}: {selectedDailyUsage.date}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                      <DailyUsageCard
+                        data={chartOverview?.dailyUsage ?? []}
+                        durationUnits={durationUnits}
+                        emptyText={t.connectionHistoryNoDailyUsage}
+                        isDark={isDark}
+                        locale={locale}
+                        onSelectDate={setUserSelectedDailyDate}
+                        selectedDate={selectedDailyDate}
+                        title={t.connectionHistoryDailyUsageChart}
+                      />
+                      <div className="space-y-4">
+                        <PieChartCard
+                          data={selectedDailyHostShareData}
+                          emptyText={t.connectionHistoryNoDailyUsage}
+                          isDark={isDark}
+                          title={t.connectionHistoryDailyHostShareChart}
+                          valueFormatter={(value) => formatDurationSeconds(value, durationUnits)}
+                        />
+                        <div className={summaryCardClass}>
+                          <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {t.connectionHistoryMostUsedHost}
+                          </p>
+                          <p className="mt-2 truncate text-lg font-semibold">
+                            {selectedDailyTopHost?.connectionName ?? '—'}
+                          </p>
+                          {selectedDailyTopHost ? (
+                            <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              {formatHistorySubtitle(selectedDailyTopHost)} ·{' '}
+                              {formatDurationSeconds(selectedDailyTopHost.totalDurationSeconds, durationUnits)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : displayedDetails?.host ? (
               <>
                 <div className={sectionClass}>
                   <div className="border-b px-4 py-4">
@@ -743,21 +894,7 @@ export const ConnectionHistoryWorkspace = ({
                   </p>
                 ) : null}
 
-                <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                  <PieChartCard
-                    data={durationShareData}
-                    emptyText={t.connectionHistoryChartEmpty}
-                    isDark={isDark}
-                    title={t.connectionHistoryDurationShareChart}
-                    valueFormatter={(value) => formatDurationSeconds(value, durationUnits)}
-                  />
-                  <PieChartCard
-                    data={countShareData}
-                    emptyText={t.connectionHistoryChartEmpty}
-                    isDark={isDark}
-                    title={t.connectionHistoryCountShareChart}
-                    valueFormatter={(value) => `${value}`}
-                  />
+                <div className="grid gap-4 lg:grid-cols-2">
                   <PieChartCard
                     data={selectedHostDistribution}
                     emptyText={t.connectionHistoryChartEmpty}
@@ -765,54 +902,6 @@ export const ConnectionHistoryWorkspace = ({
                     title={t.connectionHistoryDistributionChart}
                     valueFormatter={(value) => `${value}`}
                   />
-                </div>
-
-                <div className={sectionClass}>
-                  <div className="border-b px-4 py-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm font-medium">{t.connectionHistoryDailyUsage}</p>
-                      {selectedDailyUsage ? (
-                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {t.connectionHistorySelectedDay}: {selectedDailyUsage.date}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                    <DailyUsageCard
-                      data={chartOverview?.dailyUsage ?? []}
-                      durationUnits={durationUnits}
-                      emptyText={t.connectionHistoryNoDailyUsage}
-                      isDark={isDark}
-                      locale={locale}
-                      onSelectDate={setUserSelectedDailyDate}
-                      selectedDate={selectedDailyDate}
-                      title={t.connectionHistoryDailyUsageChart}
-                    />
-                    <div className="space-y-4">
-                      <PieChartCard
-                        data={selectedDailyHostShareData}
-                        emptyText={t.connectionHistoryNoDailyUsage}
-                        isDark={isDark}
-                        title={t.connectionHistoryDailyHostShareChart}
-                        valueFormatter={(value) => formatDurationSeconds(value, durationUnits)}
-                      />
-                      <div className={summaryCardClass}>
-                        <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                          {t.connectionHistoryMostUsedHost}
-                        </p>
-                        <p className="mt-2 truncate text-lg font-semibold">
-                          {selectedDailyTopHost?.connectionName ?? '—'}
-                        </p>
-                        {selectedDailyTopHost ? (
-                          <p className={`mt-1 truncate text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            {formatHistorySubtitle(selectedDailyTopHost)} ·{' '}
-                            {formatDurationSeconds(selectedDailyTopHost.totalDurationSeconds, durationUnits)}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 <div className={`${sectionClass} overflow-hidden`}>

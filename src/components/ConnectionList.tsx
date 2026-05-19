@@ -6,12 +6,10 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
-import { normalizeCollapsedGroups, normalizeGroupName } from '../lib/groups'
+import { getGroupKey, normalizeCollapsedGroups, normalizeGroupName } from '../lib/groups'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle } from '../lib/format'
 import type { AppTheme, ConnectionListDisplayMode, ConnectionRecord } from '../lib/types'
-
-const UNGROUPED_KEY = '__ungrouped__'
 
 type ConnectionListProps = {
   connections: ConnectionRecord[]
@@ -106,7 +104,7 @@ export const ConnectionList = ({
     for (const connection of filteredConnections) {
       const normalizedGroupName = normalizeGroupName(connection.groupName)
       const groupLabel = normalizedGroupName ?? t.ungrouped
-      const groupKey = normalizedGroupName ?? UNGROUPED_KEY
+      const groupKey = getGroupKey(connection.groupName)
 
       const bucket = grouped.get(groupKey)
       if (bucket) {
@@ -288,14 +286,9 @@ export const ConnectionList = ({
         }`}
       >
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {t.connections}
-            </h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {t.savedSshEndpoints}
-            </p>
-          </div>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            {t.savedSshEndpoints}
+          </p>
           <button type="button" className={headerButtonClass} onClick={onCreate}>
             {t.add}
           </button>

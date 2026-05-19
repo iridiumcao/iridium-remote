@@ -40,7 +40,7 @@ The main left panel should contain workspace tabs:
 Sidebar Tabs
   ├── Connections
   ├── History
-  └── Logs
+  └── Logs (only when session recording is enabled)
 ```
 
 `History` should open an in-window workspace rather than a modal dialog.
@@ -74,10 +74,11 @@ The workspace should reuse the main application shell instead of opening a deskt
 
 The `History` workspace should be split into two main areas:
 
-1. **Host list / selector**
-2. **Selected host details**
-3. **Summary charts**
-4. **Daily usage statistics**
+1. **Left navigation**
+   - overall-statistics links
+   - host list / selector
+2. **Right content area**
+   - selected overall-statistics view or selected host details
 
 ### Host list / selector
 

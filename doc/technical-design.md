@@ -27,7 +27,7 @@ Iridium Remote is a split frontend/backend desktop application:
 - notice/error banners
 
 It also derives the sorted unique group list used by the connection dialog so the group field can suggest existing groups while remaining freeform. Group names are normalized case-insensitively into a shared Title Case form before they are stored or grouped in the UI.
-In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, while the File menu is limited to connection import/export actions plus exit. The shell uses a shared left sidebar with `Connections`, `History`, and `Logs` workspace tabs. Browser-only mock mode keeps inline Language and Theme controls in the active sidebar area because it does not have the native desktop application menu available.
+In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu that keeps Session Recording as the last action after Language and Theme, while the File menu is limited to connection import/export actions plus exit. The shell uses a shared left sidebar with always-on `Connections` and `History` tabs plus a conditional `Logs` tab that appears only when session recording is enabled. Browser-only mock mode keeps inline Language and Theme controls in the active sidebar area because it does not have the native desktop application menu available.
 
 ### Sidebar
 
@@ -44,7 +44,7 @@ In packaged desktop builds, `src\App.tsx` registers a top-level Settings menu th
 Collapsed groups are persisted through app settings rather than local-only UI state.
 Collapsed group keys use the same normalized group name format so saved collapse preferences still match after case-only edits.
 The independently scrolling sidebar list uses theme-aware scrollbar styling so light and dark mode stay visually consistent even when the host OS default scrollbar colors differ from the app theme.
-Filtering is done in the frontend in real time against connection name, host, and username. Double-clicking a connection row opens a fresh session tab for that saved host. Single-click selection is coordinated in `src\App.tsx`: when the clicked connection already has an open session, the app activates that tab; otherwise it only changes the sidebar highlight. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
+Filtering is done in the frontend in real time against connection name, host, and username. Double-clicking a connection row opens a fresh session tab for that saved host. Single-click selection is coordinated in `src\App.tsx`: when the clicked connection already has an open session, the app activates that tab; otherwise it only changes the sidebar highlight. Session-to-sidebar synchronization also expands a collapsed group automatically when tab selection moves to a connection inside that group. In compact mode, the sidebar renders a `⋮` popup menu for edit/copy/delete actions instead of inline buttons, and the same menu is opened by right-clicking a connection row. In normal mode, connection rows do not open a custom context menu.
 
 ### Terminal workspace
 
@@ -57,11 +57,11 @@ Filtering is done in the frontend in real time against connection name, host, an
 - empty-state rendering
 
 The layout uses `min-h-0` and overflow boundaries so the main window does not become the scroll container. `src\App.tsx` suppresses the default browser-like context menu across the shell, and `src\components\TerminalWorkspace.tsx` replaces the terminal area's native browser menu with a custom localized, theme-aware menu for terminal actions.
-The horizontally scrolling tab strip also uses theme-aware scrollbar styling so the right workspace stays visually aligned with the active light or dark theme.
+The horizontally scrolling tab strip also uses theme-aware scrollbar styling so the right workspace stays visually aligned with the active light or dark theme, and its tab chrome is rendered as a lightly stacked folder-like strip instead of flat pills.
 Per-session terminal history is buffered on the frontend for fast tab restoration, but replay-only buffers strip terminal status-query escape sequences so activating a tab does not send synthetic input back to the SSH session. Tab activation also updates the selected connection in the sidebar so the left panel stays synchronized with the active workspace session.
 The workspace header itself is intentionally minimal: it shows only the active SSH target in `username@host[:port]` format and does not repeat the saved connection name or render a separate status pill. When the active session is being recorded, the same header shows a compact recording badge so users always know when capture is active.
 The session-log preview textarea reuses the same theme-aware scrollbar classes as the sidebar and tab strip, and the session-recording dialog keeps the log-directory path plus browse/open actions on a single aligned input row at normal desktop widths.
-`src\components\ConnectionHistoryWorkspace.tsx` and `src\components\SessionLogsWorkspace.tsx` reuse the same shell split but switch the right panel from terminal content to history statistics or log preview tools. Their React state remains alive across tab switches so selection/filter context is preserved, while the Logs workspace clears runtime decryption secrets when it becomes inactive.
+`src\components\ConnectionHistoryWorkspace.tsx` and `src\components\SessionLogsWorkspace.tsx` reuse the same shell split but switch the right panel from terminal content to history statistics or log preview tools. The History workspace now separates aggregate cross-host views from per-host detail navigation in the left sidebar, and the Logs workspace keeps only source navigation on the left while moving per-source file selection into the right panel. Their React state remains alive across tab switches so selection/filter context is preserved, while the Logs workspace clears runtime decryption secrets when it becomes inactive.
 
 ### Frontend bridge
 

@@ -460,38 +460,48 @@ export const TerminalWorkspace = ({
               {t.tabs}
             </p>
             <div
-              className={`terminal-tab-scroll-region themed-scrollbar mt-2 flex gap-2 overflow-x-auto pb-1 ${
+              className={`terminal-tab-scroll-region themed-scrollbar mt-2 flex items-end overflow-x-auto px-1 pb-1 pt-2 ${
                 isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
               }`}
             >
-              {sessions.map((session) => (
-                <div
-                  key={session.sessionId}
-                  className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
-                    session.sessionId === activeSession?.sessionId
-                      ? isDark
-                        ? 'border-cyan-400/60 bg-cyan-400/10 text-white'
-                        : 'border-cyan-400/60 bg-cyan-50 text-slate-900'
-                      : isDark
-                        ? 'border-white/10 bg-slate-900/80 text-slate-300'
-                        : 'border-slate-200 bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <button type="button" className="truncate" onClick={() => onSelectSession(session.sessionId)}>
-                    {session.connectionName}
-                  </button>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClasses[theme][session.status]}`}>
-                    {formatStatusLabel(session.status, t.statusLabel)}
-                  </span>
-                  <button
-                    type="button"
-                    className={`rounded-full px-1 text-xs ${isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-200'}`}
-                    onClick={() => onCloseSession(session.sessionId)}
+              {sessions.map((session, index) => {
+                const selected = session.sessionId === activeSession?.sessionId
+                const zIndex = selected ? sessions.length + 1 : sessions.length - index
+
+                return (
+                  <div
+                    key={session.sessionId}
+                    className={`relative -ml-2 first:ml-0 flex shrink-0 items-center gap-2 rounded-t-2xl border px-3 py-2 text-sm ${
+                      selected
+                        ? isDark
+                          ? 'translate-y-px border-cyan-400/70 bg-cyan-400/10 text-white shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.95)]'
+                          : 'translate-y-px border-cyan-400/60 bg-cyan-50 text-slate-900 shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.7)]'
+                        : isDark
+                          ? 'border-white/10 bg-slate-900/85 text-slate-300 hover:border-white/20 hover:bg-slate-900'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
+                    }`}
+                    style={{ zIndex }}
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      className="max-w-[14rem] truncate text-left"
+                      onClick={() => onSelectSession(session.sessionId)}
+                    >
+                    {session.connectionName}
+                    </button>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClasses[theme][session.status]}`}>
+                      {formatStatusLabel(session.status, t.statusLabel)}
+                    </span>
+                    <button
+                      type="button"
+                      className={`rounded-full px-1 text-xs ${isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-200'}`}
+                      onClick={() => onCloseSession(session.sessionId)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
