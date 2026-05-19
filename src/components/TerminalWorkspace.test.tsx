@@ -141,6 +141,26 @@ describe('TerminalWorkspace', () => {
     expect(appClient.resizeSession).toHaveBeenCalledWith('session-1', 120, 32)
   })
 
+  it('keeps the terminal visible while a session is connecting so SSH prompts can appear', () => {
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
+        onCloseSession={vi.fn()}
+        onDisconnect={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[{ ...session, status: 'connecting', message: 'Connecting...' }]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    expect(screen.queryByText('Starting the SSH session and waiting for the remote shell.')).not.toBeInTheDocument()
+    expect(screen.getByText('Connecting', { selector: 'span' })).toBeInTheDocument()
+    expect(appClient.resizeSession).toHaveBeenCalledWith('session-1', 120, 32)
+  })
+
   it('shows a recording indicator when the active session is being recorded', () => {
     render(
       <TerminalWorkspace

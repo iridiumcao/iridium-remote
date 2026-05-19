@@ -372,7 +372,7 @@ export const TerminalWorkspace = ({
       : null
   const showIdleState = !headerConnection && !activeSession
   const showSelectionState = Boolean(headerConnection) && !activeSession
-  const showOverlay = showIdleState || activeSession?.status === 'connecting' || showSelectionState
+  const showOverlay = showIdleState || showSelectionState
   const terminalMenuClass = `absolute z-20 min-w-[160px] rounded-xl border p-1 text-[14px] shadow-xl ${
     isDark
       ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
@@ -660,14 +660,6 @@ export const TerminalWorkspace = ({
                 </>
               ) : null}
 
-              {activeSession?.status === 'connecting' ? (
-                <>
-                  <p className="text-lg font-semibold">{t.connecting}</p>
-                  <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {t.connectingDescription}
-                  </p>
-                </>
-              ) : null}
             </div>
           </div>
         ) : null}
