@@ -1125,7 +1125,9 @@ mod tests {
             retention_days: 30,
             log_directory: None,
         };
-        let verifier = build_password_verifier("super-secret").expect("verifier");
+        let password =
+            std::env::var("TEST_RECORDING_PASSWORD").unwrap_or_else(|_| "super-secret".to_string());
+        let verifier = build_password_verifier(&password).expect("verifier");
         let manager = RecordingManager::new(logs_dir.clone(), settings.clone(), Some(verifier))
             .expect("manager");
 
@@ -1135,7 +1137,7 @@ mod tests {
         assert!(!initial_status.password_loaded);
 
         let verified_status = manager
-            .verify_password("super-secret".into(), None)
+            .verify_password(password.clone(), None)
             .expect("verify password");
         assert!(verified_status.password_loaded);
         assert!(verified_status.can_record);
