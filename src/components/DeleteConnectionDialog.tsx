@@ -30,7 +30,7 @@ export const DeleteConnectionDialog = ({
         <>
           <button
             type="button"
-            className={`rounded-lg border px-4 py-2 text-sm transition ${
+            className={`rounded-sm border px-4 py-2 text-sm transition ${
               isDark
                 ? 'border-white/10 text-slate-300 hover:bg-white/5'
                 : 'border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -41,7 +41,7 @@ export const DeleteConnectionDialog = ({
           </button>
           <button
             type="button"
-            className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400"
+            className="rounded-sm bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400"
             onClick={onConfirm}
           >
             {t.delete}

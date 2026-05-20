@@ -22,7 +22,7 @@ export const AboutDialog = ({
 }: AboutDialogProps) => {
   const isDark = theme === 'dark'
 
-  const infoClass = `rounded-xl border px-4 py-3 text-sm ${
+  const infoClass = `rounded-sm border px-4 py-3 text-sm ${
     isDark
       ? 'border-white/10 bg-slate-950/70 text-slate-200'
       : 'border-slate-200 bg-slate-50 text-slate-700'
@@ -35,14 +35,14 @@ export const AboutDialog = ({
         <div className="flex w-full justify-between gap-3">
           <button
             type="button"
-            className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+            className="rounded-sm bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
             onClick={onOpenProjectUrl}
           >
             {t.openProjectUrl}
           </button>
           <button
             type="button"
-            className={`rounded-lg border px-4 py-2 text-sm transition ${
+            className={`rounded-sm border px-4 py-2 text-sm transition ${
               isDark
                 ? 'border-white/10 text-slate-300 hover:bg-white/5'
                 : 'border-slate-200 text-slate-700 hover:bg-slate-100'

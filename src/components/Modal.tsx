@@ -34,7 +34,7 @@ export const Modal = ({
       }`}
     >
       <div
-        className={`flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border p-6 shadow-2xl ${
+        className={`flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-sm border p-6 shadow-2xl ${
           widthClass
         } ${
           isDark

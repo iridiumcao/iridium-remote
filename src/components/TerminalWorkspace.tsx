@@ -393,7 +393,7 @@ export const TerminalWorkspace = ({
   const showIdleState = !headerConnection && !activeSession
   const showSelectionState = Boolean(headerConnection) && !activeSession
   const showOverlay = showIdleState || showSelectionState
-  const terminalMenuClass = `absolute z-20 min-w-[160px] rounded-xl border p-1 text-[14px] shadow-xl ${
+  const terminalMenuClass = `absolute z-20 min-w-[160px] rounded-sm border p-1 text-[14px] shadow-xl ${
     isDark
       ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
       : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
@@ -466,141 +466,101 @@ export const TerminalWorkspace = ({
   return (
     <section
       className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
-        isDark ? 'bg-slate-950' : 'bg-slate-100'
+        isDark ? 'bg-slate-950' : 'bg-white'
       }`}
     >
       <div
-        className={`border-b px-5 py-3 sm:px-6 ${
-          isDark ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'
+        className={`flex items-end border-b ${
+          isDark ? 'border-white/10 bg-[#1e1e1e]' : 'border-slate-200 bg-slate-100'
         }`}
       >
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {t.tabs}
-            </p>
-            <div
-              className={`terminal-tab-scroll-region themed-scrollbar mt-2 flex items-end overflow-x-auto px-1 pb-1 pt-2 ${
-                isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
-              }`}
-            >
-              {sessions.map((session, index) => {
-                const selected = session.sessionId === activeSession?.sessionId
-                const zIndex = selected ? sessions.length + 1 : sessions.length - index
+        <div
+          className={`terminal-tab-scroll-region themed-scrollbar flex flex-1 items-end overflow-x-auto ${
+            isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
+          }`}
+        >
+          {sessions.map((session, index) => {
+            const selected = session.sessionId === activeSession?.sessionId
+            const zIndex = selected ? sessions.length + 1 : sessions.length - index
 
-                return (
-                  <div
-                    key={session.sessionId}
-                    className={`relative -ml-2 first:ml-0 flex shrink-0 items-center gap-2 rounded-t-2xl border px-3 py-2 text-sm ${
-                      selected
-                        ? isDark
-                          ? 'translate-y-px border-cyan-400/70 bg-cyan-400/10 text-white shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.95)]'
-                          : 'translate-y-px border-cyan-400/60 bg-cyan-50 text-slate-900 shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.7)]'
-                        : isDark
-                          ? 'border-white/10 bg-slate-900/85 text-slate-300 hover:border-white/20 hover:bg-slate-900'
-                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
-                    }`}
-                    style={{ zIndex }}
-                  >
-                    <button
-                      type="button"
-                      className="max-w-[14rem] truncate text-left"
-                      onClick={() => onSelectSession(session.sessionId)}
-                    >
-                    {session.connectionName}
-                    </button>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClasses[theme][session.status]}`}>
-                      {formatStatusLabel(session.status, t.statusLabel)}
-                    </span>
-                    <button
-                      type="button"
-                      className={`rounded-full px-1 text-xs ${isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-200'}`}
-                      onClick={() => onCloseSession(session.sessionId)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+            return (
+              <div
+                key={session.sessionId}
+                className={`relative flex shrink-0 items-center gap-2 border-r border-t-2 px-3 py-2 text-sm cursor-pointer min-w-[120px] max-w-[200px] ${
+                  selected
+                    ? isDark
+                      ? 'border-t-cyan-400 border-r-white/10 bg-slate-950 text-white'
+                      : 'border-t-cyan-500 border-r-slate-200 bg-white text-slate-900'
+                    : isDark
+                      ? 'border-t-transparent border-r-white/10 bg-[#2d2d2d] text-slate-400 hover:bg-[#252526]'
+                      : 'border-t-transparent border-r-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+                style={{ zIndex }}
+                onClick={() => onSelectSession(session.sessionId)}
+              >
+                <div className="flex-1 truncate">
+                  {session.connectionName}
+                </div>
+                <span className={`w-2 h-2 rounded-full shrink-0 ${statusClasses[theme][session.status].split(' ')[0]}`} title={formatStatusLabel(session.status, t.statusLabel)} />
+                <button
+                  type="button"
+                  className={`rounded-md p-0.5 opacity-0 hover:bg-white/10 transition-opacity ${selected ? 'opacity-100' : 'group-hover:opacity-100'} ${isDark ? 'text-slate-300' : 'text-slate-500'}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCloseSession(session.sessionId)
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            )
+          })}
+        </div>
 
+        <div className="flex items-center gap-1 px-2 py-1 shrink-0">
           {onOpenTransfer && activeConnection ? (
             <button
               type="button"
-              className={`shrink-0 rounded-lg border px-4 py-2 text-sm transition ${
-                isDark
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
+              className={`p-1.5 rounded transition ${isDark ? 'hover:bg-white/10 text-slate-300' : 'hover:bg-slate-200 text-slate-600'}`}
               onClick={onOpenTransfer}
+              title={t.fileTransfer}
             >
-              {t.fileTransfer}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div
-        className={`flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 sm:px-6 ${
-          isDark ? 'border-white/10' : 'border-slate-200'
-        }`}
-      >
-        <div>
-          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {headerTitle}
-          </h2>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {recordingLabel ? (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                isDark ? 'bg-rose-500/15 text-rose-100' : 'bg-rose-50 text-rose-700'
-              }`}
-            >
-              {recordingLabel}
-            </span>
           ) : null}
 
           {onConnect ? (
             <button
               type="button"
-              className={`rounded-lg border px-4 py-2 text-sm transition ${
-                isDark
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
+              className={`p-1.5 rounded transition ${isDark ? 'hover:bg-white/10 text-slate-300' : 'hover:bg-slate-200 text-slate-600'}`}
               onClick={onConnect}
+              title={activeSession && (activeSession.status === 'disconnected' || activeSession.status === 'error') ? t.reconnect : t.connect}
             >
-              {activeSession && (activeSession.status === 'disconnected' || activeSession.status === 'error')
-                ? t.reconnect
-                : t.connect}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
             </button>
           ) : null}
 
           {onDisconnect && activeSession && (activeSession.status === 'connecting' || activeSession.status === 'connected') ? (
             <button
               type="button"
-              className={`rounded-lg border px-4 py-2 text-sm transition ${
-                isDark
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
+              className={`p-1.5 rounded transition ${isDark ? 'hover:bg-white/10 text-slate-300' : 'hover:bg-slate-200 text-slate-600'}`}
               onClick={() => onDisconnect(activeSession.sessionId)}
+              title={t.disconnect}
             >
-              {t.disconnect}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           ) : null}
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
+      <div className={`px-4 py-1 text-xs border-b ${isDark ? 'border-white/5 text-slate-400 bg-slate-950' : 'border-slate-100 text-slate-500 bg-white'}`}>
+        {headerTitle} {recordingLabel && <span className="ml-2 text-rose-500">[{recordingLabel}]</span>}
+      </div>
+
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <div
-          className={`terminal-shell h-full min-h-full overflow-hidden rounded-2xl border shadow-inner ${
-            isDark
-              ? 'border-white/10 bg-slate-950/70 shadow-cyan-950/20'
-              : 'border-slate-200 bg-white shadow-slate-200/80'
+          className={`terminal-shell h-full min-h-full overflow-hidden ${
+            isDark ? 'bg-slate-950' : 'bg-white'
           }`}
           onContextMenu={handleTerminalContextMenu}
           ref={(node) => {
@@ -619,8 +579,8 @@ export const TerminalWorkspace = ({
             <button
               role="menuitem"
               type="button"
-              className={`block w-full rounded-lg px-3 py-2 text-left transition ${
-                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+              className={`block w-full rounded-none px-4 py-2 text-left transition ${
+                isDark ? 'hover:bg-[#04395e] hover:text-white' : 'hover:bg-blue-500 hover:text-white'
               }`}
               onClick={() => {
                 void handleTerminalCopy()
@@ -631,8 +591,8 @@ export const TerminalWorkspace = ({
             <button
               role="menuitem"
               type="button"
-              className={`block w-full rounded-lg px-3 py-2 text-left transition ${
-                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+              className={`block w-full rounded-none px-4 py-2 text-left transition ${
+                isDark ? 'hover:bg-[#04395e] hover:text-white' : 'hover:bg-blue-500 hover:text-white'
               }`}
               onClick={() => {
                 void handleTerminalPaste()
@@ -643,8 +603,8 @@ export const TerminalWorkspace = ({
             <button
               role="menuitem"
               type="button"
-              className={`block w-full rounded-lg px-3 py-2 text-left transition ${
-                isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+              className={`block w-full rounded-none px-4 py-2 text-left transition ${
+                isDark ? 'hover:bg-[#04395e] hover:text-white' : 'hover:bg-blue-500 hover:text-white'
               }`}
               onClick={handleTerminalSelectAll}
             >
@@ -656,40 +616,33 @@ export const TerminalWorkspace = ({
         {showOverlay ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
             <div
-              className={`max-w-md rounded-2xl border px-6 py-5 text-center shadow-2xl backdrop-blur ${
+              className={`max-w-md px-6 py-5 text-center ${
                 isDark
-                  ? 'border-white/10 bg-slate-900/90 text-white shadow-black/30'
-                  : 'border-slate-200 bg-white/95 text-slate-900 shadow-slate-300/60'
+                  ? 'text-slate-400'
+                  : 'text-slate-500'
               }`}
             >
               {showIdleState ? (
                 <>
-                  <p className="text-lg font-semibold">{t.selectConnectionToStart}</p>
-                  <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {t.selectConnectionDescription}
-                  </p>
+                  <p className="text-xl">{t.selectConnectionToStart}</p>
                 </>
               ) : null}
 
               {showSelectionState ? (
                 <>
-                  <p className="text-lg font-semibold">{t.readyToConnect}</p>
-                  <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {t.selectConnectionAndConnect}
-                  </p>
+                  <p className="text-xl">{t.readyToConnect}</p>
                 </>
               ) : null}
-
             </div>
           </div>
         ) : null}
 
         {(activeSession?.status === 'disconnected' || activeSession?.status === 'error') && activeConnection ? (
           <div
-            className={`pointer-events-none absolute inset-x-6 bottom-6 rounded-xl border px-4 py-3 text-sm shadow-xl ${
+            className={`pointer-events-none absolute inset-x-0 bottom-0 px-4 py-2 text-xs border-t ${
               isDark
-                ? 'border-white/10 bg-slate-900/90 text-slate-200 shadow-black/20'
-                : 'border-slate-200 bg-white/90 text-slate-700 shadow-slate-300/50'
+                ? 'border-rose-900/50 bg-rose-950/30 text-rose-200'
+                : 'border-rose-200 bg-rose-50 text-rose-700'
             }`}
           >
             {activeSession.message ?? t.sessionClosed}

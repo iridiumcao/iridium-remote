@@ -4,7 +4,6 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
-  type ReactNode,
 } from 'react'
 import { getGroupKey, normalizeCollapsedGroups, normalizeGroupName } from '../lib/groups'
 import type { getTranslations } from '../lib/i18n'
@@ -15,7 +14,6 @@ type ConnectionListProps = {
   connections: ConnectionRecord[]
   isLoading: boolean
   selectedConnectionId: string | null
-  topContent?: ReactNode
   activeConnectionCounts: Record<string, number>
   collapsedGroups: string[]
   displayMode: ConnectionListDisplayMode
@@ -50,7 +48,6 @@ export const ConnectionList = ({
   onToggleGroup,
   searchQuery,
   selectedConnectionId,
-  topContent,
   theme,
   t,
 }: ConnectionListProps) => {
@@ -121,12 +118,6 @@ export const ConnectionList = ({
     }))
   }, [filteredConnections, t.ungrouped])
 
-  const headerButtonClass = `rounded-lg border px-3 py-2 text-sm transition ${
-    isDark
-      ? 'border-white/10 text-slate-200 hover:bg-white/5'
-      : 'border-slate-200 text-slate-700 hover:bg-slate-100'
-  }`
-
   const iconButtonClass = `rounded-md border px-2 py-1 text-xs transition ${
     isDark
       ? 'border-white/10 text-slate-200 hover:bg-white/5'
@@ -161,7 +152,7 @@ export const ConnectionList = ({
       <button
         role="menuitem"
         type="button"
-        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+        className={`block w-full rounded-sm px-3 py-2 text-left text-sm transition ${
           isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
         }`}
         onClick={() => {
@@ -174,7 +165,7 @@ export const ConnectionList = ({
       <button
         role="menuitem"
         type="button"
-        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+        className={`block w-full rounded-sm px-3 py-2 text-left text-sm transition ${
           isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
         }`}
         onClick={() => {
@@ -187,7 +178,7 @@ export const ConnectionList = ({
       <button
         role="menuitem"
         type="button"
-        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+        className={`block w-full rounded-sm px-3 py-2 text-left text-sm transition ${
           isDark
             ? 'text-rose-200 hover:bg-rose-500/10'
             : 'text-rose-600 hover:bg-rose-50'
@@ -251,7 +242,7 @@ export const ConnectionList = ({
         {isMenuOpen ? (
           <div
             role="menu"
-            className={`absolute top-full right-0 z-20 mt-2 min-w-[120px] rounded-xl border p-1 shadow-xl ${
+            className={`absolute top-full right-0 z-20 mt-2 min-w-[120px] rounded-sm border p-1 shadow-xl ${
               isDark
                 ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
                 : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
@@ -270,34 +261,20 @@ export const ConnectionList = ({
         isDark ? 'border-white/10 bg-slate-900/60' : 'border-slate-200 bg-white/90'
       }`}
     >
-      {topContent ? (
-        <div
-          className={`border-b px-5 py-4 ${
-            isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50/80'
-          }`}
-        >
-          {topContent}
-        </div>
-      ) : null}
-
-      <div
-        className={`border-b px-5 py-4 ${
-          isDark ? 'border-white/10' : 'border-slate-200'
-        }`}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {t.savedSshEndpoints}
-          </p>
-          <button type="button" className={headerButtonClass} onClick={onCreate}>
-            {t.add}
+      <div className={`flex items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+        <span>{t.workspaceConnectionsTab ?? 'CONNECTIONS'}</span>
+        <div className="flex items-center gap-1">
+          <button type="button" className={`hover:text-cyan-400 transition-colors px-1`} onClick={onCreate} title={t.add}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
         </div>
+      </div>
 
-        <div className="mt-4 space-y-3">
+      <div className={`px-4 py-2 border-b ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+        <div className="space-y-3">
           <input
             aria-label={t.searchConnections}
-            className={`w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
+            className={`w-full rounded-sm border px-3 py-2 text-sm outline-none transition ${
               isDark
                 ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
                 : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
@@ -355,7 +332,7 @@ export const ConnectionList = ({
             {Array.from({ length: 3 }, (_, index) => (
               <div
                 key={index}
-                className={`animate-pulse rounded-2xl border ${
+                className={`animate-pulse rounded-sm border ${
                   displayMode === 'compact' ? 'h-12' : 'h-20'
                 } ${isDark ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-100'}`}
               />
@@ -365,7 +342,7 @@ export const ConnectionList = ({
 
         {!isLoading && connections.length === 0 ? (
           <div
-            className={`rounded-2xl border border-dashed px-4 py-6 text-center ${
+            className={`rounded-sm border border-dashed px-4 py-6 text-center ${
               isDark
                 ? 'border-white/10 bg-slate-950/60'
                 : 'border-slate-300 bg-slate-50'
@@ -379,7 +356,7 @@ export const ConnectionList = ({
             </p>
             <button
               type="button"
-              className="mt-4 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              className="mt-4 rounded-sm bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
               onClick={onCreate}
             >
               {t.createConnection}
@@ -389,7 +366,7 @@ export const ConnectionList = ({
 
         {!isLoading && connections.length > 0 && groups.length === 0 ? (
           <div
-            className={`rounded-2xl border px-4 py-6 text-center ${
+            className={`rounded-sm border px-4 py-6 text-center ${
               isDark ? 'border-white/10 bg-slate-950/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'
             }`}
           >
@@ -406,7 +383,7 @@ export const ConnectionList = ({
                 <button
                   type="button"
                   aria-expanded={!isCollapsed}
-                  className={`mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left ${
+                  className={`mb-2 flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left ${
                     isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
                   }`}
                   onClick={() => onToggleGroup(groupKey)}
@@ -440,54 +417,37 @@ export const ConnectionList = ({
                           <div
                             key={connection.id}
                             onContextMenu={(event) => handleCompactContextMenu(event, connection)}
-                            className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition ${
+                            className={`group flex items-center gap-2 px-6 py-1 cursor-pointer transition-colors ${
                               isSelected
                                 ? isDark
-                                  ? 'border-cyan-400/60 bg-cyan-400/10'
-                                  : 'border-cyan-400/50 bg-cyan-50'
+                                  ? 'bg-cyan-900/30 text-white'
+                                  : 'bg-cyan-50 text-slate-900'
                                 : isDark
-                                  ? 'border-white/10 bg-slate-950/40 hover:border-white/20 hover:bg-white/5'
-                                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                  ? 'text-slate-300 hover:bg-white/5'
+                                  : 'text-slate-700 hover:bg-slate-100'
                             }`}
                           >
                             <button
                               type="button"
-                              className="min-w-0 flex-1 text-left"
+                              className="min-w-0 flex-1 text-left flex items-center gap-2"
                               onDoubleClick={() => handleOpenConnection(connection)}
                               onClick={() => onSelect(connection.id)}
                             >
-                              <div className="flex items-center gap-2">
-                                <p className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                  {connection.name}
-                                </p>
-                                {activeCount > 0 ? (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                                      isDark
-                                        ? 'bg-emerald-500/20 text-emerald-300'
-                                        : 'bg-emerald-100 text-emerald-700'
-                                    }`}
-                                  >
-                                    {activeCount === 1 ? t.active : `${activeCount} ${t.tabs}`}
-                                  </span>
-                                ) : null}
-                                {connection.hasPassword ? (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                                      isDark
-                                        ? 'bg-slate-700 text-slate-200'
-                                        : 'bg-slate-200 text-slate-700'
-                                    }`}
-                                  >
-                                    {t.keyringBadge}
-                                  </span>
-                                ) : null}
-                              </div>
-                              <p className={`truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {formatConnectionSubtitle(connection)}
+                              <p className="truncate text-sm font-medium">
+                                {connection.name}
                               </p>
+                              {activeCount > 0 ? (
+                                <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-cyan-400' : 'bg-cyan-500'}`} title={`${activeCount} active session(s)`} />
+                              ) : null}
+                              {connection.hasPassword ? (
+                                <span className={`text-[10px] font-bold px-1 rounded ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} title="Has saved password">
+                                  *
+                                </span>
+                              ) : null}
                             </button>
-                             {renderCompactActions(connection)}
+                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                               {renderCompactActions(connection)}
+                             </div>
                            </div>
                          )
                        }
@@ -495,14 +455,14 @@ export const ConnectionList = ({
                       return (
                         <div
                           key={connection.id}
-                          className={`rounded-2xl border p-4 transition ${
+                          className={`group flex flex-col gap-2 px-6 py-2 transition-colors border-l-2 ${
                             isSelected
                               ? isDark
-                                ? 'border-cyan-400/60 bg-cyan-400/10 shadow-lg shadow-cyan-950/30'
-                                : 'border-cyan-400/50 bg-cyan-50 shadow-lg shadow-cyan-100'
+                                ? 'border-cyan-400 bg-cyan-900/20 text-white'
+                                : 'border-cyan-500 bg-cyan-50 text-slate-900'
                               : isDark
-                                ? 'border-white/10 bg-slate-950/50 hover:border-white/20 hover:bg-white/5'
-                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                ? 'border-transparent text-slate-300 hover:bg-white/5'
+                                : 'border-transparent text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           <button
@@ -511,53 +471,29 @@ export const ConnectionList = ({
                             onDoubleClick={() => handleOpenConnection(connection)}
                             onClick={() => onSelect(connection.id)}
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p
-                                    className={`truncate text-base font-semibold ${
-                                      isDark ? 'text-white' : 'text-slate-900'
-                                    }`}
-                                  >
-                                    {connection.name}
-                                  </p>
-                                  {activeCount > 0 ? (
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                        isDark
-                                          ? 'bg-emerald-500/20 text-emerald-300'
-                                          : 'bg-emerald-100 text-emerald-700'
-                                      }`}
-                                    >
-                                      {activeCount === 1 ? t.active : `${activeCount} ${t.tabs}`}
-                                    </span>
-                                  ) : null}
-                                  {connection.hasPassword ? (
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-xs ${
-                                        isDark
-                                          ? 'bg-slate-700 text-slate-200'
-                                          : 'bg-slate-200 text-slate-700'
-                                      }`}
-                                    >
-                                      {t.keyringBadge}
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <p
-                                  className={`mt-1 truncate text-sm ${
-                                    isDark ? 'text-slate-400' : 'text-slate-500'
-                                  }`}
-                                >
-                                  {formatConnectionSubtitle(connection)}
-                                </p>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-medium">
+                                {connection.name}
+                              </p>
+                              {activeCount > 0 ? (
+                                <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-cyan-400' : 'bg-cyan-500'}`} title={`${activeCount} active session(s)`} />
+                              ) : null}
+                              {connection.hasPassword ? (
+                                <span className={`text-[10px] font-bold px-1 rounded ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} title="Has saved password">
+                                  *
+                                </span>
+                              ) : null}
                             </div>
+                            <p className={`mt-0.5 truncate text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {formatConnectionSubtitle(connection)}
+                            </p>
                           </button>
 
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {renderDefaultActions(connection)}
-                          </div>
+                          {isSelected && (
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {renderDefaultActions(connection)}
+                            </div>
+                          )}
                         </div>
                       )
                     })}

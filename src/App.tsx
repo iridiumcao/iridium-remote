@@ -8,9 +8,9 @@ import { DeleteConnectionDialog } from './components/DeleteConnectionDialog'
 import { SessionRecordingDialog } from './components/SessionRecordingDialog'
 import { SessionLogsWorkspace } from './components/SessionLogsWorkspace'
 import { SessionRecordingUnlockDialog } from './components/SessionRecordingUnlockDialog'
-import { SidebarTabNav, type WorkspaceTab } from './components/SidebarTabNav'
+import { ActivityBar, type WorkspaceTab } from './components/ActivityBar'
+import { StatusBar } from './components/StatusBar'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
-import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
 import { collectGroupNames, getGroupKey } from './lib/groups'
@@ -1059,59 +1059,7 @@ function App() {
     [updateSettings],
   )
 
-  const renderSidebarTopContent = () => (
-    <div className="space-y-4">
-      <div>
-        <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isDark ? 'text-cyan-300' : 'text-cyan-600'}`}>
-          {t.appTagline}
-        </p>
-        <h1 className={`mt-2 text-2xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-          {t.appTitle}
-        </h1>
-      </div>
 
-      <SidebarTabNav
-        activeConnectionsCount={sessions.length}
-        activeTab={currentWorkspaceTab}
-        onChange={handleSelectWorkspaceTab}
-        showLogsTab={isLogsWorkspaceEnabled}
-        t={t}
-        theme={settings.theme}
-      />
-
-      {!isTauriRuntime ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <ToolbarSelect
-            isDark={isDark}
-            label={t.language}
-            onChange={(value) => {
-              handleSelectLocale(value as AppSettings['locale'])
-            }}
-            options={languageOptions}
-            value={settings.locale}
-          />
-
-          <ToolbarSelect
-            isDark={isDark}
-            label={t.theme}
-            onChange={(value) => {
-              handleSelectTheme(value as AppSettings['theme'])
-            }}
-            options={themeOptions}
-            value={settings.theme}
-          />
-
-          <ToolbarSelect
-            isDark={isDark}
-            label={t.connectionHistoryTimeZone}
-            onChange={handleSelectConnectionHistoryTimeZone}
-            options={connectionHistoryTimeZoneOptions}
-            value={settings.connectionHistoryTimeZone}
-          />
-        </div>
-      ) : null}
-    </div>
-  )
 
   return (
     <main className={`h-screen overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
@@ -1176,10 +1124,19 @@ function App() {
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+          <ActivityBar
+            activeConnectionsCount={sessions.length}
+            activeTab={currentWorkspaceTab}
+            onChange={handleSelectWorkspaceTab}
+            showLogsTab={isLogsWorkspaceEnabled}
+            t={t}
+            theme={settings.theme}
+          />
+
           <div
             hidden={currentWorkspaceTab !== 'connections'}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row"
+            className="flex min-h-0 flex-1 flex-row overflow-hidden"
           >
             <ConnectionList
               activeConnectionCounts={activeConnectionCounts}
@@ -1203,7 +1160,6 @@ function App() {
               onToggleGroup={handleToggleGroup}
               searchQuery={searchQuery}
               selectedConnectionId={selectedConnectionId}
-              topContent={currentWorkspaceTab === 'connections' ? renderSidebarTopContent() : undefined}
               t={t}
               theme={settings.theme}
             />
@@ -1233,7 +1189,6 @@ function App() {
             onToggleSection={handleToggleConnectionHistorySection}
             t={t}
             theme={settings.theme}
-            topContent={currentWorkspaceTab === 'history' ? renderSidebarTopContent() : undefined}
           />
 
           {isLogsWorkspaceEnabled ? (
@@ -1249,10 +1204,24 @@ function App() {
               status={sessionRecordingStatus}
               t={t}
               theme={settings.theme}
-              topContent={currentWorkspaceTab === 'logs' ? renderSidebarTopContent() : undefined}
             />
           ) : null}
         </div>
+        {!isTauriRuntime ? (
+          <StatusBar
+            locale={settings.locale}
+            onSelectLocale={(val) => handleSelectLocale(val as AppSettings['locale'])}
+            languageOptions={languageOptions}
+            themeValue={settings.theme}
+            onSelectTheme={handleSelectTheme}
+            themeOptions={themeOptions}
+            timeZone={settings.connectionHistoryTimeZone}
+            onSelectTimeZone={handleSelectConnectionHistoryTimeZone}
+            timeZoneOptions={connectionHistoryTimeZoneOptions}
+            theme={settings.theme}
+            t={t}
+          />
+        ) : null}
       </div>
 
       {isConnectionDialogOpen ? (

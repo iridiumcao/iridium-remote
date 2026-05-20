@@ -129,7 +129,7 @@ const PieChartCard = ({
 
   return (
     <div
-      className={`rounded-2xl border p-4 ${
+      className={`rounded-sm border p-4 ${
         isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
       }`}
     >
@@ -226,7 +226,7 @@ const DailyUsageCard = ({
 
   return (
     <div
-      className={`rounded-2xl border p-4 ${
+      className={`rounded-sm border p-4 ${
         isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
       }`}
     >
@@ -243,7 +243,7 @@ const DailyUsageCard = ({
               <button
                 key={day.date}
                 type="button"
-                className={`grid w-full grid-cols-[7.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition ${
+                className={`grid w-full grid-cols-[7.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 rounded-sm border px-3 py-2 text-left text-sm transition ${
                   selected
                     ? 'border-cyan-400 bg-cyan-400/10'
                     : isDark
@@ -531,10 +531,10 @@ export const ConnectionHistoryDialog = ({
 
   const selectedDailyTopHost = selectedDailyUsage?.hosts[0] ?? null
 
-  const summaryCardClass = `rounded-2xl border p-4 ${
+  const summaryCardClass = `rounded-sm border p-4 ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
-  const sectionClass = `rounded-2xl border ${
+  const sectionClass = `rounded-sm border ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
 
@@ -544,7 +544,7 @@ export const ConnectionHistoryDialog = ({
       footer={
         <button
           type="button"
-          className={`rounded-lg border px-4 py-2 text-sm transition ${
+          className={`rounded-sm border px-4 py-2 text-sm transition ${
             isDark
               ? 'border-white/10 text-slate-200 hover:bg-white/5'
               : 'border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -588,7 +588,7 @@ export const ConnectionHistoryDialog = ({
 
       {error ? (
         <p
-          className={`rounded-xl border px-3 py-2 text-sm ${
+          className={`rounded-sm border px-3 py-2 text-sm ${
             isDark ? 'border-rose-500/30 bg-rose-500/10 text-rose-100' : 'border-rose-200 bg-rose-50 text-rose-700'
           }`}
         >
@@ -600,7 +600,7 @@ export const ConnectionHistoryDialog = ({
         <div className={`${sectionClass} flex min-h-0 flex-col p-4`}>
           <p className="text-sm font-medium">{t.connectionHistoryHostList}</p>
           <input
-            className={`mt-3 w-full rounded-xl border px-3 py-2 outline-none transition ${
+            className={`mt-3 w-full rounded-sm border px-3 py-2 outline-none transition ${
               isDark
                 ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
                 : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
@@ -618,7 +618,7 @@ export const ConnectionHistoryDialog = ({
             }`}
           >
             {hostListOverview !== null && filteredHosts.length === 0 ? (
-              <div className="rounded-xl border border-dashed px-4 py-6 text-sm">
+              <div className="rounded-sm border border-dashed px-4 py-6 text-sm">
                 <p className="font-medium">{t.connectionHistoryNoHosts}</p>
                 <p className={`mt-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   {t.connectionHistoryNoHostsDescription}
@@ -632,7 +632,7 @@ export const ConnectionHistoryDialog = ({
                 <button
                   key={host.historyKey}
                   type="button"
-                  className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                  className={`w-full rounded-sm border px-4 py-3 text-left transition ${
                     selected
                       ? 'border-cyan-400 bg-cyan-400/10'
                       : isDark
@@ -727,7 +727,7 @@ export const ConnectionHistoryDialog = ({
 
               {displayedDetails.summarizedSessionCount > 0 ? (
                 <p
-                  className={`rounded-xl border px-3 py-2 text-sm ${
+                  className={`rounded-sm border px-3 py-2 text-sm ${
                     isDark ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-200 bg-white text-slate-700'
                   }`}
                 >

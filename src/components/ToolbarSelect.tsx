@@ -136,7 +136,7 @@ export function ToolbarSelect({
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           aria-label={label}
-          className={`flex min-w-[9rem] items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left ${
+          className={`flex min-w-[9rem] items-center justify-between gap-3 rounded-sm border px-3 py-2 text-left ${
             isDark
               ? 'border-white/10 bg-slate-900 text-slate-100 hover:bg-slate-800'
               : 'border-slate-200 bg-white text-slate-900 hover:bg-slate-50'
@@ -172,7 +172,7 @@ export function ToolbarSelect({
 
         {isOpen ? (
           <div
-            className={`absolute right-0 z-30 mt-2 min-w-full overflow-hidden rounded-xl border p-1 shadow-xl ${
+            className={`absolute right-0 z-30 mt-2 min-w-full overflow-hidden rounded-sm border p-1 shadow-xl ${
               isDark
                 ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
                 : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
@@ -193,7 +193,7 @@ export function ToolbarSelect({
                     optionRefs.current[index] = node
                   }}
                   aria-selected={isSelected}
-                  className={`block w-full rounded-lg px-3 py-2 text-left transition ${
+                  className={`block w-full rounded-sm px-3 py-2 text-left transition ${
                     isHighlighted
                       ? isDark
                         ? 'bg-cyan-400/15 text-white'

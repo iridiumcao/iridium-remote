@@ -103,7 +103,7 @@ export const RemotePathPickerDialog = ({
 
   const parentPath = useMemo(() => getParentRemotePath(currentPath), [currentPath])
 
-  const rowClass = `flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
+  const rowClass = `flex w-full items-center justify-between gap-3 rounded-sm border px-3 py-2 text-left transition ${
     isDark
       ? 'border-white/10 bg-slate-950/60 text-slate-100 hover:bg-white/5'
       : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-slate-100'
@@ -116,7 +116,7 @@ export const RemotePathPickerDialog = ({
         <>
           <button
             type="button"
-            className={`rounded-lg border px-4 py-2 text-sm transition ${
+            className={`rounded-sm border px-4 py-2 text-sm transition ${
               isDark
                 ? 'border-white/10 text-slate-300 hover:bg-white/5'
                 : 'border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -127,7 +127,7 @@ export const RemotePathPickerDialog = ({
           </button>
           <button
             type="button"
-            className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+            className="rounded-sm bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
             onClick={() => {
               onSelect(currentPath)
               onClose()
@@ -143,7 +143,7 @@ export const RemotePathPickerDialog = ({
     >
       <div className="space-y-3">
         <div
-          className={`rounded-xl border px-3 py-2 text-sm ${
+          className={`rounded-sm border px-3 py-2 text-sm ${
             isDark ? 'border-white/10 bg-slate-950/60 text-slate-200' : 'border-slate-200 bg-slate-50 text-slate-700'
           }`}
         >
@@ -204,7 +204,7 @@ export const RemotePathPickerDialog = ({
 
         {error ? (
           <div
-            className={`rounded-xl border px-3 py-2 text-sm ${
+            className={`rounded-sm border px-3 py-2 text-sm ${
               isDark
                 ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
                 : 'border-rose-200 bg-rose-50 text-rose-700'

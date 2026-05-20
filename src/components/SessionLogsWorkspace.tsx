@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import { formatStorageBytes } from '../lib/format'
 import type { getTranslations } from '../lib/i18n'
 import type {
@@ -19,7 +19,6 @@ type SessionLogsWorkspaceProps = {
   status: SessionRecordingStatus | null
   t: ReturnType<typeof getTranslations>
   theme: AppTheme
-  topContent?: ReactNode
 }
 
 type LogSource = {
@@ -121,7 +120,6 @@ export const SessionLogsWorkspace = ({
   status,
   t,
   theme,
-  topContent,
 }: SessionLogsWorkspaceProps) => {
   const [files, setFiles] = useState<SessionLogFileInfo[]>([])
   const [selectedSourceKey, setSelectedSourceKey] = useState<string | null>(null)
@@ -315,15 +313,15 @@ export const SessionLogsWorkspace = ({
       .map((file) => file.fileName)
   }, [files, selectedPaths])
 
-  const actionButtonClass = `rounded-lg border px-4 py-2 text-sm transition ${
+  const actionButtonClass = `rounded-sm border px-4 py-2 text-sm transition ${
     isDark
       ? 'border-white/10 text-slate-200 hover:bg-white/5'
       : 'border-slate-200 text-slate-700 hover:bg-slate-100'
   }`
-  const sectionClass = `rounded-2xl border ${
+  const sectionClass = `rounded-sm border ${
     isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
   }`
-  const inputClass = `w-full rounded-xl border px-3 py-2 outline-none transition ${
+  const inputClass = `w-full rounded-sm border px-3 py-2 outline-none transition ${
     isDark
       ? 'border-white/10 bg-slate-950 text-white focus:border-cyan-400'
       : 'border-slate-200 bg-white text-slate-900 focus:border-cyan-500'
@@ -341,17 +339,11 @@ export const SessionLogsWorkspace = ({
           isDark ? 'border-white/10 bg-slate-900/60' : 'border-slate-200 bg-white/90'
         }`}
       >
-        {topContent ? (
-          <div
-            className={`border-b px-5 py-4 ${
-              isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50/80'
-            }`}
-          >
-            {topContent}
-          </div>
-        ) : null}
+        <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          {t.workspaceLogsTab}
+        </div>
 
-        <div className={`border-b px-5 py-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+        <div className={`border-b px-4 py-3 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <p className={`max-w-[18rem] text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {t.sessionLogViewerDescription}
@@ -397,7 +389,7 @@ export const SessionLogsWorkspace = ({
               {Array.from({ length: 4 }, (_, index) => (
                 <div
                   key={index}
-                  className={`animate-pulse rounded-2xl border h-14 ${
+                  className={`animate-pulse rounded-sm border h-14 ${
                     isDark ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-100'
                   }`}
                 />
@@ -407,7 +399,7 @@ export const SessionLogsWorkspace = ({
 
           {!isLoading && sources.length === 0 ? (
             <div
-              className={`rounded-2xl border border-dashed px-4 py-6 text-center ${
+              className={`rounded-sm border border-dashed px-4 py-6 text-center ${
                 isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-50'
               }`}
             >
@@ -436,7 +428,7 @@ export const SessionLogsWorkspace = ({
                       <button
                         key={source.key}
                         type="button"
-                        className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        className={`w-full rounded-sm border px-4 py-3 text-left transition ${
                           selected
                             ? 'border-cyan-400 bg-cyan-400/10'
                             : isDark
@@ -482,7 +474,7 @@ export const SessionLogsWorkspace = ({
 
             {error ? (
               <p
-                className={`rounded-xl border px-3 py-2 text-sm ${
+                className={`rounded-sm border px-3 py-2 text-sm ${
                   isDark ? 'border-rose-500/30 bg-rose-500/10 text-rose-100' : 'border-rose-200 bg-rose-50 text-rose-700'
                 }`}
               >
@@ -522,7 +514,7 @@ export const SessionLogsWorkspace = ({
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-cyan-400/60"
+                      className="rounded-sm bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-cyan-400/60"
                       disabled={isWorking}
                       onClick={() => {
                         void handleExport()
@@ -556,7 +548,7 @@ export const SessionLogsWorkspace = ({
 
                     <textarea
                       aria-label={t.selectedSessionLogs}
-                      className={`themed-scrollbar mt-3 h-28 w-full rounded-xl border px-3 py-2 text-sm outline-none ${
+                      className={`themed-scrollbar mt-3 h-28 w-full rounded-sm border px-3 py-2 text-sm outline-none ${
                         isDark
                           ? 'border-white/10 bg-slate-950 text-slate-100 themed-scrollbar-dark'
                           : 'border-slate-200 bg-white text-slate-900 themed-scrollbar-light'
@@ -606,7 +598,7 @@ export const SessionLogsWorkspace = ({
                           <button
                             key={file.path}
                             type="button"
-                            className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                            className={`w-full rounded-sm border px-4 py-3 text-left transition ${
                               selected
                                 ? 'border-cyan-400 bg-cyan-400/10'
                                 : isDark
@@ -652,7 +644,7 @@ export const SessionLogsWorkspace = ({
                   ) : null}
                 </div>
                 <textarea
-                  className={`themed-scrollbar mt-3 h-[520px] w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none ${
+                  className={`themed-scrollbar mt-3 h-[520px] w-full rounded-sm border px-3 py-2 font-mono text-sm outline-none ${
                     isDark
                       ? 'border-white/10 bg-slate-950 text-slate-100 themed-scrollbar-dark'
                       : 'border-slate-200 bg-white text-slate-900 themed-scrollbar-light'
