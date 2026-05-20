@@ -295,34 +295,54 @@ export const TerminalWorkspace = ({
     }
 
     let active = true
+    let syncInFlight = false
 
-    const loadTerminalSnapshot = async () => {
-      const snapshot = await appClient.getSessionTerminalBuffer(activeSession.sessionId)
-      if (!active) {
+    const syncTerminalSnapshot = async () => {
+      if (!active || syncInFlight) {
         return
       }
 
-      const current = sessionBuffersRef.current.get(activeSession.sessionId) ?? ''
-      const merged = mergeTerminalSnapshot(current, snapshot)
+      syncInFlight = true
+      try {
+        const snapshot = await appClient.getSessionTerminalBuffer(activeSession.sessionId)
+        if (!active) {
+          return
+        }
 
-      if (merged === current) {
-        return
-      }
+        const current = sessionBuffersRef.current.get(activeSession.sessionId) ?? ''
+        const merged = mergeTerminalSnapshot(current, snapshot)
 
-      sessionBuffersRef.current.set(activeSession.sessionId, merged)
+        if (merged === current) {
+          return
+        }
 
-      if (renderedSessionIdRef.current === activeSession.sessionId) {
-        terminalInstance.current?.reset()
-        terminalInstance.current?.write(merged)
+        sessionBuffersRef.current.set(activeSession.sessionId, merged)
+
+        if (renderedSessionIdRef.current === activeSession.sessionId) {
+          terminalInstance.current?.reset()
+          terminalInstance.current?.write(merged)
+        }
+      } finally {
+        syncInFlight = false
       }
     }
 
-    void loadTerminalSnapshot()
+    void syncTerminalSnapshot()
+
+    const reconnectInterval =
+      activeSession.status === 'connecting'
+        ? window.setInterval(() => {
+            void syncTerminalSnapshot()
+          }, 500)
+        : null
 
     return () => {
       active = false
+      if (reconnectInterval !== null) {
+        window.clearInterval(reconnectInterval)
+      }
     }
-  }, [activeSession?.sessionId])
+  }, [activeSession?.sessionId, activeSession?.status])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessions.map((session) => session.sessionId))

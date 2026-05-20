@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { appClient } from '../api/client'
 import { getTranslations } from '../lib/i18n'
@@ -362,5 +362,55 @@ describe('TerminalWorkspace', () => {
         ].join('\r\n'),
       ),
     )
+  })
+
+  it('keeps resyncing the backend terminal buffer while connecting so missed SSH prompts still appear', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(appClient.getSessionTerminalBuffer)
+        .mockResolvedValueOnce('')
+        .mockResolvedValueOnce(
+          [
+            `The authenticity of host '${connection.host} (${connection.host})' can't be established.`,
+            'ED25519 key fingerprint is SHA256:test.',
+            "Are you sure you want to continue connecting (yes/no/[fingerprint])?",
+          ].join('\r\n'),
+        )
+
+      render(
+        <TerminalWorkspace
+          activeConnection={connection}
+          activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
+          onCloseSession={vi.fn()}
+          onDisconnect={vi.fn()}
+          onSelectSession={vi.fn()}
+          selectedConnection={connection}
+          sessions={[{ ...session, status: 'connecting', message: 'Connecting...' }]}
+          t={getTranslations('en')}
+          theme="dark"
+        />,
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(appClient.getSessionTerminalBuffer).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(appClient.getSessionTerminalBuffer).toHaveBeenCalledTimes(2)
+      expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith(
+        [
+          `The authenticity of host '${connection.host} (${connection.host})' can't be established.`,
+          'ED25519 key fingerprint is SHA256:test.',
+          "Are you sure you want to continue connecting (yes/no/[fingerprint])?",
+        ].join('\r\n'),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
