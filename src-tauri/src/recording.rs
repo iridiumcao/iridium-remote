@@ -1037,6 +1037,13 @@ mod tests {
     #[test]
     fn input_only_recording_omits_suppressed_input() {
         let logs_dir = temp_logs_dir();
+        let test_password = format!(
+            "test-password-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("system time before unix epoch")
+                .as_nanos()
+        );
         let settings = SessionRecordingSettings {
             enabled: true,
             mode: SessionRecordingMode::InputOnly,
@@ -1047,7 +1054,7 @@ mod tests {
         };
         let manager = RecordingManager::new(logs_dir.clone(), settings.clone(), None).expect("manager");
         manager
-            .update_settings(settings, Some("super-secret".into()), None)
+            .update_settings(settings, Some(test_password.clone()), None)
             .expect("settings update");
 
         let mut recorder = manager
@@ -1068,7 +1075,7 @@ mod tests {
             .map(|file| file.path.display().to_string())
             .collect::<Vec<_>>();
         let preview = manager
-            .preview_logs(paths, "super-secret".into())
+            .preview_logs(paths, test_password)
             .expect("preview");
 
         assert_eq!(preview.preview_text, "ls\npwd\n");
@@ -1079,6 +1086,13 @@ mod tests {
     #[test]
     fn full_recording_round_trips_visible_output() {
         let logs_dir = temp_logs_dir();
+        let test_password = format!(
+            "test-password-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("system time before unix epoch")
+                .as_nanos()
+        );
         let mut recorder = SessionRecorder::new(
             logs_dir.clone(),
             SessionRecordingSettings {
@@ -1089,7 +1103,7 @@ mod tests {
                 retention_days: 30,
                 log_directory: None,
             },
-            "super-secret".into(),
+            test_password.clone(),
             &test_connection(),
         )
         .expect("recorder");
@@ -1106,7 +1120,7 @@ mod tests {
             .map(|file| file.path.display().to_string())
             .collect::<Vec<_>>();
         let preview = manager
-            .preview_logs(paths, "super-secret".into())
+            .preview_logs(paths, test_password)
             .expect("preview");
 
         assert_eq!(preview.preview_text, "root@example.com$ ls\nfile.txt\n");
