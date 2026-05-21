@@ -53,6 +53,7 @@ struct SessionInner {
 #[derive(Clone)]
 pub struct SessionManager {
     inner: Arc<Mutex<SessionInner>>,
+    spawn_lock: Arc<Mutex<()>>,
     database: Database,
     recording: RecordingManager,
 }
@@ -64,6 +65,7 @@ impl SessionManager {
                 sessions: HashMap::new(),
                 order: Vec::new(),
             })),
+            spawn_lock: Arc::new(Mutex::new(())),
             database,
             recording,
         }
@@ -89,6 +91,8 @@ impl SessionManager {
         connection: &ConnectionRecord,
         saved_password: Option<String>,
     ) -> AppResult<SessionStatePayload> {
+        let _spawn_guard = self.spawn_lock.lock().expect("spawn mutex poisoned");
+
         let recorder = self.recording.start_session(connection)?;
         let pty_system = native_pty_system();
         let pair = pty_system

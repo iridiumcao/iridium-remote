@@ -108,12 +108,31 @@ Connection history uses a detail-plus-rollup model: the backend inserts a runnin
 Responsibilities:
 
 - launch `ssh`
+- serialize PTY allocations and process spawns to prevent concurrency bugs on Windows (`spawn_lock`)
 - stream output events
 - receive terminal input and resize events
 - detect session exit
 - keep session output isolated by tab
 - attach an optional recorder when session recording is enabled
 - persist connection-history lifecycle updates without blocking SSH startup
+
+```mermaid
+flowchart TD
+    A[Frontend: Connect to Session] --> B[Backend: connect_session]
+    B --> C{Lock spawn_lock}
+    C --> D[Allocate PTY & Spawn SSH]
+    D --> E[Release spawn_lock]
+    E --> F[Generate Session UUID & Insert to State]
+    F --> G[Emit session-status 'Connecting']
+    F --> H[Spawn read_loop thread]
+    F --> I[Spawn wait_for_exit thread]
+    G --> J[Frontend: Render TerminalWorkspace]
+    H --> K{Detect output}
+    K -- Password Prompt --> L[Auto-inject queued_password]
+    K -- Shell Prompt --> M[Emit session-status 'Connected']
+    K -- Text Data --> N[Emit terminal-output event]
+    N --> O[Frontend: Update session buffer & xterm.js]
+```
 
 Password prompts remain terminal-native; the backend no longer opens a custom password dialog.
 When a saved password exists, the session manager queues it and writes it back into the PTY after detecting a password prompt in the terminal output stream.

@@ -27,6 +27,7 @@ import type {
   SessionRecordingSettings,
   SessionRecordingStatus,
   SessionState,
+  SessionStatus,
   UpdateConnectionInput,
 } from './lib/types'
 import { defaultAppSettings } from './lib/types'
@@ -56,9 +57,24 @@ const connectionHistoryTimeZoneOptions = [
 ]
 
 const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
-  const existing = sessions.find((session) => session.sessionId === nextState.sessionId)
-  if (!existing) {
+  const existingIndex = sessions.findIndex((session) => session.sessionId === nextState.sessionId)
+  if (existingIndex < 0) {
     return [...sessions, nextState]
+  }
+
+  const existing = sessions[existingIndex]
+  const statusRank: Record<SessionStatus, number> = {
+    error: 3,
+    disconnected: 2,
+    connected: 1,
+    connecting: 0,
+    idle: -1,
+  }
+  const nextRank = statusRank[nextState.status]
+  const existingRank = statusRank[existing.status]
+
+  if (existingRank > nextRank) {
+    return sessions
   }
 
   return sessions.map((session) =>
@@ -67,7 +83,7 @@ const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
 }
 
 const findSessionById = (sessions: SessionState[], sessionId: string | null) =>
-  sessionId ? sessions.find((session) => session.sessionId === sessionId) ?? null : null
+  sessions.find((session) => session.sessionId === sessionId) ?? null
 
 const findOpenSessionForConnection = (
   sessions: SessionState[],
@@ -431,17 +447,20 @@ function App() {
   }
 
   const selectSession = useCallback(
-    (sessionId: string | null, availableSessions: SessionState[] = sessions) => {
+    (sessionId: string | null) => {
       setActiveSessionId(sessionId)
 
-      const nextSession = findSessionById(availableSessions, sessionId)
-      if (nextSession) {
-        setSelectedConnectionId(nextSession.connectionId)
-      } else if (sessionId === null && availableSessions.length === 0) {
-        setSelectedConnectionId(null)
-      }
+      setSessions((current) => {
+        const nextSession = findSessionById(current, sessionId)
+        if (nextSession) {
+          setSelectedConnectionId(nextSession.connectionId)
+        } else if (sessionId === null && current.length === 0) {
+          setSelectedConnectionId(null)
+        }
+        return current
+      })
     },
-    [sessions],
+    [],
   )
 
   const selectConnection = useCallback(
@@ -549,15 +568,12 @@ function App() {
       }
       setSelectedConnectionId(connection.id)
       const nextState = await appClient.connectSession(connection.id)
-      setSessions((current) => {
-        const nextSessions = upsertSession(current, nextState)
-        selectSession(nextState.sessionId, nextSessions)
-        return nextSessions
-      })
+      setSessions((current) => upsertSession(current, nextState))
+      setActiveSessionId(nextState.sessionId)
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
-  }, [selectSession])
+  }, [])
 
   const connectToConnection = useCallback(async (connection: ConnectionRecord) => {
     setError(null)

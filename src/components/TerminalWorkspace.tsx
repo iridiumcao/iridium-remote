@@ -138,7 +138,15 @@ const mergeTerminalSnapshot = (current: string, snapshot: string) => {
     return current
   }
 
-  if (!current || sanitizedSnapshot.endsWith(current)) {
+  if (current.endsWith(sanitizedSnapshot)) {
+    return current
+  }
+
+  if (sanitizedSnapshot.startsWith(current)) {
+    return sanitizedSnapshot
+  }
+
+  if (sanitizedSnapshot.length >= current.length) {
     return sanitizedSnapshot
   }
 
@@ -201,6 +209,7 @@ export const TerminalWorkspace = ({
 
     terminalInstance.current = terminal
     fitAddonRef.current = fitAddon
+    renderedSessionIdRef.current = null // Force re-render of content on next effect run
 
     const resizeObserver = new ResizeObserver(() => {
       const fit = fitAddonRef.current
@@ -319,8 +328,15 @@ export const TerminalWorkspace = ({
         sessionBuffersRef.current.set(activeSession.sessionId, merged)
 
         if (renderedSessionIdRef.current === activeSession.sessionId) {
-          terminalInstance.current?.reset()
-          terminalInstance.current?.write(merged)
+          const terminal = terminalInstance.current
+          if (terminal) {
+            if (merged.startsWith(current)) {
+              terminal.write(merged.slice(current.length))
+            } else {
+              terminal.reset()
+              terminal.write(merged)
+            }
+          }
         }
       } finally {
         syncInFlight = false
