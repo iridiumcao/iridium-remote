@@ -16,7 +16,6 @@ use argon2::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -533,7 +532,7 @@ impl SessionRecorder {
         let cipher = Aes256Gcm::new_from_slice(&self.current_file.key)
             .expect("fixed-length session recording key");
         let mut nonce = [0_u8; 12];
-        rand::rngs::OsRng.fill_bytes(&mut nonce);
+        rand::fill(&mut nonce);
         let ciphertext = cipher
             .encrypt(Nonce::from_slice(&nonce), compressed.as_ref())
             .map_err(|_| {
@@ -642,7 +641,7 @@ fn open_log_file(
     let mut writer = BufWriter::new(file);
 
     let mut salt = [0_u8; 16];
-    rand::rngs::OsRng.fill_bytes(&mut salt);
+    rand::fill(&mut salt);
     let key = derive_key(password, &salt)?;
     let metadata = LogMetadata {
         version: 1,
