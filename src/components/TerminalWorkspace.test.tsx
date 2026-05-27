@@ -27,6 +27,7 @@ const terminalMocks = vi.hoisted(() => {
     dispose: vi.fn(),
     getSelection: vi.fn(() => 'selected text'),
     selectAll: vi.fn(),
+    paste: vi.fn(),
   }
 
   return { terminal }
@@ -67,6 +68,7 @@ vi.mock('@xterm/xterm', () => ({
     dispose = terminalMocks.terminal.dispose
     getSelection = terminalMocks.terminal.getSelection
     selectAll = terminalMocks.terminal.selectAll
+    paste = terminalMocks.terminal.paste
   },
 }))
 
@@ -412,5 +414,34 @@ describe('TerminalWorkspace', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('pastes text via the terminal instance to ensure proper normalization and bracketed paste support', async () => {
+    const { container } = render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    const terminalShell = container.querySelector('.terminal-shell')
+    fireEvent.contextMenu(terminalShell!, {
+      clientX: 100,
+      clientY: 100,
+    })
+
+    const pasteButton = screen.getByRole('menuitem', { name: 'Paste' })
+    await act(async () => {
+      fireEvent.click(pasteButton)
+    })
+
+    expect(terminalMocks.terminal.paste).toHaveBeenCalledWith('clipboard text')
+    expect(appClient.writeSessionInput).not.toHaveBeenCalledWith(session.sessionId, 'clipboard text')
   })
 })
