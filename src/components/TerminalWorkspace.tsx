@@ -468,7 +468,7 @@ export const TerminalWorkspace = ({
       return
     }
 
-    await appClient.writeSessionInput(activeSessionIdRef.current, text)
+    terminalInstance.current?.paste(text)
     terminalInstance.current?.focus()
     closeTerminalContextMenu()
   }
