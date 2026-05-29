@@ -611,7 +611,7 @@ function App() {
     await connectSessionToConnection(connection)
   }, [connectSessionToConnection, sessionRecordingStatus?.needsPasswordVerification])
 
-  const disconnectSession = async (sessionId: string) => {
+  const disconnectSession = useCallback(async (sessionId: string) => {
     try {
       setError(null)
       setNotice(null)
@@ -620,30 +620,63 @@ function App() {
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
-  }
+  }, [])
 
-  const closeSession = async (sessionId: string) => {
-    try {
-      setError(null)
-      await appClient.closeSession(sessionId)
-      setSessions((current) => {
-        const next = current.filter((session) => session.sessionId !== sessionId)
-        setActiveSessionId((currentActive) => {
-          if (currentActive !== sessionId) {
-            return currentActive
-          }
+  const removeClosedSessionFromState = useCallback((sessionId: string) => {
+    setSessions((current) => {
+      const next = current.filter((session) => session.sessionId !== sessionId)
+      setActiveSessionId((currentActive) => {
+        if (currentActive !== sessionId) {
+          return currentActive
+        }
 
-          const nextSessionId = next[0]?.sessionId ?? null
-          const nextSession = findSessionById(next, nextSessionId)
-          setSelectedConnectionId(nextSession?.connectionId ?? null)
-          return nextSessionId
-        })
-        return next
+        const nextSessionId = next[0]?.sessionId ?? null
+        const nextSession = findSessionById(next, nextSessionId)
+        setSelectedConnectionId(nextSession?.connectionId ?? null)
+        return nextSessionId
       })
-    } catch (cause) {
-      setError(appClient.normalizeError(cause))
-    }
-  }
+      return next
+    })
+  }, [])
+
+  const performCloseSession = useCallback(
+    async (sessionId: string) => {
+      await appClient.closeSession(sessionId)
+      removeClosedSessionFromState(sessionId)
+    },
+    [removeClosedSessionFromState],
+  )
+
+  const closeSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        setError(null)
+        await performCloseSession(sessionId)
+      } catch (cause) {
+        setError(appClient.normalizeError(cause))
+      }
+    },
+    [performCloseSession],
+  )
+
+  const closeSessions = useCallback(
+    async (sessionIds: string[]) => {
+      const uniqueSessionIds = Array.from(new Set(sessionIds))
+      if (uniqueSessionIds.length === 0) {
+        return
+      }
+
+      try {
+        setError(null)
+        for (const sessionId of uniqueSessionIds) {
+          await performCloseSession(sessionId)
+        }
+      } catch (cause) {
+        setError(appClient.normalizeError(cause))
+      }
+    },
+    [performCloseSession],
+  )
 
   const handleTransfer = async (input: Omit<FileTransferInput, 'connectionId'>) => {
     if (!activeConnection) {
@@ -1249,8 +1282,10 @@ function App() {
             <TerminalWorkspace
               activeConnection={activeConnection}
               activeSession={activeSession}
+              connections={connections}
               isVisible={currentWorkspaceTab === 'connections'}
               onCloseSession={closeSession}
+              onCloseSessions={closeSessions}
               onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
               onDisconnect={disconnectSession}
               onOpenTransfer={activeConnection ? () => setTransferDialogOpen(true) : undefined}

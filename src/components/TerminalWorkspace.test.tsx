@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { appClient } from '../api/client'
 import { getTranslations } from '../lib/i18n'
 import type { ConnectionRecord, SessionState, TerminalOutputEvent } from '../lib/types'
@@ -90,6 +90,18 @@ const connection: ConnectionRecord = {
   updatedAt: '2026-01-01T00:00:00Z',
 }
 
+const secondConnection: ConnectionRecord = {
+  id: 'connection-2',
+  name: 'Second Session',
+  groupName: null,
+  host: '192.168.1.11',
+  port: 22,
+  username: 'operator',
+  hasPassword: false,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+}
+
 const session: SessionState = {
   sessionId: 'session-1',
   connectionId: connection.id,
@@ -128,11 +140,16 @@ beforeEach(() => {
   vi.mocked(appClient.getSessionTerminalBuffer).mockResolvedValue('')
 })
 
+afterEach(() => {
+  cleanup()
+})
+
 describe('TerminalWorkspace', () => {
   it('uses the SSH target as the workspace title instead of repeating the tab label', () => {
     render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -155,6 +172,7 @@ describe('TerminalWorkspace', () => {
     render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
         onCloseSession={vi.fn()}
         onDisconnect={vi.fn()}
@@ -181,6 +199,7 @@ describe('TerminalWorkspace', () => {
     render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
         onCloseSession={vi.fn()}
         onDisconnect={vi.fn()}
@@ -212,6 +231,7 @@ describe('TerminalWorkspace', () => {
     render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={{ ...session, recordingActive: true, recordingMode: 'input_only' }}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -229,6 +249,7 @@ describe('TerminalWorkspace', () => {
     const { container } = render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -268,6 +289,7 @@ describe('TerminalWorkspace', () => {
     const { container, rerender } = render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection, secondConnection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -286,6 +308,7 @@ describe('TerminalWorkspace', () => {
     rerender(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection, secondConnection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -298,6 +321,106 @@ describe('TerminalWorkspace', () => {
 
     expect(tabScrollRegion).toHaveClass('themed-scrollbar', 'themed-scrollbar-light')
     expect(tabScrollRegion).not.toHaveClass('themed-scrollbar-dark')
+  })
+
+  it('shows the SSH target as a hover tooltip only for inactive tabs', () => {
+    const secondSession: SessionState = {
+      ...session,
+      sessionId: 'session-2',
+      connectionId: secondConnection.id,
+      connectionName: secondConnection.name,
+    }
+
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        connections={[connection, secondConnection]}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Test Only' }).closest('[title]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Second Session' }).closest('[title]')).toHaveAttribute(
+      'title',
+      'operator@192.168.1.11',
+    )
+  })
+
+  it('opens a tab context menu with only the requested close actions', () => {
+    const secondSession: SessionState = {
+      ...session,
+      sessionId: 'session-2',
+      connectionId: secondConnection.id,
+      connectionName: secondConnection.name,
+    }
+
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        connections={[connection, secondConnection]}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('zh-CN')}
+        theme="dark"
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Test Only' }).closest('div')!, {
+      clientX: 120,
+      clientY: 80,
+    })
+
+    expect(screen.getByRole('menuitem', { name: '关闭当前标签页' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: '关闭其他标签页' })).toBeEnabled()
+    expect(screen.queryByRole('menuitem', { name: '关闭左侧标签页' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: '关闭右侧标签页' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: '关闭全部标签页' })).toBeNull()
+  })
+
+  it('routes the remaining tab close actions to the expected sessions', () => {
+    const secondSession: SessionState = {
+      ...session,
+      sessionId: 'session-2',
+      connectionId: secondConnection.id,
+      connectionName: secondConnection.name,
+    }
+    const onCloseSession = vi.fn()
+    const onCloseSessions = vi.fn()
+
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        connections={[connection, secondConnection]}
+        activeSession={session}
+        onCloseSession={onCloseSession}
+        onCloseSessions={onCloseSessions}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    const secondTab = screen.getByRole('button', { name: 'Second Session' }).closest('div')!
+
+    fireEvent.contextMenu(secondTab, { clientX: 140, clientY: 80 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Close Tab' }))
+    expect(onCloseSession).toHaveBeenCalledWith('session-2')
+
+    fireEvent.contextMenu(secondTab, { clientX: 140, clientY: 80 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Close Other Tabs' }))
+    expect(onCloseSession).toHaveBeenCalledWith('session-1')
+    expect(onCloseSessions).not.toHaveBeenCalled()
   })
 
   it('replays buffered tab output without resending terminal status queries as input', async () => {
@@ -317,6 +440,7 @@ describe('TerminalWorkspace', () => {
     const { rerender } = render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection, secondConnection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -343,6 +467,7 @@ describe('TerminalWorkspace', () => {
     rerender(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection, secondConnection]}
         activeSession={secondSession}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -376,6 +501,7 @@ describe('TerminalWorkspace', () => {
     render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection, secondConnection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -425,6 +551,7 @@ describe('TerminalWorkspace', () => {
     render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}
@@ -482,6 +609,7 @@ describe('TerminalWorkspace', () => {
       render(
         <TerminalWorkspace
           activeConnection={connection}
+          connections={[connection]}
           activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
           onCloseSession={vi.fn()}
           onDisconnect={vi.fn()}
@@ -533,6 +661,7 @@ describe('TerminalWorkspace', () => {
       const { rerender } = render(
         <TerminalWorkspace
           activeConnection={connection}
+          connections={[connection]}
           activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
           onCloseSession={vi.fn()}
           onDisconnect={vi.fn()}
@@ -554,6 +683,7 @@ describe('TerminalWorkspace', () => {
       rerender(
         <TerminalWorkspace
           activeConnection={connection}
+          connections={[connection]}
           activeSession={{ ...session, status: 'connected', message: 'Connected.' }}
           onCloseSession={vi.fn()}
           onDisconnect={vi.fn()}
@@ -594,6 +724,7 @@ describe('TerminalWorkspace', () => {
     const { container } = render(
       <TerminalWorkspace
         activeConnection={connection}
+        connections={[connection]}
         activeSession={session}
         onCloseSession={vi.fn()}
         onSelectSession={vi.fn()}

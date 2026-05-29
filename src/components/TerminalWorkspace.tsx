@@ -10,10 +10,12 @@ import type { AppTheme, ConnectionRecord, SessionState } from '../lib/types'
 type TerminalWorkspaceProps = {
   activeSession: SessionState | null
   activeConnection: ConnectionRecord | null
+  connections: ConnectionRecord[]
   sessions: SessionState[]
   isVisible?: boolean
   selectedConnection: ConnectionRecord | null
   onCloseSession: (sessionId: string) => void
+  onCloseSessions?: (sessionIds: string[]) => void
   onConnect?: () => void
   onDisconnect?: (sessionId: string) => void
   onOpenTransfer?: () => void
@@ -45,10 +47,24 @@ type TerminalContextMenuState = {
   open: boolean
 }
 
+type TabContextMenuState = {
+  x: number
+  y: number
+  open: boolean
+  sessionId: string | null
+}
+
 const closedContextMenu: TerminalContextMenuState = {
   x: 0,
   y: 0,
   open: false,
+}
+
+const closedTabContextMenu: TabContextMenuState = {
+  x: 0,
+  y: 0,
+  open: false,
+  sessionId: null,
 }
 
 const terminalThemes = {
@@ -108,6 +124,12 @@ const MAX_TERMINAL_BUFFER_SIZE = 500000
 const MIN_SYNCHRONIZED_TERMINAL_COLS = 2
 const MIN_SYNCHRONIZED_TERMINAL_ROWS = 2
 const TERMINAL_QUERY_TAIL_LIMIT = 32
+const TAB_CONTEXT_MENU_WIDTH = 220
+const TAB_CONTEXT_MENU_HEIGHT = 92
+const TERMINAL_CONTEXT_MENU_WIDTH = 176
+const TERMINAL_CONTEXT_MENU_HEIGHT = 132
+
+type TabContextAction = 'current' | 'others'
 
 const sanitizeReplayBuffer = (data: string) => {
   let sanitized = ''
@@ -213,9 +235,11 @@ const mergeTerminalSnapshot = (current: string, snapshot: string) => {
 
 export const TerminalWorkspace = ({
   activeConnection,
+  connections,
   activeSession,
   isVisible = true,
   onCloseSession,
+  onCloseSessions,
   onConnect,
   onDisconnect,
   onOpenTransfer,
@@ -228,17 +252,24 @@ export const TerminalWorkspace = ({
   const terminalRef = useRef<HTMLDivElement | null>(null)
   const terminalInstance = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const tabStripRef = useRef<HTMLDivElement | null>(null)
   const terminalShellRef = useRef<HTMLDivElement | null>(null)
   const terminalMenuRef = useRef<HTMLDivElement | null>(null)
+  const tabMenuRef = useRef<HTMLDivElement | null>(null)
   const renderedSessionIdRef = useRef<string | null>(null)
   const activeSessionIdRef = useRef<string | null>(null)
   const sessionBuffersRef = useRef<Map<string, string>>(new Map())
   const sessionQueryTailsRef = useRef<Map<string, string>>(new Map())
   const lastSyncedTerminalSizesRef = useRef<Map<string, string>>(new Map())
   const [terminalContextMenu, setTerminalContextMenu] = useState<TerminalContextMenuState>(closedContextMenu)
+  const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState>(closedTabContextMenu)
   const isDark = theme === 'dark'
 
   const xtermTheme = useMemo(() => terminalThemes[theme], [theme])
+  const connectionsById = useMemo(
+    () => new Map(connections.map((connection) => [connection.id, connection])),
+    [connections],
+  )
 
   const sessionHasVisibleTerminalContent = useCallback(
     (sessionId: string) => (sessionBuffersRef.current.get(sessionId) ?? '').length > 0,
@@ -338,23 +369,28 @@ export const TerminalWorkspace = ({
   }, [xtermTheme])
 
   useEffect(() => {
-    if (!terminalContextMenu.open) {
+    if (!terminalContextMenu.open && !tabContextMenu.open) {
       return
     }
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (
-        terminalMenuRef.current &&
-        event.target instanceof Node &&
-        !terminalMenuRef.current.contains(event.target)
-      ) {
+      if (!(event.target instanceof Node)) {
+        return
+      }
+
+      const insideTerminalMenu =
+        terminalMenuRef.current && terminalMenuRef.current.contains(event.target)
+      const insideTabMenu = tabMenuRef.current && tabMenuRef.current.contains(event.target)
+      if (!insideTerminalMenu && !insideTabMenu) {
         setTerminalContextMenu(closedContextMenu)
+        setTabContextMenu(closedTabContextMenu)
       }
     }
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setTerminalContextMenu(closedContextMenu)
+        setTabContextMenu(closedTabContextMenu)
       }
     }
 
@@ -364,7 +400,7 @@ export const TerminalWorkspace = ({
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [terminalContextMenu.open])
+  }, [tabContextMenu.open, terminalContextMenu.open])
 
   useEffect(() => {
     let active = true
@@ -561,9 +597,18 @@ export const TerminalWorkspace = ({
       ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
       : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
   }`
+  const tabMenuClass = `absolute z-20 min-w-[220px] rounded-xl border p-1 text-[14px] shadow-xl ${
+    isDark
+      ? 'border-white/10 bg-slate-900 text-slate-100 shadow-black/40'
+      : 'border-slate-200 bg-white text-slate-900 shadow-slate-300/60'
+  }`
 
   const closeTerminalContextMenu = () => {
     setTerminalContextMenu(closedContextMenu)
+  }
+
+  const closeTabContextMenu = () => {
+    setTabContextMenu(closedTabContextMenu)
   }
 
   const handleTerminalContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -575,16 +620,21 @@ export const TerminalWorkspace = ({
     }
 
     const bounds = container.getBoundingClientRect()
-    const menuWidth = 176
-    const menuHeight = 132
-    const x = Math.max(0, Math.min(event.clientX - bounds.left, bounds.width - menuWidth))
-    const y = Math.max(0, Math.min(event.clientY - bounds.top, bounds.height - menuHeight))
+    const x = Math.max(
+      0,
+      Math.min(event.clientX - bounds.left, bounds.width - TERMINAL_CONTEXT_MENU_WIDTH),
+    )
+    const y = Math.max(
+      0,
+      Math.min(event.clientY - bounds.top, bounds.height - TERMINAL_CONTEXT_MENU_HEIGHT),
+    )
 
     setTerminalContextMenu({
       x,
       y,
       open: true,
     })
+    setTabContextMenu(closedTabContextMenu)
   }
 
   const handleTerminalCopy = async () => {
@@ -626,6 +676,73 @@ export const TerminalWorkspace = ({
     closeTerminalContextMenu()
   }
 
+  const getTabActionSessionIds = useCallback(
+    (action: TabContextAction) => {
+      if (!tabContextMenu.sessionId) {
+        return []
+      }
+
+      const sessionIndex = sessions.findIndex((session) => session.sessionId === tabContextMenu.sessionId)
+      if (sessionIndex === -1) {
+        return []
+      }
+
+      switch (action) {
+        case 'current':
+          return [sessions[sessionIndex]!.sessionId]
+        case 'others':
+          return sessions
+            .filter((session) => session.sessionId !== tabContextMenu.sessionId)
+            .map((session) => session.sessionId)
+      }
+    },
+    [sessions, tabContextMenu.sessionId],
+  )
+
+  const handleTabMenuAction = (action: TabContextAction) => {
+    const sessionIds = getTabActionSessionIds(action)
+    if (sessionIds.length === 0) {
+      closeTabContextMenu()
+      return
+    }
+
+    if (sessionIds.length === 1 || !onCloseSessions) {
+      sessionIds.forEach((sessionId) => onCloseSession(sessionId))
+    } else {
+      onCloseSessions(sessionIds)
+    }
+
+    closeTabContextMenu()
+  }
+
+  const handleTabContextMenu = (event: ReactMouseEvent<HTMLDivElement>, sessionId: string) => {
+    event.preventDefault()
+
+    const container = tabStripRef.current
+    if (!container) {
+      return
+    }
+
+    const bounds = container.getBoundingClientRect()
+    const x = Math.max(0, Math.min(event.clientX - bounds.left, bounds.width - TAB_CONTEXT_MENU_WIDTH))
+    const y = Math.max(
+      0,
+      Math.min(event.clientY - bounds.top, bounds.height - TAB_CONTEXT_MENU_HEIGHT),
+    )
+
+    setTabContextMenu({
+      x,
+      y,
+      open: true,
+      sessionId,
+    })
+    setTerminalContextMenu(closedContextMenu)
+  }
+
+  const closeTabIds = getTabActionSessionIds('current')
+  const closeOtherTabIds = getTabActionSessionIds('others')
+  const hasVisibleTabContextTarget = closeTabIds.length > 0
+
   return (
     <section
       className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
@@ -642,49 +759,89 @@ export const TerminalWorkspace = ({
             <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {t.tabs}
             </p>
-            <div
-              className={`terminal-tab-scroll-region themed-scrollbar mt-2 flex items-end overflow-x-auto px-1 pb-1 pt-2 ${
-                isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
-              }`}
-            >
-              {sessions.map((session, index) => {
-                const selected = session.sessionId === activeSession?.sessionId
-                const zIndex = selected ? sessions.length + 1 : sessions.length - index
+            <div className="relative mt-2">
+              <div
+                className={`terminal-tab-scroll-region themed-scrollbar flex items-end overflow-x-auto px-1 pb-1 pt-2 ${
+                  isDark ? 'themed-scrollbar-dark' : 'themed-scrollbar-light'
+                }`}
+                ref={tabStripRef}
+              >
+                {sessions.map((session, index) => {
+                  const selected = session.sessionId === activeSession?.sessionId
+                  const zIndex = selected ? sessions.length + 1 : sessions.length - index
+                  const tabConnection = connectionsById.get(session.connectionId)
+                  const tabSubtitle = tabConnection ? formatConnectionSubtitle(tabConnection) : null
 
-                return (
-                  <div
-                    key={session.sessionId}
-                    className={`relative -ml-2 first:ml-0 flex shrink-0 items-center gap-2 rounded-t-2xl border px-3 py-2 text-sm ${
-                      selected
-                        ? isDark
-                          ? 'translate-y-px border-cyan-400/70 bg-cyan-400/10 text-white shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.95)]'
-                          : 'translate-y-px border-cyan-400/60 bg-cyan-50 text-slate-900 shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.7)]'
-                        : isDark
-                          ? 'border-white/10 bg-slate-900/85 text-slate-300 hover:border-white/20 hover:bg-slate-900'
-                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
+                  return (
+                    <div
+                      key={session.sessionId}
+                      className={`relative -ml-2 first:ml-0 flex shrink-0 items-center gap-2 rounded-t-2xl border px-3 py-2 text-sm ${
+                        selected
+                          ? isDark
+                            ? 'translate-y-px border-cyan-400/70 bg-cyan-400/10 text-white shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.95)]'
+                            : 'translate-y-px border-cyan-400/60 bg-cyan-50 text-slate-900 shadow-[0_-10px_24px_-18px_rgba(34,211,238,0.7)]'
+                          : isDark
+                            ? 'border-white/10 bg-slate-900/85 text-slate-300 hover:border-white/20 hover:bg-slate-900'
+                            : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
+                      }`}
+                      onContextMenu={(event) => handleTabContextMenu(event, session.sessionId)}
+                      style={{ zIndex }}
+                      title={!selected ? tabSubtitle ?? undefined : undefined}
+                    >
+                      <button
+                        type="button"
+                        className="max-w-[14rem] truncate text-left"
+                        onClick={() => onSelectSession(session.sessionId)}
+                      >
+                      {session.connectionName}
+                      </button>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClasses[theme][session.status]}`}>
+                        {formatStatusLabel(session.status, t.statusLabel)}
+                      </span>
+                      <button
+                        type="button"
+                        className={`rounded-full px-1 text-xs ${isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-200'}`}
+                        onClick={() => onCloseSession(session.sessionId)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {tabContextMenu.open && hasVisibleTabContextTarget ? (
+                <div
+                  aria-label={t.moreActions}
+                  className={tabMenuClass}
+                  ref={tabMenuRef}
+                  role="menu"
+                  style={{ left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px` }}
+                >
+                  <button
+                    disabled={closeTabIds.length === 0}
+                    role="menuitem"
+                    type="button"
+                    className={`block w-full rounded-lg px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
                     }`}
-                    style={{ zIndex }}
+                    onClick={() => handleTabMenuAction('current')}
                   >
-                    <button
-                      type="button"
-                      className="max-w-[14rem] truncate text-left"
-                      onClick={() => onSelectSession(session.sessionId)}
-                    >
-                    {session.connectionName}
-                    </button>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClasses[theme][session.status]}`}>
-                      {formatStatusLabel(session.status, t.statusLabel)}
-                    </span>
-                    <button
-                      type="button"
-                      className={`rounded-full px-1 text-xs ${isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-200'}`}
-                      onClick={() => onCloseSession(session.sessionId)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              })}
+                    {t.closeTab}
+                  </button>
+                  <button
+                    disabled={closeOtherTabIds.length === 0}
+                    role="menuitem"
+                    type="button"
+                    className={`block w-full rounded-lg px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                    }`}
+                    onClick={() => handleTabMenuAction('others')}
+                  >
+                    {t.closeOtherTabs}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
 
