@@ -132,10 +132,14 @@ vi.mock('./components/ConnectionList', () => ({
 vi.mock('./components/TerminalWorkspace', () => ({
   TerminalWorkspace: ({
     activeSession,
+    onCloseSession,
+    onCloseSessions,
     onSelectSession,
     sessions,
   }: {
     activeSession: SessionState | null
+    onCloseSession: (sessionId: string) => void
+    onCloseSessions?: (sessionIds: string[]) => void
     onSelectSession: (sessionId: string) => void
     sessions: SessionState[]
   }) => (
@@ -154,6 +158,22 @@ vi.mock('./components/TerminalWorkspace', () => ({
           Session {session.connectionName}
         </button>
       ))}
+      {sessions.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => onCloseSession(sessions[0]!.sessionId)}
+        >
+          Close session {sessions[0]!.sessionId}
+        </button>
+      ) : null}
+      {sessions.length > 1 ? (
+        <button
+          type="button"
+          onClick={() => onCloseSessions?.(sessions.map((session) => session.sessionId))}
+        >
+          Close sessions {sessions.map((session) => session.sessionId).join(',')}
+        </button>
+      ) : null}
     </div>
   ),
 }))
@@ -585,6 +605,31 @@ describe('App', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-beta')
     expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-2')
+  })
+
+  it('closes a batch of tabs when the workspace requests it', async () => {
+    const user = userEvent.setup()
+    appClientMocks.getSessionStatesMock.mockResolvedValue([sessionAlpha, sessionBeta])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-session')).toHaveTextContent('session-alpha')
+    })
+
+    await user.click(
+      screen.getByRole('button', { name: 'Close sessions session-alpha,session-beta' }),
+    )
+
+    await waitFor(() => {
+      expect(appClient.closeSession).toHaveBeenNthCalledWith(1, 'session-alpha')
+      expect(appClient.closeSession).toHaveBeenNthCalledWith(2, 'session-beta')
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-session')).toHaveTextContent('none')
+      expect(screen.getByTestId('selected-connection')).toHaveTextContent('none')
+    })
   })
 
   it('shows the Logs workspace tab only when session recording is enabled', async () => {

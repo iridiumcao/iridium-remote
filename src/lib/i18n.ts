@@ -102,6 +102,8 @@ type Dictionary = {
   displayMode: string
   searchConnections: string
   moreActions: string
+  closeTab: string
+  closeOtherTabs: string
   noMatchingConnections: string
   compactMode: string
   normalMode: string
@@ -346,6 +348,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     displayMode: 'Display mode',
     searchConnections: 'Search connections',
     moreActions: 'More actions',
+    closeTab: 'Close Tab',
+    closeOtherTabs: 'Close Other Tabs',
     noMatchingConnections: 'No connections match your search.',
     compactMode: 'Compact',
     normalMode: 'Normal',
@@ -612,6 +616,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     displayMode: '显示模式',
     searchConnections: '搜索连接',
     moreActions: '更多操作',
+    closeTab: '关闭当前标签页',
+    closeOtherTabs: '关闭其他标签页',
     noMatchingConnections: '没有匹配搜索条件的连接。',
     compactMode: '紧凑',
     normalMode: '普通',
@@ -866,6 +872,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     displayMode: '顯示模式',
     searchConnections: '搜尋連線',
     moreActions: '更多操作',
+    closeTab: '關閉目前標籤頁',
+    closeOtherTabs: '關閉其他標籤頁',
     noMatchingConnections: '沒有符合搜尋條件的連線。',
     compactMode: '緊湊',
     normalMode: '普通',

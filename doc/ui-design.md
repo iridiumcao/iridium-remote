@@ -97,6 +97,7 @@ The sidebar contains these layers in order:
 - The default browser-like context menu is suppressed across the app shell
 - Right-clicking the terminal workspace opens a custom menu styled with the active app theme
 - The terminal menu uses the active locale and should expose only relevant terminal actions such as copy, paste, and select all
+- Right-clicking a session tab opens only two localized close actions for that tab: close the current tab and close the other tabs
 - In normal mode, connection rows do not open a custom context menu
 
 ## Connection interactions
@@ -120,7 +121,7 @@ Search results should temporarily reveal matching groups even if those groups we
 
 The right side of the `Connections` workspace contains:
 
-- terminal tab strip for active sessions
+- terminal tab strip for active sessions, with inactive-tab hover tooltips showing `username@host[:port]`
 - workspace header showing only the active SSH target in `username@host[:port]` format
 - recording indicator when the active session is being recorded
 - connect / disconnect actions for the selected connection
@@ -128,7 +129,7 @@ The right side of the `Connections` workspace contains:
 - active terminal area
 - empty state when no session is active
 
-Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally, and the tabs themselves should feel closer to a lightly stacked folder strip than three flat buttons. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. Background session status changes and late connection completions must not steal the active tab from the session the user is currently viewing, because rapid multi-tab connection attempts should still leave the workspace focused on the user-selected tab. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session. During SSH startup, the terminal itself must remain visible and interactive so host-key confirmation and password prompts can be read and answered before the remote shell is marked `Connected`. If the initial shell prompt races with that state transition, the workspace should keep rehydrating the active tab from the backend snapshot until the terminal buffer is actually visible instead of leaving xterm blank. Inactive tabs should also keep background SSH startup moving by answering basic terminal capability and cursor-position probes even before the tab becomes visible. Initial terminal fitting should also tolerate layout races: the UI may fit xterm locally right away, but it should wait until the tab has visible terminal output before sending the first PTY resize to the backend, so a new tab does not get stuck with only a blinking cursor in the top-left corner.
+Only the terminal viewport scrolls for terminal output. The tab strip scrollbar should follow the active theme when it overflows horizontally, and the tabs themselves should feel closer to a lightly stacked folder strip than three flat buttons. Inactive tabs should reveal the remote SSH target through a native hover tooltip so duplicate saved names are still distinguishable at a glance. Right-clicking a tab should open only two localized close actions: one for the clicked tab and one for all other tabs. Tab switching should immediately restore the selected session buffer without injecting any input into the active terminal. Background session status changes and late connection completions must not steal the active tab from the session the user is currently viewing, because rapid multi-tab connection attempts should still leave the workspace focused on the user-selected tab. If SSH startup fails, the connecting state must stop immediately and the workspace should show a clear error message for that session. During SSH startup, the terminal itself must remain visible and interactive so host-key confirmation and password prompts can be read and answered before the remote shell is marked `Connected`. If the initial shell prompt races with that state transition, the workspace should keep rehydrating the active tab from the backend snapshot until the terminal buffer is actually visible instead of leaving xterm blank. Inactive tabs should also keep background SSH startup moving by answering basic terminal capability and cursor-position probes even before the tab becomes visible. Initial terminal fitting should also tolerate layout races: the UI may fit xterm locally right away, but it should wait until the tab has visible terminal output before sending the first PTY resize to the backend, so a new tab does not get stuck with only a blinking cursor in the top-left corner.
 
 Switching away from `Connections` must keep existing SSH sessions alive. Returning to `Connections` should restore the same terminal tabs and active session state.
 
