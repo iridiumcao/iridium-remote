@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { appClient } from '../api/client'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle, formatStatusLabel } from '../lib/format'
@@ -97,11 +97,17 @@ const terminalThemes = {
 } as const
 
 const escapeCharacter = String.fromCharCode(0x1b)
+const terminalStatusResponseReady = `${escapeCharacter}[0n`
+const terminalCursorPositionResponse = `${escapeCharacter}[1;1R`
+const terminalDeviceAttributesResponse = `${escapeCharacter}[?1;2c`
 
 const isReplayQueryParameterCharacter = (character: string) =>
   (character >= '0' && character <= '9') || character === ';' || character === '?'
 
 const MAX_TERMINAL_BUFFER_SIZE = 500000
+const MIN_SYNCHRONIZED_TERMINAL_COLS = 2
+const MIN_SYNCHRONIZED_TERMINAL_ROWS = 2
+const TERMINAL_QUERY_TAIL_LIMIT = 32
 
 const sanitizeReplayBuffer = (data: string) => {
   let sanitized = ''
@@ -130,6 +136,58 @@ const sanitizeReplayBuffer = (data: string) => {
 
 const truncateTerminalBuffer = (data: string) =>
   data.length > MAX_TERMINAL_BUFFER_SIZE ? data.slice(data.length - MAX_TERMINAL_BUFFER_SIZE) : data
+
+const extractInactiveTerminalResponses = (data: string) => {
+  const responses: string[] = []
+  let index = 0
+  let tailStart = data.length
+
+  while (index < data.length) {
+    if (data[index] !== escapeCharacter || data[index + 1] !== '[') {
+      index += 1
+      continue
+    }
+
+    tailStart = index
+    const finalCharacter = data[index + 2]
+    if (!finalCharacter) {
+      break
+    }
+
+    if (finalCharacter === '5' || finalCharacter === '6') {
+      const terminator = data[index + 3]
+      if (!terminator) {
+        break
+      }
+
+      if (terminator === 'n') {
+        responses.push(
+          finalCharacter === '5' ? terminalStatusResponseReady : terminalCursorPositionResponse,
+        )
+        index += 4
+        tailStart = index
+        continue
+      }
+    }
+
+    if (finalCharacter === 'c') {
+      responses.push(terminalDeviceAttributesResponse)
+      index += 3
+      tailStart = index
+      continue
+    }
+
+    index += 1
+  }
+
+  const trailingData = data.slice(tailStart)
+  const tail =
+    trailingData.length > TERMINAL_QUERY_TAIL_LIMIT
+      ? trailingData.slice(trailingData.length - TERMINAL_QUERY_TAIL_LIMIT)
+      : trailingData
+
+  return { responses, tail }
+}
 
 const mergeTerminalSnapshot = (current: string, snapshot: string) => {
   const sanitizedSnapshot = truncateTerminalBuffer(sanitizeReplayBuffer(snapshot))
@@ -175,10 +233,53 @@ export const TerminalWorkspace = ({
   const renderedSessionIdRef = useRef<string | null>(null)
   const activeSessionIdRef = useRef<string | null>(null)
   const sessionBuffersRef = useRef<Map<string, string>>(new Map())
+  const sessionQueryTailsRef = useRef<Map<string, string>>(new Map())
+  const lastSyncedTerminalSizesRef = useRef<Map<string, string>>(new Map())
   const [terminalContextMenu, setTerminalContextMenu] = useState<TerminalContextMenuState>(closedContextMenu)
   const isDark = theme === 'dark'
 
   const xtermTheme = useMemo(() => terminalThemes[theme], [theme])
+
+  const sessionHasVisibleTerminalContent = useCallback(
+    (sessionId: string) => (sessionBuffersRef.current.get(sessionId) ?? '').length > 0,
+    [],
+  )
+
+  const fitTerminalViewport = useCallback(() => {
+    const fitAddon = fitAddonRef.current
+
+    if (!fitAddon) {
+      return
+    }
+
+    fitAddon.fit()
+  }, [])
+
+  const syncTerminalSize = useCallback((sessionId: string) => {
+    const terminal = terminalInstance.current
+
+    if (!terminal || !sessionHasVisibleTerminalContent(sessionId)) {
+      return false
+    }
+
+    fitTerminalViewport()
+
+    if (
+      terminal.cols < MIN_SYNCHRONIZED_TERMINAL_COLS ||
+      terminal.rows < MIN_SYNCHRONIZED_TERMINAL_ROWS
+    ) {
+      return false
+    }
+
+    const nextSize = `${terminal.cols}x${terminal.rows}`
+    if (lastSyncedTerminalSizesRef.current.get(sessionId) === nextSize) {
+      return true
+    }
+
+    lastSyncedTerminalSizesRef.current.set(sessionId, nextSize)
+    void appClient.resizeSession(sessionId, terminal.cols, terminal.rows)
+    return true
+  }, [fitTerminalViewport, sessionHasVisibleTerminalContent])
 
   useEffect(() => {
     activeSessionIdRef.current = activeSession?.sessionId ?? null
@@ -212,15 +313,12 @@ export const TerminalWorkspace = ({
     renderedSessionIdRef.current = null // Force re-render of content on next effect run
 
     const resizeObserver = new ResizeObserver(() => {
-      const fit = fitAddonRef.current
-      const currentTerminal = terminalInstance.current
-
-      if (!fit || !currentTerminal || !activeSessionIdRef.current) {
+      if (!activeSessionIdRef.current) {
         return
       }
 
-      fit.fit()
-      void appClient.resizeSession(activeSessionIdRef.current, currentTerminal.cols, currentTerminal.rows)
+      fitTerminalViewport()
+      void syncTerminalSize(activeSessionIdRef.current)
     })
 
     resizeObserver.observe(terminalRef.current)
@@ -231,7 +329,7 @@ export const TerminalWorkspace = ({
       terminalInstance.current = null
       fitAddonRef.current = null
     }
-  }, [xtermTheme])
+  }, [syncTerminalSize, fitTerminalViewport, xtermTheme])
 
   useEffect(() => {
     if (terminalInstance.current) {
@@ -283,7 +381,22 @@ export const TerminalWorkspace = ({
         sessionBuffersRef.current.set(payload.sessionId, truncatedBuffer)
 
         if (payload.sessionId === activeSessionIdRef.current) {
+          sessionQueryTailsRef.current.delete(payload.sessionId)
           terminalInstance.current?.write(payload.data)
+          void syncTerminalSize(payload.sessionId)
+        } else {
+          const queryTail = sessionQueryTailsRef.current.get(payload.sessionId) ?? ''
+          const { responses, tail } = extractInactiveTerminalResponses(`${queryTail}${payload.data}`)
+
+          if (tail) {
+            sessionQueryTailsRef.current.set(payload.sessionId, tail)
+          } else {
+            sessionQueryTailsRef.current.delete(payload.sessionId)
+          }
+
+          for (const response of responses) {
+            void appClient.writeSessionInput(payload.sessionId, response)
+          }
         }
       })
 
@@ -296,11 +409,20 @@ export const TerminalWorkspace = ({
       active = false
       void unsubscribePromise.then((unsubscribe) => unsubscribe())
     }
-  }, [])
+  }, [syncTerminalSize])
 
   useEffect(() => {
     if (!activeSession?.sessionId) {
       return
+    }
+
+    const sessionId = activeSession.sessionId
+    const shouldKeepPollingConnectedSession = () => {
+      if (activeSession.status !== 'connected') {
+        return false
+      }
+
+      return (sessionBuffersRef.current.get(sessionId) ?? '').length === 0
     }
 
     let active = true
@@ -313,21 +435,21 @@ export const TerminalWorkspace = ({
 
       syncInFlight = true
       try {
-        const snapshot = await appClient.getSessionTerminalBuffer(activeSession.sessionId)
+        const snapshot = await appClient.getSessionTerminalBuffer(sessionId)
         if (!active) {
           return
         }
 
-        const current = sessionBuffersRef.current.get(activeSession.sessionId) ?? ''
+        const current = sessionBuffersRef.current.get(sessionId) ?? ''
         const merged = mergeTerminalSnapshot(current, snapshot)
 
         if (merged === current) {
           return
         }
 
-        sessionBuffersRef.current.set(activeSession.sessionId, merged)
+        sessionBuffersRef.current.set(sessionId, merged)
 
-        if (renderedSessionIdRef.current === activeSession.sessionId) {
+        if (renderedSessionIdRef.current === sessionId) {
           const terminal = terminalInstance.current
           if (terminal) {
             if (merged.startsWith(current)) {
@@ -336,6 +458,8 @@ export const TerminalWorkspace = ({
               terminal.reset()
               terminal.write(merged)
             }
+
+            void syncTerminalSize(sessionId)
           }
         }
       } finally {
@@ -345,20 +469,34 @@ export const TerminalWorkspace = ({
 
     void syncTerminalSnapshot()
 
-    const reconnectInterval =
-      activeSession.status === 'connecting'
-        ? window.setInterval(() => {
-            void syncTerminalSnapshot()
-          }, 500)
-        : null
+    let reconnectInterval: number | undefined
+
+    if (activeSession.status === 'connecting' || shouldKeepPollingConnectedSession()) {
+      reconnectInterval = window.setInterval(() => {
+        if (shouldKeepPollingConnectedSession()) {
+          void syncTerminalSnapshot()
+          return
+        }
+
+        if (activeSession.status === 'connecting') {
+          void syncTerminalSnapshot()
+          return
+        }
+
+        if (reconnectInterval !== undefined) {
+          window.clearInterval(reconnectInterval)
+          reconnectInterval = undefined
+        }
+      }, 500)
+    }
 
     return () => {
       active = false
-      if (reconnectInterval !== null) {
+      if (reconnectInterval !== undefined) {
         window.clearInterval(reconnectInterval)
       }
     }
-  }, [activeSession?.sessionId, activeSession?.status])
+  }, [activeSession?.sessionId, activeSession?.status, syncTerminalSize])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessions.map((session) => session.sessionId))
@@ -367,13 +505,22 @@ export const TerminalWorkspace = ({
         sessionBuffersRef.current.delete(sessionId)
       }
     }
+    for (const sessionId of Array.from(sessionQueryTailsRef.current.keys())) {
+      if (!liveSessionIds.has(sessionId)) {
+        sessionQueryTailsRef.current.delete(sessionId)
+      }
+    }
+    for (const sessionId of Array.from(lastSyncedTerminalSizesRef.current.keys())) {
+      if (!liveSessionIds.has(sessionId)) {
+        lastSyncedTerminalSizesRef.current.delete(sessionId)
+      }
+    }
   }, [sessions])
 
   useEffect(() => {
     const terminal = terminalInstance.current
-    const fitAddon = fitAddonRef.current
 
-    if (!terminal || !fitAddon || !isVisible) {
+    if (!terminal || !isVisible) {
       return
     }
 
@@ -390,11 +537,11 @@ export const TerminalWorkspace = ({
     }
 
     if (activeSession?.status === 'connected' || activeSession?.status === 'connecting') {
-      fitAddon.fit()
+      fitTerminalViewport()
       terminal.focus()
-      void appClient.resizeSession(activeSession.sessionId, terminal.cols, terminal.rows)
+      void syncTerminalSize(activeSession.sessionId)
     }
-  }, [activeSession, isVisible])
+  }, [activeSession, isVisible, fitTerminalViewport, syncTerminalSize])
 
   const headerConnection = activeConnection ?? selectedConnection
   const headerTitle = headerConnection

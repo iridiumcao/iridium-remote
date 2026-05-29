@@ -20,12 +20,16 @@ use crate::{
     recording::{RecordingManager, SessionRecorder},
     terminal_detection::{
         append_output_with_limit, append_recent_output, contains_password_prompt,
-        contains_shell_prompt,
+        contains_shell_prompt, normalize_visible_text,
         detect_connection_error_message,
     },
 };
 
 const TERMINAL_BUFFER_LIMIT: usize = 32 * 1024;
+const MIN_SYNCHRONIZED_TERMINAL_COLS: u16 = 2;
+const MIN_SYNCHRONIZED_TERMINAL_ROWS: u16 = 2;
+const OUTPUT_LOG_PREVIEW_LIMIT: usize = 160;
+const OUTPUT_LOGGED_CHUNKS_PER_SESSION: usize = 5;
 
 struct SessionResources {
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
@@ -37,6 +41,7 @@ struct SessionResources {
     recent_output: String,
     connected: bool,
     recorder: Option<SessionRecorder>,
+    output_chunk_count: usize,
 }
 
 struct ManagedSession {
@@ -92,6 +97,17 @@ impl SessionManager {
         saved_password: Option<String>,
     ) -> AppResult<SessionStatePayload> {
         let _spawn_guard = self.spawn_lock.lock().expect("spawn mutex poisoned");
+        let session_id = Uuid::new_v4().to_string();
+
+        log::debug!(
+            "Session {}: starting SSH connect for '{}' (target={}@{}:{}, saved_password={}).",
+            session_id,
+            connection.name,
+            connection.username,
+            connection.host,
+            connection.port,
+            saved_password.is_some()
+        );
 
         let recorder = self.recording.start_session(connection)?;
         let pty_system = native_pty_system();
@@ -109,15 +125,28 @@ impl SessionManager {
                 )
             })?;
 
+        log::debug!(
+            "Session {}: PTY allocated with default size 120x32.",
+            session_id
+        );
+
         let mut command = CommandBuilder::new("ssh");
         command.arg("-p");
         command.arg(connection.port.to_string());
         command.arg(format!("{}@{}", connection.username, connection.host));
         command.env("TERM", "xterm-256color");
 
+        log::debug!(
+            "Session {}: spawning system ssh client for '{}' using TERM=xterm-256color.",
+            session_id,
+            connection.name
+        );
+
         let child = pair.slave.spawn_command(command).map_err(|error| {
             AppError::ssh_launch("Failed to start the SSH process.", error.to_string())
         })?;
+
+        log::debug!("Session {}: ssh process spawned successfully.", session_id);
 
         let reader = pair.master.try_clone_reader().map_err(|error| {
             AppError::ssh_launch("Failed to open the SSH session reader.", error.to_string())
@@ -135,7 +164,6 @@ impl SessionManager {
                 return Err(error);
             }
         };
-        let session_id = Uuid::new_v4().to_string();
         let snapshot = SessionStatePayload {
             session_id: session_id.clone(),
             connection_id: connection.id.clone(),
@@ -164,11 +192,16 @@ impl SessionManager {
                         recent_output: String::new(),
                         connected: false,
                         recorder,
+                        output_chunk_count: 0,
                     }),
                 },
             );
         }
 
+        log::debug!(
+            "Session {}: registered and emitting initial connecting state.",
+            session_id
+        );
         self.emit_status(&app, &snapshot)?;
 
         let manager = self.clone();
@@ -196,6 +229,12 @@ impl SessionManager {
             recorder.record_input(data)?;
         }
 
+        log::debug!(
+            "Session {}: forwarding {} byte(s) of terminal input.",
+            session_id,
+            data.len()
+        );
+
         resources
             .writer
             .write_all(data.as_bytes())
@@ -211,13 +250,42 @@ impl SessionManager {
     }
 
     pub fn resize(&self, session_id: &str, cols: u16, rows: u16) -> AppResult<()> {
+        if cols < MIN_SYNCHRONIZED_TERMINAL_COLS || rows < MIN_SYNCHRONIZED_TERMINAL_ROWS {
+            log::debug!(
+                "Session {}: ignoring terminal resize to {}x{} because it is smaller than the supported PTY minimum.",
+                session_id,
+                cols,
+                rows
+            );
+            return Ok(());
+        }
+
         let mut inner = self.inner.lock().expect("session mutex poisoned");
         let Some(session) = inner.sessions.get_mut(session_id) else {
+            log::debug!(
+                "Session {}: ignoring terminal resize to {}x{} because the session no longer exists.",
+                session_id,
+                cols,
+                rows
+            );
             return Ok(());
         };
         let Some(resources) = session.resources.as_mut() else {
+            log::debug!(
+                "Session {}: ignoring terminal resize to {}x{} because the session is no longer active.",
+                session_id,
+                cols,
+                rows
+            );
             return Ok(());
         };
+
+        log::debug!(
+            "Session {}: resizing PTY to {}x{}.",
+            session_id,
+            cols,
+            rows
+        );
 
         resources
             .master
@@ -359,9 +427,15 @@ impl SessionManager {
     fn read_loop(&self, app: AppHandle, session_id: String, mut reader: Box<dyn Read + Send>) {
         let mut buffer = [0_u8; 4096];
 
+        log::debug!("Session {}: terminal reader loop started.", session_id);
+
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => {
+                    log::debug!(
+                        "Session {}: terminal reader reached EOF.",
+                        session_id
+                    );
                     self.finish_session_after_exit(&app, &session_id);
                     break;
                 }
@@ -395,7 +469,12 @@ impl SessionManager {
             };
 
             match exit_status {
-                Ok(Some(_)) => {
+                Ok(Some(status)) => {
+                    log::debug!(
+                        "Session {}: ssh process exited with status {:?}.",
+                        session_id,
+                        status
+                    );
                     self.finish_session_after_exit(&app, &session_id);
                     break;
                 }
@@ -438,6 +517,17 @@ impl SessionManager {
                 return;
             };
             append_recent_output(&mut resources.recent_output, &data);
+            resources.output_chunk_count += 1;
+            let output_chunk_count = resources.output_chunk_count;
+            if output_chunk_count <= OUTPUT_LOGGED_CHUNKS_PER_SESSION {
+                log::debug!(
+                    "Session {}: received output chunk #{} ({} byte(s)): '{}'.",
+                    session_id,
+                    output_chunk_count,
+                    data.len(),
+                    preview_terminal_output(&data)
+                );
+            }
             if let Some(recorder) = resources.recorder.as_mut() {
                 if let Err(error) = recorder.record_output(&data) {
                     recorder_error = Some(error.message);
@@ -446,11 +536,19 @@ impl SessionManager {
             self.touch_history_if_due(resources, false);
 
             if contains_password_prompt(&resources.recent_output) {
+                log::debug!(
+                    "Session {}: detected password prompt in recent terminal output.",
+                    session_id
+                );
                 if let Some(recorder) = resources.recorder.as_mut() {
                     recorder.suppress_input_until_submit();
                 }
                 if let Some(password) = resources.queued_password.take() {
                     resources.recent_output.clear();
+                    log::debug!(
+                        "Session {}: submitting queued password automatically.",
+                        session_id
+                    );
                     auto_password = Some(password);
                 }
             } else if !resources.connected && contains_shell_prompt(&resources.recent_output) {
@@ -460,9 +558,20 @@ impl SessionManager {
                 }
                 session.snapshot.status = SessionStatus::Connected;
                 session.snapshot.message = Some("Connected.".into());
+                log::debug!(
+                    "Session {}: detected shell prompt and marking session as connected.",
+                    session_id
+                );
                 status_to_emit = Some(session.snapshot.clone());
             } else if !resources.connected {
                 failure_message = detect_connection_error_message(&resources.recent_output);
+                if let Some(message) = failure_message.as_ref() {
+                    log::debug!(
+                        "Session {}: detected SSH failure output before shell prompt: '{}'.",
+                        session_id,
+                        message
+                    );
+                }
             }
         }
 
@@ -501,6 +610,12 @@ impl SessionManager {
             classify_exit_status(resources.connected, &resources.recent_output)
         };
 
+        log::debug!(
+            "Session {}: finishing after process exit with status {:?} and message '{}'.",
+            session_id,
+            status,
+            message
+        );
         self.finish_session(app, session_id, status, &message);
     }
 
@@ -538,6 +653,12 @@ impl SessionManager {
             session.snapshot.clone()
         };
 
+        log::info!(
+            "Session {}: transitioned to {:?} ({:?}).",
+            session_id,
+            snapshot.status,
+            snapshot.message
+        );
         let _ = self.emit_status(app, &snapshot);
     }
 
@@ -600,6 +721,12 @@ impl SessionManager {
     }
 
     fn emit_status(&self, app: &AppHandle, payload: &SessionStatePayload) -> AppResult<()> {
+        log::debug!(
+            "Session {}: emitting session-status {:?} ({:?}).",
+            payload.session_id,
+            payload.status,
+            payload.message
+        );
         app.emit("session-status", payload.clone())
             .map_err(|error| {
                 AppError::internal("Failed to emit the session event.", error.to_string())
@@ -620,6 +747,19 @@ impl SessionManager {
             )
         })
     }
+}
+
+fn preview_terminal_output(data: &str) -> String {
+    let normalized = normalize_visible_text(data);
+    let flattened = normalized.replace('\n', "\\n");
+    let mut preview = flattened
+        .chars()
+        .take(OUTPUT_LOG_PREVIEW_LIMIT)
+        .collect::<String>();
+    if flattened.chars().count() > OUTPUT_LOG_PREVIEW_LIMIT {
+        preview.push_str("...");
+    }
+    preview
 }
 
 fn classify_exit_status(connected: bool, recent_output: &str) -> (SessionStatus, String) {

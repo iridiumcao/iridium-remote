@@ -85,6 +85,11 @@ const upsertSession = (sessions: SessionState[], nextState: SessionState) => {
 const findSessionById = (sessions: SessionState[], sessionId: string | null) =>
   sessions.find((session) => session.sessionId === sessionId) ?? null
 
+const shouldFollowSessionUpdate = (
+  currentActiveSessionId: string | null,
+  nextSessionId: string,
+) => currentActiveSessionId === null || currentActiveSessionId === nextSessionId
+
 const findOpenSessionForConnection = (
   sessions: SessionState[],
   connectionId: string,
@@ -129,6 +134,7 @@ function App() {
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const settingsRef = useRef(settings)
+  const sessionFocusIntentRef = useRef(0)
   const t = useMemo(() => getTranslations(settings.locale), [settings.locale])
   const isDark = settings.theme === 'dark'
   const isLogsWorkspaceEnabled = settings.sessionRecording.enabled
@@ -283,8 +289,14 @@ function App() {
       const [unlistenSession, unlistenRemoved] = await Promise.all([
         appClient.onSessionState((nextState) => {
           setSessions((current) => upsertSession(current, nextState))
-          setActiveSessionId(nextState.sessionId)
-          setSelectedConnectionId(nextState.connectionId)
+          setActiveSessionId((currentActive) => {
+            if (!shouldFollowSessionUpdate(currentActive, nextState.sessionId)) {
+              return currentActive
+            }
+
+            setSelectedConnectionId(nextState.connectionId)
+            return nextState.sessionId
+          })
         }),
         appClient.onSessionRemoved(({ sessionId }) => {
           setSessions((current) => {
@@ -446,8 +458,14 @@ function App() {
     }
   }
 
+  const claimSessionFocusIntent = useCallback(() => {
+    sessionFocusIntentRef.current += 1
+    return sessionFocusIntentRef.current
+  }, [])
+
   const selectSession = useCallback(
     (sessionId: string | null) => {
+      claimSessionFocusIntent()
       setActiveSessionId(sessionId)
 
       setSessions((current) => {
@@ -460,7 +478,7 @@ function App() {
         return current
       })
     },
-    [],
+    [claimSessionFocusIntent],
   )
 
   const selectConnection = useCallback(
@@ -469,10 +487,11 @@ function App() {
 
       const matchingSession = findOpenSessionForConnection(sessions, connectionId, activeSessionId)
       if (matchingSession) {
+        claimSessionFocusIntent()
         setActiveSessionId(matchingSession.sessionId)
       }
     },
-    [activeSessionId, sessions],
+    [activeSessionId, claimSessionFocusIntent, sessions],
   )
 
   const handleSelectWorkspaceTab = useCallback((tab: WorkspaceTab) => {
@@ -562,6 +581,7 @@ function App() {
     options?: { preserveNotice?: boolean },
   ) => {
     try {
+      const focusIntentId = claimSessionFocusIntent()
       setError(null)
       if (!options?.preserveNotice) {
         setNotice(null)
@@ -569,11 +589,13 @@ function App() {
       setSelectedConnectionId(connection.id)
       const nextState = await appClient.connectSession(connection.id)
       setSessions((current) => upsertSession(current, nextState))
-      setActiveSessionId(nextState.sessionId)
+      if (sessionFocusIntentRef.current === focusIntentId) {
+        setActiveSessionId(nextState.sessionId)
+      }
     } catch (cause) {
       setError(appClient.normalizeError(cause))
     }
-  }, [])
+  }, [claimSessionFocusIntent])
 
   const connectToConnection = useCallback(async (connection: ConnectionRecord) => {
     setError(null)

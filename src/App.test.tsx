@@ -216,6 +216,15 @@ const sessionBeta: SessionState = {
   message: 'Connected.',
 }
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve
+    void innerReject
+  })
+  return { promise, resolve }
+}
+
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -492,6 +501,90 @@ describe('App', () => {
     })
 
     expect(screen.getByTestId('active-session-recording')).toHaveTextContent('not-recording')
+  })
+
+  it('does not let background session-status events steal the active tab', async () => {
+    let sessionStateListener: ((state: SessionState) => void) | undefined
+    appClientMocks.getSessionStatesMock.mockResolvedValue([sessionAlpha, sessionBeta])
+    appClientMocks.onSessionStateMock.mockImplementation(async (listener) => {
+      sessionStateListener = listener
+      return () => {}
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-session')).toHaveTextContent('session-alpha')
+    })
+
+    act(() => {
+      sessionStateListener?.({
+        ...sessionBeta,
+        message: 'Connected.',
+      })
+    })
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-alpha')
+    expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-1')
+  })
+
+  it('does not let a late connect response steal the tab after the user switches away', async () => {
+    const pendingConnect = createDeferred<SessionState>()
+    appClientMocks.getSessionStatesMock.mockResolvedValue([sessionBeta])
+    vi.mocked(appClient.connectSession).mockReturnValue(pendingConnect.promise)
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-session')).toHaveTextContent('session-beta')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Connect Alpha' }))
+
+    await waitFor(() => {
+      expect(appClient.connectSession).toHaveBeenCalledWith('connection-1')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Session Beta' }))
+
+    await act(async () => {
+      pendingConnect.resolve({
+        ...sessionAlpha,
+        status: 'connecting',
+        message: 'Connecting...',
+      })
+      await pendingConnect.promise
+    })
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-beta')
+    expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-2')
+  })
+
+  it('adopts a session-status update when no session tab is active yet', async () => {
+    let sessionStateListener: ((state: SessionState) => void) | undefined
+    appClientMocks.getSessionStatesMock.mockResolvedValue([])
+    appClientMocks.onSessionStateMock.mockImplementation(async (listener) => {
+      sessionStateListener = listener
+      return () => {}
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-session')).toHaveTextContent('none')
+    })
+
+    act(() => {
+      sessionStateListener?.({
+        ...sessionBeta,
+        status: 'connecting',
+        message: 'Connecting...',
+      })
+    })
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-beta')
+    expect(screen.getByTestId('selected-connection')).toHaveTextContent('connection-2')
   })
 
   it('shows the Logs workspace tab only when session recording is enabled', async () => {
