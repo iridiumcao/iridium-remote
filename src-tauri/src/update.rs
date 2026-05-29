@@ -25,11 +25,9 @@ struct LatestRelease {
 }
 
 pub async fn check_for_updates() -> AppResult<UpdateCheckResult> {
-    let client = reqwest::Client::builder()
-        .build()
-        .map_err(|error| {
-            AppError::update_check("Failed to create the update checker.", error.to_string())
-        })?;
+    let client = reqwest::Client::builder().build().map_err(|error| {
+        AppError::update_check("Failed to create the update checker.", error.to_string())
+    })?;
 
     let latest_release = fetch_latest_release(&client).await?;
     let current_version = Version::parse(env!("CARGO_PKG_VERSION")).map_err(|error| {
@@ -86,10 +84,8 @@ async fn fetch_latest_release_via_api(client: &reqwest::Client) -> Result<Latest
         return Err(format!("GitHub API returned HTTP {}.", response.status()));
     }
 
-    let payload: LatestReleaseApiResponse = response
-        .json()
-        .await
-        .map_err(|error| error.to_string())?;
+    let payload: LatestReleaseApiResponse =
+        response.json().await.map_err(|error| error.to_string())?;
     let version = normalize_version(&payload.tag_name)
         .ok_or_else(|| format!("Invalid GitHub tag '{}'.", payload.tag_name))?;
 
@@ -119,8 +115,8 @@ async fn fetch_latest_release_via_redirect(
     let final_url = response.url().to_string();
     let tag = release_tag_from_url(&final_url)
         .ok_or_else(|| format!("Could not extract a release tag from '{}'.", final_url))?;
-    let version =
-        normalize_version(tag).ok_or_else(|| format!("Invalid GitHub tag '{}' from redirect.", tag))?;
+    let version = normalize_version(tag)
+        .ok_or_else(|| format!("Invalid GitHub tag '{}' from redirect.", tag))?;
 
     Ok(LatestRelease {
         version,
@@ -134,12 +130,16 @@ fn github_user_agent() -> String {
 
 fn normalize_version(tag: &str) -> Option<String> {
     let normalized = tag.trim().strip_prefix('v').unwrap_or(tag.trim());
-    Version::parse(normalized).ok().map(|version| version.to_string())
+    Version::parse(normalized)
+        .ok()
+        .map(|version| version.to_string())
 }
 
 fn release_tag_from_url(url: &str) -> Option<&str> {
     let (before_fragment, _) = url.split_once('#').unwrap_or((url, ""));
-    let (without_query, _) = before_fragment.split_once('?').unwrap_or((before_fragment, ""));
+    let (without_query, _) = before_fragment
+        .split_once('?')
+        .unwrap_or((before_fragment, ""));
     without_query
         .split("/releases/tag/")
         .nth(1)
@@ -153,7 +153,9 @@ mod tests {
     #[test]
     fn extracts_release_tag_from_redirect_url() {
         assert_eq!(
-            release_tag_from_url("https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.4"),
+            release_tag_from_url(
+                "https://github.com/iridiumcao/iridium-remote/releases/tag/v0.1.4"
+            ),
             Some("v0.1.4")
         );
     }

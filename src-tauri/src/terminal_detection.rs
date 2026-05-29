@@ -47,9 +47,7 @@ pub fn strip_ansi(buffer: &str) -> String {
 }
 
 pub fn normalize_visible_text(buffer: &str) -> String {
-    strip_ansi(buffer)
-        .replace("\r\n", "\n")
-        .replace('\r', "\n")
+    strip_ansi(buffer).replace("\r\n", "\n").replace('\r', "\n")
 }
 
 fn normalize_for_inline_prompt(buffer: &str) -> String {
@@ -68,16 +66,14 @@ fn ansi_escape_re() -> &'static Regex {
 
 fn password_prompt_re() -> &'static Regex {
     static PASSWORD_PROMPT_RE: OnceLock<Regex> = OnceLock::new();
-    PASSWORD_PROMPT_RE.get_or_init(|| {
-        Regex::new(r"(?:password|passphrase(?: for key [^:]+)?):\s*$").unwrap()
-    })
+    PASSWORD_PROMPT_RE
+        .get_or_init(|| Regex::new(r"(?:password|passphrase(?: for key [^:]+)?):\s*$").unwrap())
 }
 
 fn shell_prompt_re() -> &'static Regex {
     static SHELL_PROMPT_RE: OnceLock<Regex> = OnceLock::new();
-    SHELL_PROMPT_RE.get_or_init(|| {
-        Regex::new(r"(?m)(?:^|[\r\n])[^\r\n]*(?:[\$#>%]|[❯➜➤❱›»λ])\s*$").unwrap()
-    })
+    SHELL_PROMPT_RE
+        .get_or_init(|| Regex::new(r"(?m)(?:^|[\r\n])[^\r\n]*(?:[\$#>%]|[❯➜➤❱›»λ])\s*$").unwrap())
 }
 
 fn connection_error_re() -> &'static Regex {

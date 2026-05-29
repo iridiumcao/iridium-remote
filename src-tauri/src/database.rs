@@ -150,7 +150,12 @@ impl Database {
         })?;
         let connection = self.connect()?;
 
-        Self::upsert_app_setting_value(&connection, APP_SETTINGS_KEY, &payload, "save app settings")?;
+        Self::upsert_app_setting_value(
+            &connection,
+            APP_SETTINGS_KEY,
+            &payload,
+            "save app settings",
+        )?;
 
         Ok(normalized)
     }
@@ -174,7 +179,12 @@ impl Database {
             )
         })?;
 
-        Self::upsert_app_setting_value(&transaction, APP_SETTINGS_KEY, &payload, "save app settings")?;
+        Self::upsert_app_setting_value(
+            &transaction,
+            APP_SETTINGS_KEY,
+            &payload,
+            "save app settings",
+        )?;
         if let Some(verifier) = password_verifier {
             Self::upsert_app_setting_value(
                 &transaction,
@@ -447,7 +457,12 @@ impl Database {
             let payload = serde_json::to_string(&settings).map_err(|error| {
                 AppError::database("Failed to encode app settings.", error.to_string())
             })?;
-            Self::upsert_app_setting_value(&transaction, APP_SETTINGS_KEY, &payload, "import app settings")?;
+            Self::upsert_app_setting_value(
+                &transaction,
+                APP_SETTINGS_KEY,
+                &payload,
+                "import app settings",
+            )?;
         }
 
         let mut imported = 0;
@@ -2296,7 +2311,7 @@ mod tests {
         SessionRecordingMode, SessionRecordingSettings,
     };
     use chrono::{Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
-    use rusqlite::{Connection, params};
+    use rusqlite::{params, Connection};
     use uuid::Uuid;
 
     fn test_database() -> Database {
@@ -2481,19 +2496,23 @@ mod tests {
             })
             .expect("connection should be created");
 
-        assert!(!database
-            .get_connection(&connection.id)
-            .expect("connection should load")
-            .has_password);
+        assert!(
+            !database
+                .get_connection(&connection.id)
+                .expect("connection should load")
+                .has_password
+        );
 
         database
             .set_connection_has_password(&connection.id, true)
             .expect("password flag should update");
 
-        assert!(database
-            .get_connection(&connection.id)
-            .expect("connection should load")
-            .has_password);
+        assert!(
+            database
+                .get_connection(&connection.id)
+                .expect("connection should load")
+                .has_password
+        );
         assert!(database
             .list_connections()
             .expect("connections should list")

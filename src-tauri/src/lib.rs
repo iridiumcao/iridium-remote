@@ -16,9 +16,9 @@ use models::{
     AppSettings, ConnectionHistoryDateRange, ConnectionHistoryHostDetails,
     ConnectionHistoryOverview, ConnectionListChangedEvent, ConnectionRecord,
     ConnectionsExportPayload, CreateConnectionInput, FileTransferInput, FileTransferResult,
-    ImportConnectionsResult, RemotePathListing, SessionLogPreview,
-    SessionRecordingSettings, SessionRecordingStatus, SessionStatePayload,
-    UpdateCheckResult, UpdateConnectionInput, UpdateSessionRecordingSettingsResult,
+    ImportConnectionsResult, RemotePathListing, SessionLogPreview, SessionRecordingSettings,
+    SessionRecordingStatus, SessionStatePayload, UpdateCheckResult, UpdateConnectionInput,
+    UpdateSessionRecordingSettingsResult,
 };
 use recording::{build_password_verifier, RecordingManager};
 use session::SessionManager;
@@ -49,7 +49,9 @@ fn create_connection(
     let mut connection = state.database.create_connection(input)?;
 
     if let Some(password) = password {
-        state.credentials.set_for_connection(&connection, &password)?;
+        state
+            .credentials
+            .set_for_connection(&connection, &password)?;
         state
             .database
             .set_connection_has_password(&connection.id, true)?;
@@ -250,21 +252,22 @@ fn update_session_recording_settings(
             ));
         }
     }
-    if settings.enabled && trimmed_password.is_none() && !state.recording.has_password_configured() {
+    if settings.enabled && trimmed_password.is_none() && !state.recording.has_password_configured()
+    {
         return Err(AppError::validation(
             "Session recording requires an encryption password with at least 8 characters.",
         ));
     }
 
-    let password_verifier = trimmed_password
-        .map(build_password_verifier)
-        .transpose()?;
+    let password_verifier = trimmed_password.map(build_password_verifier).transpose()?;
     let saved = state
         .database
         .save_session_recording_settings(settings, password_verifier.as_deref())?;
-    let status = state
-        .recording
-        .update_settings(saved.session_recording.clone(), password, password_verifier)?;
+    let status = state.recording.update_settings(
+        saved.session_recording.clone(),
+        password,
+        password_verifier,
+    )?;
     if !status.can_record {
         state.sessions.stop_recording_for_active_sessions(&app)?;
     }
@@ -292,7 +295,10 @@ fn verify_session_recording_password(
         ));
     }
 
-    let has_verifier = state.database.get_session_recording_password_verifier()?.is_some();
+    let has_verifier = state
+        .database
+        .get_session_recording_password_verifier()?
+        .is_some();
     let verifier = if has_verifier {
         None
     } else {
@@ -303,7 +309,9 @@ fn verify_session_recording_password(
         Some(verifier)
     };
 
-    state.recording.verify_password(normalized_password, verifier)
+    state
+        .recording
+        .verify_password(normalized_password, verifier)
 }
 
 #[tauri::command]
@@ -328,7 +336,9 @@ fn preview_session_logs(
 }
 
 #[tauri::command]
-fn list_session_logs(state: State<'_, Arc<AppState>>) -> AppResult<Vec<models::SessionLogFileInfo>> {
+fn list_session_logs(
+    state: State<'_, Arc<AppState>>,
+) -> AppResult<Vec<models::SessionLogFileInfo>> {
     state.recording.list_logs()
 }
 
@@ -411,7 +421,9 @@ fn import_connections(
 ) -> AppResult<ImportConnectionsResult> {
     let result = state.database.import_connections(payload)?;
     if result.settings_applied {
-        state.database.set_session_recording_password_verifier(None)?;
+        state
+            .database
+            .set_session_recording_password_verifier(None)?;
     }
     let settings = state.database.get_app_settings()?;
     let password_verifier = state.database.get_session_recording_password_verifier()?;

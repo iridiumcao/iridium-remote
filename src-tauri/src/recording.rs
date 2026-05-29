@@ -533,14 +533,14 @@ impl SessionRecorder {
             .expect("fixed-length session recording key");
         let mut nonce = [0_u8; 12];
         rand::fill(&mut nonce);
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), compressed.as_ref())
-            .map_err(|_| {
-                AppError::internal(
-                    "Failed to encrypt the session recording chunk.",
-                    "AES-256-GCM encryption failed.",
-                )
-            })?;
+        let nonce =
+            Nonce::try_from(nonce.as_slice()).expect("fixed-length session recording nonce");
+        let ciphertext = cipher.encrypt(&nonce, compressed.as_ref()).map_err(|_| {
+            AppError::internal(
+                "Failed to encrypt the session recording chunk.",
+                "AES-256-GCM encryption failed.",
+            )
+        })?;
 
         let envelope = ChunkEnvelope {
             index: self.current_file.chunk_index + 1,
@@ -739,13 +739,17 @@ fn read_log_file(path: &str, password: &str) -> AppResult<DecodedLogFile> {
                 ))
             })?;
 
-        let decrypted = cipher
-            .decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref())
-            .map_err(|_| {
-                AppError::validation(
-                    "Failed to decrypt the selected session logs. Check the encryption password.",
-                )
-            })?;
+        let nonce = Nonce::try_from(nonce.as_slice()).map_err(|_| {
+            AppError::validation(format!(
+                "Invalid session log nonce length: expected 12 bytes, received {}",
+                nonce.len()
+            ))
+        })?;
+        let decrypted = cipher.decrypt(&nonce, ciphertext.as_ref()).map_err(|_| {
+            AppError::validation(
+                "Failed to decrypt the selected session logs. Check the encryption password.",
+            )
+        })?;
         let chunk = zstd::stream::decode_all(Cursor::new(decrypted)).map_err(|error| {
             AppError::validation(format!("Failed to decompress the session log chunk: {error}"))
         })?;

@@ -14,14 +14,13 @@ use crate::{
     database::Database,
     errors::{AppError, AppResult},
     models::{
-        ConnectionHistoryCloseStatus, ConnectionRecord, SessionRemovedEvent,
-        SessionStatePayload, SessionStatus, TerminalOutputEvent,
+        ConnectionHistoryCloseStatus, ConnectionRecord, SessionRemovedEvent, SessionStatePayload,
+        SessionStatus, TerminalOutputEvent,
     },
     recording::{RecordingManager, SessionRecorder},
     terminal_detection::{
         append_output_with_limit, append_recent_output, contains_password_prompt,
-        contains_shell_prompt, normalize_visible_text,
-        detect_connection_error_message,
+        contains_shell_prompt, detect_connection_error_message, normalize_visible_text,
     },
 };
 
@@ -280,12 +279,7 @@ impl SessionManager {
             return Ok(());
         };
 
-        log::debug!(
-            "Session {}: resizing PTY to {}x{}.",
-            session_id,
-            cols,
-            rows
-        );
+        log::debug!("Session {}: resizing PTY to {}x{}.", session_id, cols, rows);
 
         resources
             .master
@@ -401,8 +395,8 @@ impl SessionManager {
                     .resources
                     .as_mut()
                     .and_then(|resources| resources.recorder.take());
-                let snapshot_was_recording = session.snapshot.recording_active
-                    || session.snapshot.recording_mode.is_some();
+                let snapshot_was_recording =
+                    session.snapshot.recording_active || session.snapshot.recording_mode.is_some();
 
                 if !snapshot_was_recording && recorder.is_none() {
                     continue;
@@ -432,10 +426,7 @@ impl SessionManager {
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => {
-                    log::debug!(
-                        "Session {}: terminal reader reached EOF.",
-                        session_id
-                    );
+                    log::debug!("Session {}: terminal reader reached EOF.", session_id);
                     self.finish_session_after_exit(&app, &session_id);
                     break;
                 }
@@ -670,9 +661,7 @@ impl SessionManager {
     }
 
     fn touch_history_if_due(&self, resources: &mut SessionResources, force: bool) {
-        if !force
-            && resources.last_history_activity_flush.elapsed() < Duration::from_secs(10)
-        {
+        if !force && resources.last_history_activity_flush.elapsed() < Duration::from_secs(10) {
             return;
         }
 
@@ -782,7 +771,8 @@ mod tests {
 
     #[test]
     fn classifies_connected_session_exit_as_disconnect() {
-        let (status, message) = classify_exit_status(true, "Connection to host example.com closed.");
+        let (status, message) =
+            classify_exit_status(true, "Connection to host example.com closed.");
 
         assert_eq!(status, SessionStatus::Disconnected);
         assert_eq!(message, "Session closed.");
@@ -796,6 +786,9 @@ mod tests {
         );
 
         assert_eq!(status, SessionStatus::Error);
-        assert_eq!(message, "ssh: connect to host example.com port 22: Connection refused");
+        assert_eq!(
+            message,
+            "ssh: connect to host example.com port 22: Connection refused"
+        );
     }
 }
