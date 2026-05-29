@@ -50,8 +50,6 @@ vi.mock('@xterm/addon-fit', () => ({
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
-    cols = 120
-    rows = 32
     options: { theme?: unknown }
 
     constructor(options: { theme?: unknown }) {
@@ -69,6 +67,14 @@ vi.mock('@xterm/xterm', () => ({
     getSelection = terminalMocks.terminal.getSelection
     selectAll = terminalMocks.terminal.selectAll
     paste = terminalMocks.terminal.paste
+
+    get cols() {
+      return terminalMocks.terminal.cols
+    }
+
+    get rows() {
+      return terminalMocks.terminal.rows
+    }
   },
 }))
 
@@ -116,6 +122,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  terminalMocks.terminal.cols = 120
+  terminalMocks.terminal.rows = 32
   terminalMocks.terminal.getSelection.mockReturnValue('selected text')
   vi.mocked(appClient.getSessionTerminalBuffer).mockResolvedValue('')
 })
@@ -140,7 +148,7 @@ describe('TerminalWorkspace', () => {
     expect(screen.getByRole('button', { name: 'Test Only' })).toBeInTheDocument()
     expect(screen.queryByText('Test Only', { selector: 'p' })).not.toBeInTheDocument()
     expect(screen.getAllByText('Connected')).toHaveLength(1)
-    expect(appClient.resizeSession).toHaveBeenCalledWith('session-1', 120, 32)
+    expect(appClient.resizeSession).not.toHaveBeenCalled()
   })
 
   it('keeps the terminal visible while a session is connecting so SSH prompts can appear', () => {
@@ -160,7 +168,44 @@ describe('TerminalWorkspace', () => {
 
     expect(screen.queryByText('Starting the SSH session and waiting for the remote shell.')).not.toBeInTheDocument()
     expect(screen.getByText('Connecting', { selector: 'span' })).toBeInTheDocument()
-    expect(appClient.resizeSession).toHaveBeenCalledWith('session-1', 120, 32)
+    expect(appClient.resizeSession).not.toHaveBeenCalled()
+  })
+
+  it('waits for real terminal output before resizing the backend PTY', async () => {
+    let terminalOutputListener: ((payload: TerminalOutputEvent) => void) | undefined
+    vi.mocked(appClient.onTerminalOutput).mockImplementationOnce(async (listener) => {
+      terminalOutputListener = listener
+      return () => {}
+    })
+
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
+        onCloseSession={vi.fn()}
+        onDisconnect={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[{ ...session, status: 'connecting', message: 'Connecting...' }]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    await waitFor(() => expect(terminalOutputListener).toBeDefined())
+
+    expect(appClient.resizeSession).not.toHaveBeenCalled()
+
+    terminalOutputListener?.({
+      sessionId: 'session-1',
+      stream: 'stdout',
+      data: `${connection.username}@${connection.host}:~$ `,
+    })
+
+    await waitFor(() =>
+      expect(appClient.resizeSession).toHaveBeenCalledWith('session-1', 120, 32),
+    )
+    expect(appClient.resizeSession).not.toHaveBeenCalledWith('session-1', 0, 0)
   })
 
   it('shows a recording indicator when the active session is being recorded', () => {
@@ -290,6 +335,11 @@ describe('TerminalWorkspace', () => {
       data: 'prompt\u001b[6nready',
     })
 
+    await waitFor(() =>
+      expect(appClient.writeSessionInput).toHaveBeenCalledWith(secondSession.sessionId, '\u001b[1;1R'),
+    )
+    const queryResponseCountBeforeReplay = vi.mocked(appClient.writeSessionInput).mock.calls.length
+
     rerender(
       <TerminalWorkspace
         activeConnection={connection}
@@ -304,7 +354,57 @@ describe('TerminalWorkspace', () => {
     )
 
     expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith('promptready')
-    expect(appClient.writeSessionInput).not.toHaveBeenCalledWith(secondSession.sessionId, '\u001b[1;1R')
+    expect(vi.mocked(appClient.writeSessionInput).mock.calls).toHaveLength(queryResponseCountBeforeReplay)
+  })
+
+  it('responds to split cursor-position queries for inactive sessions', async () => {
+    const secondSession: SessionState = {
+      ...session,
+      sessionId: 'session-2',
+      connectionId: 'connection-2',
+      connectionName: 'Second Session',
+      status: 'connecting',
+      message: 'Connecting...',
+    }
+
+    let terminalOutputListener: ((payload: TerminalOutputEvent) => void) | undefined
+    vi.mocked(appClient.onTerminalOutput).mockImplementationOnce(async (listener) => {
+      terminalOutputListener = listener
+      return () => {}
+    })
+
+    render(
+      <TerminalWorkspace
+        activeConnection={connection}
+        activeSession={session}
+        onCloseSession={vi.fn()}
+        onSelectSession={vi.fn()}
+        selectedConnection={connection}
+        sessions={[session, secondSession]}
+        t={getTranslations('en')}
+        theme="dark"
+      />,
+    )
+
+    await waitFor(() => expect(terminalOutputListener).toBeDefined())
+
+    terminalOutputListener?.({
+      sessionId: secondSession.sessionId,
+      stream: 'stdout',
+      data: '\u001b[',
+    })
+
+    expect(appClient.writeSessionInput).not.toHaveBeenCalled()
+
+    terminalOutputListener?.({
+      sessionId: secondSession.sessionId,
+      stream: 'stdout',
+      data: '6n',
+    })
+
+    await waitFor(() =>
+      expect(appClient.writeSessionInput).toHaveBeenCalledWith(secondSession.sessionId, '\u001b[1;1R'),
+    )
   })
 
   it('rehydrates the active session from the backend snapshot when early SSH prompts were missed', async () => {
@@ -397,18 +497,92 @@ describe('TerminalWorkspace', () => {
         await Promise.resolve()
       })
 
-      expect(appClient.getSessionTerminalBuffer).toHaveBeenCalledTimes(1)
+      const initialSyncCount = vi.mocked(appClient.getSessionTerminalBuffer).mock.calls.length
+      expect(initialSyncCount).toBeGreaterThanOrEqual(1)
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
       })
 
-      expect(appClient.getSessionTerminalBuffer).toHaveBeenCalledTimes(2)
+      expect(vi.mocked(appClient.getSessionTerminalBuffer).mock.calls.length).toBeGreaterThanOrEqual(2)
       expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith(
         [
           `The authenticity of host '${connection.host} (${connection.host})' can't be established.`,
           'ED25519 key fingerprint is SHA256:test.',
           "Are you sure you want to continue connecting (yes/no/[fingerprint])?",
+        ].join('\r\n'),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps resyncing briefly after a session turns connected if the first visible prompt was missed', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(appClient.getSessionTerminalBuffer)
+        .mockResolvedValueOnce('')
+        .mockResolvedValueOnce('')
+        .mockResolvedValueOnce(
+          [
+            `Welcome to ${connection.host}`,
+            `${connection.username}@${connection.host}:~$ `,
+          ].join('\r\n'),
+        )
+
+      const { rerender } = render(
+        <TerminalWorkspace
+          activeConnection={connection}
+          activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
+          onCloseSession={vi.fn()}
+          onDisconnect={vi.fn()}
+          onSelectSession={vi.fn()}
+          selectedConnection={connection}
+          sessions={[{ ...session, status: 'connecting', message: 'Connecting...' }]}
+          t={getTranslations('en')}
+          theme="dark"
+        />,
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      const initialSyncCount = vi.mocked(appClient.getSessionTerminalBuffer).mock.calls.length
+      expect(initialSyncCount).toBeGreaterThanOrEqual(1)
+
+      rerender(
+        <TerminalWorkspace
+          activeConnection={connection}
+          activeSession={{ ...session, status: 'connected', message: 'Connected.' }}
+          onCloseSession={vi.fn()}
+          onDisconnect={vi.fn()}
+          onSelectSession={vi.fn()}
+          selectedConnection={connection}
+          sessions={[{ ...session, status: 'connected', message: 'Connected.' }]}
+          t={getTranslations('en')}
+          theme="dark"
+        />,
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      const connectedSyncCount = vi.mocked(appClient.getSessionTerminalBuffer).mock.calls.length
+      expect(connectedSyncCount).toBeGreaterThan(initialSyncCount)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(vi.mocked(appClient.getSessionTerminalBuffer).mock.calls.length).toBeGreaterThan(
+        connectedSyncCount,
+      )
+      expect(terminalMocks.terminal.write).toHaveBeenLastCalledWith(
+        [
+          `Welcome to ${connection.host}`,
+          `${connection.username}@${connection.host}:~$ `,
         ].join('\r\n'),
       )
     } finally {
