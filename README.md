@@ -178,7 +178,7 @@ If you are specifically looking for user operation records, there are two main p
 ## Releases
 
 - Cross-platform release publishing is defined in `.github\workflows\release.yml`.
-- Push a version tag such as `v0.1.4` to trigger the GitHub Actions release pipeline.
+- Push a version tag such as `v0.1.5` to trigger the GitHub Actions release pipeline.
 - Published assets cover:
   - Windows: NSIS installer and MSI package
   - macOS: Apple Silicon and Intel app / DMG bundles

@@ -155,7 +155,7 @@ Iridium Remote 面向日常远程运维与开发场景，重点提供：
 ## 发布
 
 - 跨平台发布流程定义在 `.github\workflows\release.yml`。
-- 推送类似 `v0.1.4` 的版本标签会触发 GitHub Actions 发布流水线。
+- 推送类似 `v0.1.5` 的版本标签会触发 GitHub Actions 发布流水线。
 - 发布产物包括：
   - Windows：NSIS 安装包与 MSI 安装包
   - macOS：Apple Silicon 与 Intel 的 app / DMG 安装产物
