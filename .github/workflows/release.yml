@@ -99,15 +99,19 @@ jobs:
           - name: Windows x64
             platform: windows-latest
             args: ""
+            artifactSuffix: windows_x64
           - name: macOS Apple Silicon
             platform: macos-latest
             args: --target aarch64-apple-darwin
+            artifactSuffix: macos_aarch64
           - name: macOS Intel
             platform: macos-latest
             args: --target x86_64-apple-darwin
+            artifactSuffix: macos_x64
           - name: Ubuntu x64
             platform: ubuntu-22.04
             args: ""
+            artifactSuffix: ubuntu_x64
 
     runs-on: ${{ matrix.platform }}
 
@@ -153,6 +157,7 @@ jobs:
         run: npm ci
 
       - name: Build and publish release bundles
+        id: tauri
         uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -176,6 +181,23 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           releaseDraft: false
           args: ${{ matrix.args }}
-          releaseAssetNamePattern: iridium-remote_[version]_[platform]_[arch][_setup][ext]
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: iridium-remote_[version]_[platform]_[arch][_setup]
+          assetNamePattern: iridium-remote_[version]_[platform]_[arch][_setup][ext]
+
+      - name: Prepare workflow artifact paths
+        id: artifact-paths
+        if: steps.tauri.outputs.artifactPaths != '[]'
+        shell: bash
+        run: |
+          {
+            echo 'paths<<EOF'
+            node -e "for (const artifactPath of JSON.parse(process.argv[1])) console.log(artifactPath)" '${{ steps.tauri.outputs.artifactPaths }}'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifacts
+        if: steps.tauri.outputs.artifactPaths != '[]'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iridium-remote_${{ github.ref_name }}_${{ matrix.artifactSuffix }}
+          if-no-files-found: error
+          path: ${{ steps.artifact-paths.outputs.paths }}
