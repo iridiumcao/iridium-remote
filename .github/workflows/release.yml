@@ -196,7 +196,7 @@ jobs:
 
       - name: Upload workflow artifacts
         if: steps.tauri.outputs.artifactPaths != '[]'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: iridium-remote_${{ github.ref_name }}_${{ matrix.artifactSuffix }}
           if-no-files-found: error
