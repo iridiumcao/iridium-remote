@@ -179,27 +179,16 @@ mod platform {
 
 #[cfg(not(target_os = "windows"))]
 mod platform {
-    use std::sync::OnceLock;
 
-    use keyring_core::{Entry, Error};
+
+    use keyring::{Entry, Error};
 
     use crate::errors::{AppError, AppResult};
 
     use super::SERVICE_NAME;
 
     pub fn initialize() -> AppResult<()> {
-        static INIT_RESULT: OnceLock<AppResult<()>> = OnceLock::new();
-
-        INIT_RESULT
-            .get_or_init(|| {
-                keyring::use_native_store(true).map_err(|error| {
-                    AppError::keyring(
-                        "Failed to initialize the Linux system keyring.",
-                        error.to_string(),
-                    )
-                })
-            })
-            .clone()
+        Ok(())
     }
 
     pub fn set_by_account(account: &str, password: &str) -> AppResult<()> {
