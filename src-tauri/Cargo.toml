@@ -1,6 +1,6 @@
 [package]
 name = "iridium-remote"
-version = "0.1.5"
+version = "0.1.6"
 description = "Iridium Remote desktop SSH client"
 authors = ["iridiumcao"]
 license = "Apache-2.0"
