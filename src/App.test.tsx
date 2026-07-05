@@ -841,7 +841,7 @@ describe('App', () => {
     expect(screen.queryByRole('combobox', { name: 'Theme' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New Connection' })).not.toBeInTheDocument()
     const settingsMenu = tauriMenuMocks.lastMenuItems.find((item) => item.text === 'Settings')
-    expect(settingsMenu?.items?.at(-1)?.id).toBe('session-recording')
+    expect(settingsMenu?.items?.at(-1)?.id).toBe('shortcuts')
 
     const selectLanguageAction = findMenuAction(tauriMenuMocks.lastMenuItems, 'settings-locale-zh-CN')
     expect(selectLanguageAction).not.toBeNull()

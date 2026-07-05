@@ -12,6 +12,8 @@ import { SidebarTabNav, type WorkspaceTab } from './components/SidebarTabNav'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
 import { TransferDialog } from './components/TransferDialog'
+import { SettingsDialog } from './components/SettingsDialog'
+import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
 import { collectGroupNames, getGroupKey } from './lib/groups'
 import { getLocaleDisplayName, getTranslations } from './lib/i18n'
@@ -123,6 +125,7 @@ function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('connections')
   const [isAboutDialogOpen, setAboutDialogOpen] = useState(false)
   const [isSessionRecordingDialogOpen, setSessionRecordingDialogOpen] = useState(false)
+  const [isSettingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [isSessionRecordingUnlockOpen, setSessionRecordingUnlockOpen] = useState(false)
   const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
   const [sessionRecordingStatus, setSessionRecordingStatus] =
@@ -991,6 +994,15 @@ function App() {
                   }
                 },
               },
+              {
+                id: 'shortcuts',
+                text: 'Shortcuts',
+                action: () => {
+                  if (!disposed) {
+                    setSettingsDialogOpen(true)
+                  }
+                },
+              },
             ],
           },
           {
@@ -1129,6 +1141,53 @@ function App() {
     },
     [updateSettings],
   )
+
+  useGlobalShortcuts(settings, {
+    new_connection: () => {
+      openCreateDialog()
+    },
+    open_settings: () => {
+      setSettingsDialogOpen(true)
+    },
+    focus_search: () => {
+      setActiveWorkspaceTab('connections')
+      document.querySelector<HTMLInputElement>('input[placeholder="Search connections..."]')?.focus()
+    },
+    toggle_fullscreen: () => {
+      // Implement fullscreen toggle logic via Tauri if needed
+    },
+    close_tab: () => {
+      if (activeSessionId) {
+        void closeSession(activeSessionId)
+      }
+    },
+    close_all_tabs: () => {
+      void closeSessions(sessions.map(s => s.sessionId))
+    },
+    next_tab: () => {
+      if (sessions.length > 1) {
+        const index = sessions.findIndex(s => s.sessionId === activeSessionId)
+        const nextSession = sessions[(index + 1) % sessions.length]
+        selectSession(nextSession?.sessionId ?? null)
+      }
+    },
+    prev_tab: () => {
+      if (sessions.length > 1) {
+        const index = sessions.findIndex(s => s.sessionId === activeSessionId)
+        const prevSession = sessions[(index - 1 + sessions.length) % sessions.length]
+        selectSession(prevSession?.sessionId ?? null)
+      }
+    },
+    tab_1: () => selectSession(sessions[0]?.sessionId ?? null),
+    tab_2: () => selectSession(sessions[1]?.sessionId ?? null),
+    tab_3: () => selectSession(sessions[2]?.sessionId ?? null),
+    tab_4: () => selectSession(sessions[3]?.sessionId ?? null),
+    tab_5: () => selectSession(sessions[4]?.sessionId ?? null),
+    tab_6: () => selectSession(sessions[5]?.sessionId ?? null),
+    tab_7: () => selectSession(sessions[6]?.sessionId ?? null),
+    tab_8: () => selectSession(sessions[7]?.sessionId ?? null),
+    tab_9: () => selectSession(sessions[sessions.length - 1]?.sessionId ?? null),
+  })
 
   const renderSidebarTopContent = () => (
     <div className="space-y-4">
@@ -1292,6 +1351,7 @@ function App() {
               onSelectSession={selectSession}
               selectedConnection={selectedConnection}
               sessions={sessions}
+              shortcuts={settings.shortcuts}
               t={t}
               theme={settings.theme}
             />
@@ -1400,6 +1460,19 @@ function App() {
           onClose={() => setTransferDialogOpen(false)}
           onTransfer={handleTransfer}
           open
+          t={t}
+          theme={settings.theme}
+        />
+      ) : null}
+
+      {isSettingsDialogOpen ? (
+        <SettingsDialog
+          open
+          onClose={() => setSettingsDialogOpen(false)}
+          onSave={async (newSettings) => {
+            await saveSettings(newSettings)
+          }}
+          settings={settings}
           t={t}
           theme={settings.theme}
         />

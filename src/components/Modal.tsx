@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from 'react'
+import { useEffect, type PropsWithChildren, type ReactNode } from 'react'
 import type { AppTheme } from '../lib/types'
 
 type ModalProps = PropsWithChildren<{
@@ -9,6 +9,7 @@ type ModalProps = PropsWithChildren<{
   theme: AppTheme
   widthClass?: string
   bodyClassName?: string
+  onClose?: () => void
 }>
 
 export const Modal = ({
@@ -20,7 +21,25 @@ export const Modal = ({
   title,
   widthClass = 'max-w-lg',
   bodyClassName = 'space-y-4 overflow-y-auto',
+  onClose,
 }: ModalProps) => {
+  useEffect(() => {
+    if (!open || !onClose) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      }
+    }
+
+    // Capture phase to intercept early
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [open, onClose])
+
   if (!open) {
     return null
   }

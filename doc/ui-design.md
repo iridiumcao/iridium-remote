@@ -209,3 +209,45 @@ The preview area's scrollbar should follow the active light or dark theme, just 
 - Light and dark themes apply consistently across sidebar surfaces, sidebar scrollbars, terminal tab-strip scrollbars, dialogs, themed popup menus, and terminal shell framing.
 - Language switching updates visible labels without changing layout structure.
 - Notices for import/export results, settings changes, and operational errors appear inline near the top of the main window content.
+
+## Shortcuts and Keybindings
+
+The application supports a comprehensive set of keyboard shortcuts mapped to standard OS modifiers (`Ctrl` for Windows/Linux, `Cmd`/`⌘` for macOS).
+
+### Global & Main Interface
+- `Mod + N`: New Connection
+- `Mod + ,`: Open Settings (including Shortcuts configuration)
+- `Mod + K` / `Mod + P`: Open Quick Connect / Global Search
+- `Mod + Shift + F`: Focus connection list search field
+- `F11` / `Mod + Ctrl + F`: Toggle Fullscreen
+
+### Modals & Dialogs
+- `Esc`: Cancel / Close current topmost modal. In password prompts, this cancels the connection and closes the prompt.
+- `Enter`: Confirm / Submit for single-line inputs (e.g., password prompt, confirmation dialogs).
+- `Mod + Enter`: Save / Submit for complex forms (e.g., Edit Connection).
+- `Mod + S`: Save changes in dedicated settings pages.
+
+### Tabs & Terminal Management
+- `Mod + W`: Close current terminal tab.
+- `Mod + Shift + W`: Close all terminal tabs.
+- `Mod + Tab` / `Mod + Shift + Tab`: Cycle through open terminal tabs.
+- `Mod + 1` to `Mod + 9`: Switch to tab 1 through 9.
+- `Mod + F`: Find in current terminal session.
+- `Mod + =` / `Mod + -`: Zoom in / out terminal font.
+- `Mod + 0`: Reset terminal font size.
+- `Mod + Shift + C` / `Mod + Shift + V`: Copy / Paste within terminal.
+
+### SFTP / File Manager
+- `F5` / `Mod + R`: Refresh current directory.
+- `F2`: Rename selected file/folder.
+- `Delete` / `Mod + Backspace`: Delete selected file/folder.
+- `Backspace`: Go to parent directory.
+
+### Shortcuts Settings Page
+A dedicated "Shortcuts" (or "Keyboard") tab is available in the global Settings modal. It includes:
+- A top search box to filter actions by name.
+- A list/table of categorized actions and their current keybindings.
+- An interactive recording mode: clicking a shortcut row enables capturing the next key combination to rebind it.
+- A reset action for each shortcut to restore its default binding.
+
+The frontend uses `navigator.platform` or Tauri's OS detection to display the correct modifier key (`Ctrl` vs `⌘`) to the user. Terminal shortcuts (like `Mod + W`) are intercepted in xterm's `customKeyEventHandler` by returning `false` to prevent the terminal from swallowing the event, allowing it to bubble up to the global React event listeners.

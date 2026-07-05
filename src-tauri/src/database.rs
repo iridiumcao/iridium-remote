@@ -2012,6 +2012,7 @@ fn normalize_app_settings(settings: AppSettings) -> AppResult<AppSettings> {
             settings.connection_history_time_zone.as_str(),
         ),
         session_recording: normalize_session_recording_settings(settings.session_recording)?,
+        shortcuts: settings.shortcuts,
     })
 }
 

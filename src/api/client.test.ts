@@ -37,7 +37,9 @@ const payload: ConnectionsExportPayload = {
       maxFileSizeMb: 100,
       maxTotalStorageGb: 5,
       retentionDays: 30,
+      logDirectory: null,
     },
+    shortcuts: {},
   },
   connections: [],
 }

@@ -58,6 +58,8 @@ pub struct AppSettings {
     pub connection_history_time_zone: String,
     #[serde(default)]
     pub session_recording: SessionRecordingSettings,
+    #[serde(default)]
+    pub shortcuts: std::collections::HashMap<String, String>,
 }
 
 impl Default for AppSettings {
@@ -70,6 +72,7 @@ impl Default for AppSettings {
             connection_history_collapsed_sections: Vec::new(),
             connection_history_time_zone: String::new(),
             session_recording: SessionRecordingSettings::default(),
+            shortcuts: std::collections::HashMap::new(),
         }
     }
 }

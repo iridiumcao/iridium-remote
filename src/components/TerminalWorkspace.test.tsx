@@ -28,6 +28,7 @@ const terminalMocks = vi.hoisted(() => {
     getSelection: vi.fn(() => 'selected text'),
     selectAll: vi.fn(),
     paste: vi.fn(),
+    attachCustomKeyEventHandler: vi.fn(),
   }
 
   return { terminal }
@@ -67,6 +68,7 @@ vi.mock('@xterm/xterm', () => ({
     getSelection = terminalMocks.terminal.getSelection
     selectAll = terminalMocks.terminal.selectAll
     paste = terminalMocks.terminal.paste
+    attachCustomKeyEventHandler = terminalMocks.terminal.attachCustomKeyEventHandler
 
     get cols() {
       return terminalMocks.terminal.cols
@@ -148,6 +150,7 @@ describe('TerminalWorkspace', () => {
   it('uses the SSH target as the workspace title instead of repeating the tab label', () => {
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={session}
@@ -171,6 +174,7 @@ describe('TerminalWorkspace', () => {
   it('keeps the terminal visible while a session is connecting so SSH prompts can appear', () => {
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
@@ -198,6 +202,7 @@ describe('TerminalWorkspace', () => {
 
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
@@ -230,6 +235,7 @@ describe('TerminalWorkspace', () => {
   it('shows a recording indicator when the active session is being recorded', () => {
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={{ ...session, recordingActive: true, recordingMode: 'input_only' }}
@@ -248,6 +254,7 @@ describe('TerminalWorkspace', () => {
   it('shows a localized, theme-aware custom terminal context menu', () => {
     const { container } = render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={session}
@@ -288,6 +295,7 @@ describe('TerminalWorkspace', () => {
 
     const { container, rerender } = render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -307,6 +315,7 @@ describe('TerminalWorkspace', () => {
 
     rerender(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -333,6 +342,7 @@ describe('TerminalWorkspace', () => {
 
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -362,6 +372,7 @@ describe('TerminalWorkspace', () => {
 
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -398,6 +409,7 @@ describe('TerminalWorkspace', () => {
 
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -439,6 +451,7 @@ describe('TerminalWorkspace', () => {
 
     const { rerender } = render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -466,6 +479,7 @@ describe('TerminalWorkspace', () => {
 
     rerender(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={secondSession}
@@ -500,6 +514,7 @@ describe('TerminalWorkspace', () => {
 
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection, secondConnection]}
         activeSession={session}
@@ -550,6 +565,7 @@ describe('TerminalWorkspace', () => {
 
     render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={session}
@@ -608,6 +624,7 @@ describe('TerminalWorkspace', () => {
 
       render(
         <TerminalWorkspace
+        shortcuts={{}}
           activeConnection={connection}
           connections={[connection]}
           activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
@@ -660,6 +677,7 @@ describe('TerminalWorkspace', () => {
 
       const { rerender } = render(
         <TerminalWorkspace
+        shortcuts={{}}
           activeConnection={connection}
           connections={[connection]}
           activeSession={{ ...session, status: 'connecting', message: 'Connecting...' }}
@@ -682,6 +700,7 @@ describe('TerminalWorkspace', () => {
 
       rerender(
         <TerminalWorkspace
+        shortcuts={{}}
           activeConnection={connection}
           connections={[connection]}
           activeSession={{ ...session, status: 'connected', message: 'Connected.' }}
@@ -723,6 +742,7 @@ describe('TerminalWorkspace', () => {
   it('pastes text via the terminal instance to ensure proper normalization and bracketed paste support', async () => {
     const { container } = render(
       <TerminalWorkspace
+        shortcuts={{}}
         activeConnection={connection}
         connections={[connection]}
         activeSession={session}

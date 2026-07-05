@@ -6,6 +6,7 @@ import { appClient } from '../api/client'
 import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle, formatStatusLabel } from '../lib/format'
 import type { AppTheme, ConnectionRecord, SessionState } from '../lib/types'
+import { eventMatchesAction, type ShortcutAction, defaultShortcuts } from '../lib/shortcuts'
 
 type TerminalWorkspaceProps = {
   activeSession: SessionState | null
@@ -20,6 +21,7 @@ type TerminalWorkspaceProps = {
   onDisconnect?: (sessionId: string) => void
   onOpenTransfer?: () => void
   onSelectSession: (sessionId: string) => void
+  shortcuts: Record<string, string>
   t: ReturnType<typeof getTranslations>
   theme: AppTheme
 }
@@ -246,6 +248,7 @@ export const TerminalWorkspace = ({
   onSelectSession,
   selectedConnection,
   sessions,
+  shortcuts,
   t,
   theme,
 }: TerminalWorkspaceProps) => {
@@ -327,6 +330,24 @@ export const TerminalWorkspace = ({
       fontFamily: 'Consolas, "Cascadia Code", Menlo, monospace',
       fontSize: 14,
       theme: xtermTheme,
+    })
+
+    terminal.attachCustomKeyEventHandler((event) => {
+      // If the event matches any of our global shortcuts, return false so xterm lets it bubble up
+      const actionsToCheck: ShortcutAction[] = Object.keys(defaultShortcuts) as ShortcutAction[]
+      for (const action of actionsToCheck) {
+        if (eventMatchesAction(event, action, shortcuts)) {
+          // We only want to bubble up the keydown event to trigger the action globally
+          if (event.type === 'keydown') {
+            return false // let it bubble
+          }
+        }
+      }
+      
+      // Also allow Ctrl+Shift+C / Ctrl+Shift+V to bubble up for native OS copy/paste handlers if needed
+      // But xterm handles native paste internally if not prevented, so usually returning true is fine for that.
+      // Returning false allows the browser default behavior or React global handlers to catch it.
+      return true
     })
 
     terminal.loadAddon(fitAddon)

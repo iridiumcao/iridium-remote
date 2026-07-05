@@ -48,6 +48,7 @@ export type AppSettings = {
   connectionHistoryCollapsedSections: ConnectionHistorySidebarSection[]
   connectionHistoryTimeZone: string
   sessionRecording: SessionRecordingSettings
+  shortcuts: Record<string, string>
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -65,6 +66,7 @@ export const defaultAppSettings: AppSettings = {
     retentionDays: 30,
     logDirectory: null,
   },
+  shortcuts: {},
 }
 
 export type ConnectionRecord = {

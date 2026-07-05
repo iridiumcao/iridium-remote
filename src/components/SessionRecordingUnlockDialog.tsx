@@ -77,6 +77,7 @@ export const SessionRecordingUnlockDialog = ({
 
   return (
     <Modal
+      onClose={onClose}
       bodyClassName="space-y-4"
       description={
         flow === 'verify' ? t.sessionRecordingUnlockDescription : t.sessionRecordingResetDescription
@@ -200,6 +201,13 @@ export const SessionRecordingUnlockDialog = ({
               setLocalError(null)
               onClearError()
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (flow === 'verify') void handleVerify()
+                else if (flow === 'reset') void handleResetPassword()
+              }
+            }}
             type="password"
             value={password}
           />
@@ -217,6 +225,12 @@ export const SessionRecordingUnlockDialog = ({
                   setConfirmPassword(event.target.value)
                   setLocalError(null)
                   onClearError()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void handleResetPassword()
+                  }
                 }}
                 type="password"
                 value={confirmPassword}
