@@ -2496,7 +2496,7 @@ dependencies = [
  "aes-gcm",
  "anyhow",
  "argon2 0.5.3",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "iana-time-zone",
  "keyring",
