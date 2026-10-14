@@ -741,7 +741,10 @@ function App() {
   )
 
   const handleSaveSessionRecordingSettings = useCallback(
-    async (sessionRecording: SessionRecordingSettings, password?: string) => {
+    async (
+      sessionRecording: SessionRecordingSettings,
+      password?: string,
+    ) => {
       try {
         setError(null)
         const result = await appClient.updateSessionRecordingSettings(sessionRecording, password)
@@ -787,45 +790,6 @@ function App() {
         showNotice({
           message: t.sessionRecordingVerifiedNotice(
             getSessionRecordingModeLabel(settingsRef.current.sessionRecording.mode),
-          ),
-          autoDismissMs: NOTICE_AUTO_DISMISS_MS,
-        })
-        if (pendingConnection) {
-          await connectSessionToConnection(pendingConnection, { preserveNotice: true })
-        }
-      } catch (cause) {
-        setSessionRecordingUnlockError(appClient.normalizeError(cause).message)
-        setSessionRecordingUnlockPending(false)
-      }
-    },
-    [
-      closeSessionRecordingUnlockDialog,
-      connectSessionToConnection,
-      connectionPendingRecordingVerification,
-      getSessionRecordingModeLabel,
-      showNotice,
-      t,
-    ],
-  )
-
-  const handleResetSessionRecordingPassword = useCallback(
-    async (password: string) => {
-      const pendingConnection = connectionPendingRecordingVerification
-
-      try {
-        setError(null)
-        setSessionRecordingUnlockPending(true)
-        setSessionRecordingUnlockError(null)
-        const result = await appClient.updateSessionRecordingSettings(
-          settingsRef.current.sessionRecording,
-          password,
-        )
-        setSettings(result.appSettings)
-        setSessionRecordingStatus(result.status)
-        closeSessionRecordingUnlockDialog()
-        showNotice({
-          message: t.sessionRecordingResetNotice(
-            getSessionRecordingModeLabel(result.appSettings.sessionRecording.mode),
           ),
           autoDismissMs: NOTICE_AUTO_DISMISS_MS,
         })
@@ -1430,6 +1394,14 @@ function App() {
           }}
           onPickLogDirectory={(currentPath) => appClient.pickSessionLogDirectory(currentPath)}
           onSave={handleSaveSessionRecordingSettings}
+          onVerify={async (password) => {
+            try {
+              const status = await appClient.verifySessionRecordingPassword(password)
+              setSessionRecordingStatus(status)
+            } catch (cause) {
+              throw new Error(appClient.normalizeError(cause).message, { cause })
+            }
+          }}
           open
           settings={settings.sessionRecording}
           status={sessionRecordingStatus}
@@ -1443,9 +1415,7 @@ function App() {
           error={sessionRecordingUnlockError}
           onClearError={() => setSessionRecordingUnlockError(null)}
           isSubmitting={isSessionRecordingUnlockPending}
-          onClose={closeSessionRecordingUnlockDialog}
           onPause={handlePauseSessionRecordingForRun}
-          onResetPassword={handleResetSessionRecordingPassword}
           onVerify={handleVerifySessionRecordingPassword}
           open
           t={t}

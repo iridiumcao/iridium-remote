@@ -192,8 +192,9 @@ Shows:
 
 - enable toggle
 - recording mode selection
-- encryption password and confirmation fields
-- password field uses a masked placeholder when a runtime password is already loaded
+- encryption password and confirmation fields for first-time setup
+- existing-password status, Verify Password to resume recording, and one Change Password action, with no always-visible replacement fields or separate Reset Password action
+- new-password and confirmation fields for Change Password, with no old-password field or reset acknowledgement checkbox; an inline warning explains that existing logs still need the password used when they were recorded and cannot be recovered by changing the password
 - storage policy fields for file size, total storage, and retention
 - customizable log directory path with browse/open actions
 - current storage usage
@@ -201,6 +202,8 @@ Shows:
 
 When recording is disabled, all dependent controls below the enable toggle are disabled and visually dimmed.
 The log-directory input and its browse/open actions should stay aligned on the same row in normal desktop widths.
+
+The first-connection password-verification dialog is separate from settings. It asks only for the existing password and offers exactly **Skip Recording** and **OK**. Neither Cancel, Reset Password, a close button, Escape, nor backdrop click dismisses it. Only the Skip Recording tooltip explains that skipping continues the connection and disables recording for all sessions in this app run, without changing the saved enabled setting; verification is required again after restart. Do not repeat this explanation in the dialog body. Use a theme-aware floating tooltip above the button with an 8px gap, about 288px width (constrained on small screens), 8px corners, a subtle border and shadow, 12px horizontal / 10px vertical padding, and 12px text with relaxed line spacing. The two sentences occupy separate lines and wrap naturally. Show it after 300ms of hover, or immediately on keyboard focus; allow the pointer to move onto the tooltip and Escape to dismiss only the tooltip. Do not add a title, icon, or arrow, or retain the native title tooltip. OK verifies and continues with recording, while a wrong password keeps the dialog open for retry. Input and both actions are disabled while a request is pending.
 
 The preview area's scrollbar should follow the active light or dark theme, just like the sidebar and terminal tab strip.
 

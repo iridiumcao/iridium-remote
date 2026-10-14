@@ -240,6 +240,42 @@ describe('appClient.saveExportConnections', () => {
     )
   })
 
+  it('changes an existing recording password without the old password, including after skipping', async () => {
+    const { appClient } = await import('./client')
+    const settings = { ...defaultAppSettings.sessionRecording, enabled: true }
+    await appClient.updateSessionRecordingSettings(settings, 'old-secret')
+    await appClient.pauseSessionRecordingForRun()
+    const before = await appClient.getSessionRecordingStatus()
+    await expect(appClient.verifySessionRecordingPassword('wrong-secret')).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    await expect(appClient.updateSessionRecordingSettings({ ...settings, retentionDays: 10 }, 'short')).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    expect(await appClient.getSessionRecordingStatus()).toEqual(before)
+    expect((await appClient.getAppSettings()).sessionRecording.retentionDays).toBe(settings.retentionDays)
+    await appClient.updateSessionRecordingSettings(settings)
+    expect((await appClient.getSessionRecordingStatus()).pausedForRun).toBe(true)
+    await expect(appClient.verifySessionRecordingPassword('old-secret')).resolves.toMatchObject({ canRecord: true })
+    await appClient.pauseSessionRecordingForRun()
+    const result = await appClient.updateSessionRecordingSettings(settings, 'new-secret')
+    expect(result.status.canRecord).toBe(true)
+    await expect(appClient.verifySessionRecordingPassword('old-secret')).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    await expect(appClient.verifySessionRecordingPassword('new-secret')).resolves.toMatchObject({ canRecord: true })
+    await appClient.updateSessionRecordingSettings(settings, 'another-secret')
+    await expect(appClient.verifySessionRecordingPassword('new-secret')).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    await expect(appClient.verifySessionRecordingPassword('another-secret')).resolves.toMatchObject({ canRecord: true })
+  })
+
+  it('sends only settings and an optional new password to the Tauri backend', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    const { appClient } = await import('./client')
+    await appClient.updateSessionRecordingSettings(defaultAppSettings.sessionRecording, 'new-secret')
+    expect(invokeMock).toHaveBeenLastCalledWith('update_session_recording_settings', {
+      settings: defaultAppSettings.sessionRecording, password: 'new-secret',
+    })
+    await appClient.updateSessionRecordingSettings(defaultAppSettings.sessionRecording)
+    expect(invokeMock).toHaveBeenLastCalledWith('update_session_recording_settings', {
+      settings: defaultAppSettings.sessionRecording, password: undefined,
+    })
+  })
+
   it('reports when the current version is already up to date', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
