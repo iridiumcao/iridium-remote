@@ -136,88 +136,69 @@ Default:
 
 ---
 
-## 6.3 Encryption Password
+## 6.3 Encryption Password Management
 
-When the user is setting a new recording password for the first time, or explicitly resetting it, the dialog must require:
+Password management lives in **Settings -> Session Recording**, separately from the connection-time verification dialog.
 
-* Encryption Password
-* Confirm Password
+* **First-time setup:** require Encryption Password and Confirm Password (minimum 8 characters).
+* **Existing password:** show its runtime status and explicit actions instead of always showing replacement-password fields. Saving other settings must preserve the existing password and verifier.
+* **Verify Password:** validate the existing password and load it into runtime memory without replacing the verifier. This also clears the skip-for-run state. Verification does not change unsaved settings or close the settings page.
+* **Change Password:** the single password-replacement action on this settings page. Require New Password (minimum 8 characters) and Confirm Password, with no old-password field or validation. It also lets users who forgot their previous password continue recording with a new one. There is no separate Reset Password action or acknowledgement checkbox.
+* Change Password MUST display an inline warning: new passwords apply to new recordings only; each existing log still requires the password used when it was recorded. Changing the password neither recovers nor re-encrypts existing logs, including logs whose password was forgotten.
+* The backend accepts a new password without requiring the old password or a reset flag, even when an existing verifier is configured and the runtime password is not loaded.
 
-Requirements:
+The password encrypts session log files and MUST NOT be permanently stored. A separate password verifier may be persisted to validate it after restart. Password fields are cleared when switching actions or successfully verifying the existing password.
 
-* Minimum length: 8 characters
-
-If an existing password has already been configured, users may leave these fields blank when they are only changing other recording settings and do not want to replace the password.
-
-The password is used to encrypt session log files.
-
-The application MUST NOT permanently store this password.
-
-If a password is already loaded for the current app run, the password field should show a masked placeholder such as `********` instead of appearing empty.
-If a password is already configured but not loaded after restart, the settings dialog may keep the password fields empty and defer the actual password check to the first-connection verification dialog.
+All dependent controls remain disabled while Enable Session Recording is unchecked.
 
 ---
 
 ## 6.4 Password Verification After Restart
 
-If session recording remains enabled after the app restarts, the recording password is no longer loaded in runtime memory.
+If recording remains enabled after restart, no recording password is loaded in runtime memory. The first connection attempt MUST open **Verify Session Recording Password**.
 
-In that state:
+The dialog:
 
-* The first connection attempt MUST open a verification dialog
-* The dialog MUST ask for the existing recording password only once
-* The dialog MUST NOT force the user to enter `Confirm Password` unless the user explicitly chooses to reset the password
+* asks only for the existing password, with no confirmation-password field;
+* has exactly two buttons: **Skip Recording** and **OK**;
+* has no Cancel, Reset Password, close button, Escape dismissal, or backdrop dismissal;
+* explains the skip scope only in a theme-aware, rounded, multiline tooltip on Skip Recording; do not repeat it in the dialog body;
+* shows the tooltip after about 300ms of hover or immediately on keyboard focus, with Escape dismissing only the tooltip;
+* supports Enter to submit verification;
+* disables input and both actions while a request is pending to prevent duplicate submissions.
 
-```mermaid
-flowchart TD
-    A[App starts] --> B{Session recording enabled?}
-    B -- No --> C[Connect normally]
-    B -- Yes --> D{Runtime password loaded?}
-    D -- Yes --> C
-    D -- No --> E[User opens first connection]
-    E --> F[Show recording-password verification dialog]
-    F --> G{Password correct?}
-    G -- Yes --> H[Load runtime password]
-    H --> I[Resume recording and continue connect]
-    G -- No --> J[Allow retry]
-    J --> F
-```
+**OK** validates the password. Success loads it into runtime memory, closes the dialog, and continues the pending connection with recording enabled. Failure keeps the dialog open and allows another attempt or Skip Recording. Subsequent connections in the same app run do not require verification again once the password is loaded.
+
+Suggested tooltip (two sentences on separate lines, with natural wrapping):
+
+> Skip recording for all sessions in this app run.
+>
+> Verify your password again after restart.
 
 ---
 
-## 6.5 Wrong Password, Reset, and Pause
+## 6.5 Skip Recording for the Current App Run
 
-If verification fails, the application SHOULD explain that the password is incorrect and allow the user to:
+**Skip Recording** closes the verification dialog and continues the pending connection without recording. It does not cancel the connection.
 
-* try again
-* reset the password
-* pause session recording for the current app run
-
-If the user chooses **Reset Password**:
-
-* The application MUST require:
-  * Encryption Password
-  * Confirm Password
-* The application MUST warn that previously recorded logs still require the old password and cannot be opened with the new one
-
-If the user chooses **Pause Recording**:
-
-* Recording stays disabled only for the current app run
-* The persisted `enabled` setting remains unchanged
-* The next app restart MUST require verification again before recording resumes
+* All subsequent sessions in this app run also skip recording and do not show the verification dialog again.
+* The runtime recording password is cleared; existing active recorders are stopped if present.
+* The persisted enabled setting and password verifier remain unchanged.
+* Restart clears the temporary skip state; if recording is still enabled, the first connection requires password verification again.
+* Users can explicitly resume recording for new sessions through Verify Password in Settings -> Session Recording. Skipped activity is not recorded retroactively.
+* Reset Password is not offered in the connection dialog. Users who forgot the password can skip recording, then open Settings -> Session Recording and use Change Password to set a new password for subsequent recordings.
 
 ```mermaid
 flowchart TD
-    A[Verification dialog] --> B{User action}
-    B -- Retry with password --> C[Validate password]
-    C -- Success --> D[Continue connect with recording]
-    C -- Failure --> A
-    B -- Reset password --> E[Show reset form with confirm password]
-    E --> F[Warn old logs still need previous password]
-    F --> G[Save new password for current run and new verifier]
-    G --> D
-    B -- Pause recording --> H[Pause recording for this app run]
-    H --> I[Continue connect without recording]
+    A[First connection after restart] --> B{Recording needs password verification?}
+    B -- No --> C[Connect normally]
+    B -- Yes --> D[Verification dialog: Skip Recording / OK]
+    D -- OK --> E{Password correct?}
+    E -- Yes --> F[Load runtime password and close dialog]
+    F --> G[Continue connection with recording]
+    E -- No --> D
+    D -- Skip Recording --> H[Skip all sessions for this app run and close dialog]
+    H --> I[Continue connection without recording]
 ```
 
 ---

@@ -155,7 +155,9 @@ Responsibilities:
 - delete old files when retention or total-storage limits are exceeded
 - decrypt selected `.irlog` files for preview and `.txt` export
 
-The frontend gates the first post-restart connection when recording is enabled but no runtime password is loaded.
+The frontend gates the first post-restart connection when recording is enabled but no runtime password is loaded. The verification dialog offers only **Skip Recording** and **OK**, with no cancellation, reset, close, or Escape dismissal. A themed, multiline tooltip on Skip Recording explains the scope on hover or keyboard focus, without repeating it in the dialog body; the persisted enabled setting is untouched and restart requires verification again.
+
+Password management is separate in Settings -> Session Recording. Verification loads the existing password and resumes recording for new sessions without replacing its verifier. Ordinary settings saves preserve the password. First-time setup and the single Change Password action require a new password and confirmation, with no old-password validation or separate reset flow. The backend accepts settings and an optional new password, without an old-password or reset flag parameter. An inline warning explains that changes affect new recordings only: each existing log retains its original password, and changing the password cannot recover logs whose password was forgotten.
 
 ```mermaid
 flowchart TD
@@ -163,15 +165,12 @@ flowchart TD
     B -- No --> C[Call connect_session]
     B -- Yes --> D[Open verification dialog]
     D --> E{User action}
-    E -- Verify password --> F[verify_session_recording_password]
+    E -- OK / verify password --> F[verify_session_recording_password]
     F --> G[Update recording status and show mode notice]
     G --> C
-    E -- Pause for this run --> H[pause_session_recording_for_run]
+    E -- Skip Recording for all sessions this run --> H[pause_session_recording_for_run]
     H --> I[Update status and continue without recording]
     I --> C
-    E -- Reset password --> J[update_session_recording_settings with new password]
-    J --> K[Persist new verifier and load new runtime password]
-    K --> C
 ```
 
 ### Credentials
