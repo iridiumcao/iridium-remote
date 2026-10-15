@@ -167,7 +167,7 @@ If you are specifically looking for user operation records, there are two main p
 
 | Task | Command |
 | --- | --- |
-| Install dependencies | `npm install` |
+| Install locked dependencies | `npm ci` |
 | Run frontend only | `npm run dev` |
 | Run desktop app in development | `npm run tauri -- dev` |
 | Lint | `npm run lint` |
@@ -175,6 +175,8 @@ If you are specifically looking for user operation records, there are two main p
 | Build frontend assets | `npm run build` |
 | Check Rust backend | `cargo check --manifest-path src-tauri\Cargo.toml` |
 | Build desktop app | `npm run tauri -- build` |
+
+For dependency updates, follow the [dependency update workflow](doc/development-setup.md#updating-dependencies).
 
 ## Releases
 
