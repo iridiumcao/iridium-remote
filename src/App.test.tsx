@@ -379,7 +379,7 @@ describe('App', () => {
     expect(appClient.connectSession).not.toHaveBeenCalled()
 
     await user.type(screen.getByLabelText('Encryption password'), 'super-secret')
-    await user.click(screen.getByRole('button', { name: 'Verify and Continue' }))
+    await user.click(screen.getByRole('button', { name: 'OK' }))
 
     await waitFor(() => {
       expect(appClient.verifySessionRecordingPassword).toHaveBeenCalledWith('super-secret')
@@ -418,7 +418,7 @@ describe('App', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Connect Alpha' }))
-    await user.click(screen.getByRole('button', { name: 'Pause Recording' }))
+    await user.click(screen.getByRole('button', { name: 'Skip Recording' }))
 
     await waitFor(() => {
       expect(appClient.pauseSessionRecordingForRun).toHaveBeenCalled()
@@ -426,7 +426,12 @@ describe('App', () => {
     await waitFor(() => {
       expect(appClient.connectSession).toHaveBeenCalledWith('connection-1')
     })
-    expect(screen.getByText('Session recording is paused for this app run.')).toBeInTheDocument()
+    expect(screen.getByText('Recording is skipped for all sessions in this app run.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Verify Session Recording Password' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Connect Beta' }))
+    await waitFor(() => expect(appClient.connectSession).toHaveBeenCalledWith('connection-2'))
+    expect(appClient.pauseSessionRecordingForRun).toHaveBeenCalledTimes(1)
+    expect(appClient.verifySessionRecordingPassword).not.toHaveBeenCalled()
   })
 
   it('keeps the current tab active when the clicked connection has no open session', async () => {

@@ -143,15 +143,15 @@ type Dictionary = {
   sessionRecordingUnlockDescription: string
   sessionRecordingUnlockContinue: string
   sessionRecordingUnlockPause: string
-  sessionRecordingUnlockReset: string
-  sessionRecordingResetTitle: string
-  sessionRecordingResetDescription: string
-  sessionRecordingResetWarning: string
-  sessionRecordingResetSubmit: string
+  sessionRecordingSkipHint: string
+  sessionRecordingChangePassword: string
+  sessionRecordingVerifyPassword: string
+  sessionRecordingNewPassword: string
+  sessionRecordingVerifyBeforeSave: string
+  sessionRecordingPasswordChangeWarning: string
   back: string
   sessionRecordingPausedNotice: string
   sessionRecordingVerifiedNotice: (modeLabel: string) => string
-  sessionRecordingResetNotice: (modeLabel: string) => string
   sessionRecordingModeCompact: string
   sessionRecordingModeDetailed: string
   recordingIndicator: string
@@ -381,12 +381,10 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingPasswordHint:
       'The encryption password stays in memory only. After restart, enter the existing password once to verify it before recording resumes.',
     sessionRecordingPasswordLoaded: 'An encryption password is currently loaded for this app run.',
-    sessionRecordingPasswordNeedsVerification:
-      'No password is loaded right now. You can leave these fields empty if you only want to keep the existing password and verify it later.',
+    sessionRecordingPasswordNeedsVerification: 'The existing password needs verification. Verify it here or when opening your first connection.',
     sessionRecordingPasswordMissing:
       'No encryption password has been configured yet. Recording cannot start until you set one.',
-    sessionRecordingPausedForRun:
-      'Session recording is paused for the current app run. Enter the password again to resume recording.',
+    sessionRecordingPausedForRun: 'Recording is skipped for all sessions in this app run. Verify the existing password to resume recording.',
     sessionRecordingWarning:
       'Full session recording may capture sensitive information, including secrets displayed in terminal output.',
     sessionRecordingStorage: 'Storage policy',
@@ -397,22 +395,18 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingCurrentUsage: 'Current usage',
     sessionRecordingSaveSuccess: 'Updated the session recording settings.',
     sessionRecordingUnlockTitle: 'Verify Session Recording Password',
-    sessionRecordingUnlockDescription:
-      'Session recording is enabled. For security, enter the encryption password before opening the first connection in this app run.',
-    sessionRecordingUnlockContinue: 'Verify and Continue',
-    sessionRecordingUnlockPause: 'Pause Recording',
-    sessionRecordingUnlockReset: 'Reset Password',
-    sessionRecordingResetTitle: 'Reset Session Recording Password',
-    sessionRecordingResetDescription:
-      'Set a new encryption password to keep recording in this app run.',
-    sessionRecordingResetWarning:
-      'If you reset the password, logs encrypted with the old password can no longer be opened with the new one.',
-    sessionRecordingResetSubmit: 'Reset Password',
-    sessionRecordingPausedNotice: 'Session recording is paused for this app run.',
+    sessionRecordingUnlockDescription: 'Enter the encryption password to continue connecting with session recording.',
+    sessionRecordingUnlockContinue: 'OK',
+    sessionRecordingUnlockPause: 'Skip Recording',
+    sessionRecordingSkipHint: 'Skip recording for all sessions in this app run.\nVerify your password again after restart.',
+    sessionRecordingChangePassword: 'Change Password',
+    sessionRecordingVerifyPassword: 'Verify Password',
+    sessionRecordingNewPassword: 'New password',
+    sessionRecordingVerifyBeforeSave: 'Verify the existing password with OK, or cancel password verification before saving settings.',
+    sessionRecordingPasswordChangeWarning: 'The new password applies to new recordings only. Existing logs still require the password used when they were recorded; changing the password cannot recover logs whose password was forgotten.',
+    sessionRecordingPausedNotice: 'Recording is skipped for all sessions in this app run.',
     sessionRecordingVerifiedNotice: (modeLabel) =>
       `Password verified. ${modeLabel} session recording is active for this app run.`,
-    sessionRecordingResetNotice: (modeLabel) =>
-      `Password reset. Older logs still require the previous password. ${modeLabel} session recording is active for this app run.`,
     sessionRecordingModeCompact: 'Compact',
     sessionRecordingModeDetailed: 'Detailed',
     recordingIndicator: '● Recording',
@@ -645,10 +639,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingPasswordHint:
       '加密密码只保留在当前运行内存中。重启应用后，只需再次输入已有密码完成验证即可恢复记录。',
     sessionRecordingPasswordLoaded: '当前应用运行期间已加载加密密码。',
-    sessionRecordingPasswordNeedsVerification:
-      '当前还没有加载密码。如仅保留已有密码，可留空这些字段，等首次连接前再验证。',
+    sessionRecordingPasswordNeedsVerification: '已有密码尚未验证。可在此验证，或在首次连接时验证。',
     sessionRecordingPasswordMissing: '当前还没有设置录制密码，设置后才能开始记录。',
-    sessionRecordingPausedForRun: '当前这次应用运行已暂停日志记录，重新输入密码即可恢复。',
+    sessionRecordingPausedForRun: '本次软件运行期间的所有会话均跳过录制。验证已有密码即可恢复录制。',
     sessionRecordingWarning: '完整会话录制可能会捕获终端输出中的敏感信息，包括密钥和机密数据。',
     sessionRecordingStorage: '存储策略',
     sessionRecordingMaxFileSize: '单个日志文件上限（MB）',
@@ -658,21 +651,18 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingCurrentUsage: '当前占用',
     sessionRecordingSaveSuccess: '已更新会话录制设置。',
     sessionRecordingUnlockTitle: '验证操作日志密码',
-    sessionRecordingUnlockDescription:
-      '已启用操作日志记录。出于安全考虑，在本次运行中打开第一个连接前，需要先输入加密密码完成验证。',
-    sessionRecordingUnlockContinue: '验证并继续',
-    sessionRecordingUnlockPause: '暂停记录',
-    sessionRecordingUnlockReset: '重置密码',
-    sessionRecordingResetTitle: '重置操作日志密码',
-    sessionRecordingResetDescription: '设置新的加密密码，并在当前这次运行中继续记录操作日志。',
-    sessionRecordingResetWarning:
-      '如果重置密码，用旧密码加密保存的操作日志将无法再用新密码查看。',
-    sessionRecordingResetSubmit: '重置密码',
-    sessionRecordingPausedNotice: '本次应用运行已暂停记录操作日志。',
+    sessionRecordingUnlockDescription: '输入加密密码，以继续连接并录制会话。',
+    sessionRecordingUnlockContinue: '确定',
+    sessionRecordingUnlockPause: '跳过录制',
+    sessionRecordingSkipHint: '本次软件运行期间的所有会话均不录制。\n重启后需重新验证密码。',
+    sessionRecordingChangePassword: '修改密码',
+    sessionRecordingVerifyPassword: '验证密码',
+    sessionRecordingNewPassword: '新密码',
+    sessionRecordingVerifyBeforeSave: '请先点击“确定”验证已有密码，或取消密码验证后再保存设置。',
+    sessionRecordingPasswordChangeWarning: '新密码仅用于后续录制。已有日志仍需各自录制时使用的密码，修改密码无法恢复忘记密码的日志。',
+    sessionRecordingPausedNotice: '本次软件运行期间的所有会话均跳过录制。',
     sessionRecordingVerifiedNotice: (modeLabel) =>
       `密码验证成功，已恢复${modeLabel}操作日志记录。`,
-    sessionRecordingResetNotice: (modeLabel) =>
-      `密码已重置。旧日志仍需使用旧密码查看，当前已恢复${modeLabel}操作日志记录。`,
     sessionRecordingModeCompact: '精简',
     sessionRecordingModeDetailed: '详细',
     recordingIndicator: '● 正在录制',
@@ -901,10 +891,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingPasswordHint:
       '加密密碼只會保留在目前執行的記憶體中。重新啟動應用程式後，只需再次輸入既有密碼完成驗證即可恢復記錄。',
     sessionRecordingPasswordLoaded: '目前應用程式執行期間已載入加密密碼。',
-    sessionRecordingPasswordNeedsVerification:
-      '目前尚未載入密碼。若只是保留既有密碼，可以先留空這些欄位，等第一次連線前再驗證。',
+    sessionRecordingPasswordNeedsVerification: '既有密碼尚未驗證。可在此驗證，或在首次連線時驗證。',
     sessionRecordingPasswordMissing: '目前尚未設定錄製密碼，設定後才能開始記錄。',
-    sessionRecordingPausedForRun: '目前這次應用程式執行已暫停日誌記錄，重新輸入密碼即可恢復。',
+    sessionRecordingPausedForRun: '本次軟體執行期間的所有會話均略過錄製。驗證既有密碼即可恢復錄製。',
     sessionRecordingWarning: '完整會話錄製可能會擷取終端機輸出中的敏感資訊，包括金鑰與機密資料。',
     sessionRecordingStorage: '儲存策略',
     sessionRecordingMaxFileSize: '單一日誌檔案上限（MB）',
@@ -914,21 +903,18 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionRecordingCurrentUsage: '目前用量',
     sessionRecordingSaveSuccess: '已更新會話錄製設定。',
     sessionRecordingUnlockTitle: '驗證操作日誌密碼',
-    sessionRecordingUnlockDescription:
-      '已啟用操作日誌記錄。基於安全考量，在目前這次執行中開啟第一個連線前，需要先輸入加密密碼完成驗證。',
-    sessionRecordingUnlockContinue: '驗證並繼續',
-    sessionRecordingUnlockPause: '暫停記錄',
-    sessionRecordingUnlockReset: '重設密碼',
-    sessionRecordingResetTitle: '重設操作日誌密碼',
-    sessionRecordingResetDescription: '設定新的加密密碼，並在目前這次執行中繼續記錄操作日誌。',
-    sessionRecordingResetWarning:
-      '如果重設密碼，使用舊密碼加密儲存的操作日誌將無法再用新密碼檢視。',
-    sessionRecordingResetSubmit: '重設密碼',
-    sessionRecordingPausedNotice: '目前這次應用程式執行已暫停記錄操作日誌。',
+    sessionRecordingUnlockDescription: '輸入加密密碼，以繼續連線並錄製會話。',
+    sessionRecordingUnlockContinue: '確定',
+    sessionRecordingUnlockPause: '略過錄製',
+    sessionRecordingSkipHint: '本次軟體執行期間的所有會話均不錄製。\n重新啟動後需再次驗證密碼。',
+    sessionRecordingChangePassword: '修改密碼',
+    sessionRecordingVerifyPassword: '驗證密碼',
+    sessionRecordingNewPassword: '新密碼',
+    sessionRecordingVerifyBeforeSave: '請先點擊「確定」驗證既有密碼，或取消密碼驗證後再儲存設定。',
+    sessionRecordingPasswordChangeWarning: '新密碼僅用於後續錄製。既有日誌仍需各自錄製時使用的密碼，修改密碼無法恢復忘記密碼的日誌。',
+    sessionRecordingPausedNotice: '本次軟體執行期間的所有會話均略過錄製。',
     sessionRecordingVerifiedNotice: (modeLabel) =>
       `密碼驗證成功，已恢復${modeLabel}操作日誌記錄。`,
-    sessionRecordingResetNotice: (modeLabel) =>
-      `密碼已重設。舊日誌仍需使用舊密碼檢視，目前已恢復${modeLabel}操作日誌記錄。`,
     sessionRecordingModeCompact: '精簡',
     sessionRecordingModeDetailed: '詳細',
     recordingIndicator: '● 正在錄製',
