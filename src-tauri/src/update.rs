@@ -199,6 +199,8 @@ mod tests {
                         Err(error) => panic!("Failed to accept HTTP request: {error}"),
                     }
                 };
+                // Windows can inherit the listener's nonblocking mode on accepted sockets.
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(5)))
                     .unwrap();

@@ -586,6 +586,20 @@ Internet access. Proxy-based access needs a separate manual desktop check.
 
 ### Larger upgrades and desktop validation
 
+The SSH transport uses `russh 0.64.1`, retaining compatible `russh-config 0.58`
+and `russh-sftp 2.4`. Run its focused regression tests with:
+
+```sh
+cargo test --manifest-path src-tauri/Cargo.toml --locked transfer::protocol_tests
+```
+
+These tests use an in-memory SSH/SFTP server and temporary keys; no external SSH
+host or changes to `~/.ssh` are needed. Host certificates and `@cert-authority`
+trust are not supported by the app's SFTP client. russh 0.64 also removes support
+for non-standard legacy Ed25519 keys written by russh versions before 0.43; use
+standard OpenSSH keys. See the
+[russh 0.64 release notes](https://github.com/Eugeny/russh/releases/tag/v0.64.0).
+
 Upgrade related packages together, including React and React DOM, Tailwind and
 its Vite plugin, and compatible Tauri JavaScript packages and Rust crates. Check
 release notes before accepting a new major version or moving a Rust `0.x` crate
