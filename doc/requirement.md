@@ -83,12 +83,14 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - Encryption passwords must never be stored permanently.
 - After app restart, if session recording is still enabled but no runtime recording password is loaded, the first connection attempt must open a password-verification dialog instead of forcing the user to set a brand-new password.
 - The verification dialog must let the user:
-  - enter the existing password once to continue
+  - enter the existing password and select **OK** to continue with recording
   - retry after a wrong password
-  - reset the recording password after warning that older logs will still require the previous password
-  - pause session recording for the current app run and continue without recording
-- Pausing recording for the current app run must not disable the persisted setting. The next restart should require verification again.
-- When a runtime password is already loaded, the password field should show a masked placeholder instead of appearing blank.
+  - select **Skip Recording** to continue without recording for all sessions in the current app run
+- The verification dialog has exactly **Skip Recording** and **OK**, without Cancel, reset, close, Escape, or backdrop dismissal. The skip-button tooltip explains its scope on hover or keyboard focus; the explanation is not repeated in the dialog body.
+- Skipping recording for the current app run must not disable the persisted setting. The next restart should require verification again.
+- Password management is in Settings -> Session Recording. Existing passwords show their status, Verify Password to resume recording, and a single Change Password action without a separate Reset Password action. Ordinary settings saves preserve the existing password.
+- First-time setup and Change Password require only a new password (minimum 8 characters) and matching confirmation, without old-password verification. Change Password shows an inline warning that each existing log still requires the password used when it was recorded; changing the password does not recover or re-encrypt those logs.
+- Verify Password loads the existing password without replacing it and can resume recording for new sessions after skipping.
 - The log directory must be configurable from the Session Recording dialog.
 - Recorded log files must rotate when they reach the configured max file size.
 - Old log files must be deleted automatically when they exceed the configured retention period or total storage cap.
