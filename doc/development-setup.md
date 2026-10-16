@@ -29,7 +29,8 @@ Before you run the app, make sure your machine has:
 This repository currently uses:
 
 - local npm scripts from `package.json`
-- **Rust stable** with a minimum version of **1.77.2** (`src-tauri\Cargo.toml`)
+- **Rust stable** with a declared minimum version of **1.90** (`src-tauri\Cargo.toml`),
+  matching the locked Tauri dependencies; use current stable for local and CI builds
 - local Tauri CLI from the project dependencies (`npm run tauri -- ...`)
 
 ## After the toolchain is installed
@@ -553,6 +554,35 @@ declared ranges need an explicit manifest change and a review of migration notes
 For `0.x` dependencies, a minor-version change can be incompatible. Also check
 new dependencies' minimum Rust versions against the toolchain used locally and
 in CI.
+
+The manifest's explicit version floors track the versions already adopted in the
+lockfile; Cargo's default caret requirements still allow compatible updates.
+`aes-gcm` uses a stable `0.11.1` requirement instead of the former release-candidate
+requirement.
+
+The update checker uses `reqwest 0.13.5` with `json` and `rustls-no-provider`.
+`rustls` explicitly enables `ring`, and the update client installs a provider
+before construction. This preserves the existing crypto backend without adopting
+reqwest 0.13's default AWS-LC provider. TLS certificate verification follows the
+platform trust store through `rustls-platform-verifier`; validate GitHub HTTPS
+access on each supported platform, including any locally trusted proxy CA.
+Default reqwest features remain disabled. Environment HTTP/HTTPS proxy support
+is retained; automatic OS proxy discovery and SOCKS support are not enabled.
+See the [reqwest 0.13 migration notes](https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md#v0130).
+
+The backend tests include local HTTP checks for release JSON, required request
+headers, and the redirect fallback when the GitHub API fails. These tests do not
+require GitHub access. They do not replace an HTTPS check against GitHub.
+
+An optional live HTTPS smoke test exercises the same release lookup using direct
+GitHub access (bypassing proxies for this test only):
+
+```sh
+cargo test --manifest-path src-tauri/Cargo.toml --locked github_release_https_smoke_test -- --ignored
+```
+
+This test is ignored by default so the normal suite remains independent of
+Internet access. Proxy-based access needs a separate manual desktop check.
 
 ### Larger upgrades and desktop validation
 
