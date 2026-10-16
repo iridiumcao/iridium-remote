@@ -66,8 +66,9 @@ Iridium Remote is designed for a practical desktop workflow:
 - Optional `Input Only` and `Full Session Recording` modes
 - AES-256-GCM encrypted `.irlog` files with Argon2-derived keys
 - Runtime-only recording passwords that must be verified on the first post-restart connection before recording resumes
-- Masked password placeholder when a runtime recording password is already loaded
-- Wrong-password retry, password reset with an older-log warning, and pause-recording-for-this-run actions
+- First-connection verification offers only **Skip Recording** and **OK**; a themed, multiline button tooltip explains that skipping applies to all sessions in the current app run, without changing the saved enabled setting
+- Password management lives in **Settings -> Session Recording**: verify the existing password to resume, or use the single **Change Password** action to set and confirm a new password without entering the old one, including when it has been forgotten
+- Changed passwords apply to new recordings only; each existing log still requires the password used when it was recorded, and changing the password cannot recover logs whose password was forgotten
 - Chunked compressed writes with automatic file rotation
 - Automatic retention and total-storage cleanup
 - Configurable log directory from the Session Recording dialog
@@ -166,7 +167,7 @@ If you are specifically looking for user operation records, there are two main p
 
 | Task | Command |
 | --- | --- |
-| Install dependencies | `npm install` |
+| Install locked dependencies | `npm ci` |
 | Run frontend only | `npm run dev` |
 | Run desktop app in development | `npm run tauri -- dev` |
 | Lint | `npm run lint` |
@@ -174,6 +175,8 @@ If you are specifically looking for user operation records, there are two main p
 | Build frontend assets | `npm run build` |
 | Check Rust backend | `cargo check --manifest-path src-tauri\Cargo.toml` |
 | Build desktop app | `npm run tauri -- build` |
+
+For dependency updates, follow the [dependency update workflow](doc/development-setup.md#updating-dependencies).
 
 ## Releases
 

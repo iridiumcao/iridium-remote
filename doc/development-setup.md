@@ -29,7 +29,8 @@ Before you run the app, make sure your machine has:
 This repository currently uses:
 
 - local npm scripts from `package.json`
-- **Rust stable** with a minimum version of **1.77.2** (`src-tauri\Cargo.toml`)
+- **Rust stable** with a declared minimum version of **1.90** (`src-tauri\Cargo.toml`),
+  matching the locked Tauri dependencies; use current stable for local and CI builds
 - local Tauri CLI from the project dependencies (`npm run tauri -- ...`)
 
 ## After the toolchain is installed
@@ -39,7 +40,7 @@ Once your platform-specific prerequisites are ready, the repository workflow is 
 ```sh
 git clone https://github.com/iridiumcao/iridium-remote.git
 cd iridium-remote
-npm install
+npm ci
 ```
 
 Recommended validation commands:
@@ -181,7 +182,7 @@ Use PowerShell:
 ```powershell
 git clone https://github.com/iridiumcao/iridium-remote.git
 cd iridium-remote
-npm install
+npm ci
 ```
 
 ### 9. Verify the repository builds
@@ -310,7 +311,7 @@ ssh -V
 ```sh
 git clone https://github.com/iridiumcao/iridium-remote.git
 cd iridium-remote
-npm install
+npm ci
 ```
 
 ### 8. Verify the repository builds
@@ -443,7 +444,7 @@ If you run the app in a minimal or headless environment without a user keyring s
 ```sh
 git clone https://github.com/iridiumcao/iridium-remote.git
 cd iridium-remote
-npm install
+npm ci
 ```
 
 ### 7. Verify the repository builds
@@ -482,7 +483,7 @@ npm run tauri -- dev
 After setup on any platform, this is a good first pass:
 
 ```sh
-npm install
+npm ci
 npm run lint
 npm run test
 npm run build
@@ -504,6 +505,121 @@ Finally, launch the desktop app:
 npm run tauri -- dev
 ```
 
+## Updating dependencies
+
+Run these commands from the repository root. Start with a clean working tree so
+dependency changes are easy to review. Keep `package-lock.json` and
+`src-tauri/Cargo.lock` in version control; do not delete them to update packages.
+
+For normal setup, use `npm ci` to install the committed frontend versions. It
+requires `package.json` and `package-lock.json` to agree and does not update them.
+Use the following workflow when intentionally updating dependencies.
+
+### Frontend updates within the declared ranges
+
+```sh
+npm outdated
+npm update
+npm run lint
+npm run test
+npm run build
+```
+
+`npm outdated` reports installed, wanted, and latest versions; an exit code of 1
+can simply mean updates are available. `npm update` respects the version ranges
+in `package.json` and refreshes `package-lock.json`. By default it does not raise
+the version ranges in `package.json`. Review both files and use `npm ci` to verify
+that the resulting lockfile can be installed reproducibly.
+
+Keep TypeScript on `~6.0.3` while using the current typescript-eslint setup. Its
+documented TypeScript support range is currently `>=4.8.4 <6.1.0`. Before raising
+TypeScript to a new minor or major version, check the
+[typescript-eslint compatibility table](https://typescript-eslint.io/users/dependency-versions/)
+and the installed parser's peer dependencies. Handle a TypeScript 7 upgrade or
+linter migration as a separate change. Do not bypass conflicts with `--force`
+or `--legacy-peer-deps`.
+
+### Rust updates within the declared ranges
+
+```sh
+cargo update --manifest-path src-tauri/Cargo.toml --dry-run
+cargo update --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml --locked
+cargo test --manifest-path src-tauri/Cargo.toml --locked
+```
+
+`cargo update` refreshes `src-tauri/Cargo.lock` within the requirements in
+`src-tauri/Cargo.toml`; it does not raise those requirements. Updates outside the
+declared ranges need an explicit manifest change and a review of migration notes.
+For `0.x` dependencies, a minor-version change can be incompatible. Also check
+new dependencies' minimum Rust versions against the toolchain used locally and
+in CI.
+
+The manifest's explicit version floors track the versions already adopted in the
+lockfile; Cargo's default caret requirements still allow compatible updates.
+`aes-gcm` uses a stable `0.11.1` requirement instead of the former release-candidate
+requirement.
+
+The update checker uses `reqwest 0.13.5` with `json` and `rustls-no-provider`.
+`rustls` explicitly enables `ring`, and the update client installs a provider
+before construction. This preserves the existing crypto backend without adopting
+reqwest 0.13's default AWS-LC provider. TLS certificate verification follows the
+platform trust store through `rustls-platform-verifier`; validate GitHub HTTPS
+access on each supported platform, including any locally trusted proxy CA.
+Default reqwest features remain disabled. Environment HTTP/HTTPS proxy support
+is retained; automatic OS proxy discovery and SOCKS support are not enabled.
+See the [reqwest 0.13 migration notes](https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md#v0130).
+
+The backend tests include local HTTP checks for release JSON, required request
+headers, and the redirect fallback when the GitHub API fails. These tests do not
+require GitHub access. They do not replace an HTTPS check against GitHub.
+
+An optional live HTTPS smoke test exercises the same release lookup using direct
+GitHub access (bypassing proxies for this test only):
+
+```sh
+cargo test --manifest-path src-tauri/Cargo.toml --locked github_release_https_smoke_test -- --ignored
+```
+
+This test is ignored by default so the normal suite remains independent of
+Internet access. Proxy-based access needs a separate manual desktop check.
+
+### Larger upgrades and desktop validation
+
+The SSH transport uses `russh 0.64.1`, retaining compatible `russh-config 0.58`
+and `russh-sftp 2.4`. Run its focused regression tests with:
+
+```sh
+cargo test --manifest-path src-tauri/Cargo.toml --locked transfer::protocol_tests
+```
+
+These tests use an in-memory SSH/SFTP server and temporary keys; no external SSH
+host or changes to `~/.ssh` are needed. Host certificates and `@cert-authority`
+trust are not supported by the app's SFTP client. russh 0.64 also removes support
+for non-standard legacy Ed25519 keys written by russh versions before 0.43; use
+standard OpenSSH keys. See the
+[russh 0.64 release notes](https://github.com/Eugeny/russh/releases/tag/v0.64.0).
+
+Upgrade related packages together, including React and React DOM, Tailwind and
+its Vite plugin, and compatible Tauri JavaScript packages and Rust crates. Check
+release notes before accepting a new major version or moving a Rust `0.x` crate
+to another minor version. Keep those migrations separate from routine lockfile
+updates.
+
+After automated checks pass, launch the desktop app:
+
+```sh
+npm run tauri -- dev
+```
+
+Manually verify SSH connect/disconnect, terminal input and resizing, SFTP
+upload/download, credential saving/loading, and session recording/playback.
+Check Windows, Ubuntu, and macOS before release when desktop dependencies change.
+Commit the manifest and lockfile changes together after reviewing the diff.
+
+The repository already has weekly Dependabot updates for npm, Cargo, and GitHub
+Actions in `.github/dependabot.yml`.
+
 ## Troubleshooting checklist
 
 If the project does not start cleanly, check these first:
@@ -513,7 +629,7 @@ If the project does not start cleanly, check these first:
 3. **`ssh -V` is available on PATH**
 4. **Tauri system dependencies were installed for your platform**
 5. **You restarted the terminal after installing Node.js, Rust, or build tools**
-6. **You ran `npm install` in the repository root**
+6. **You ran `npm ci` in the repository root**
 
 Platform-specific checks:
 

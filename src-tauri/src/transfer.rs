@@ -7,7 +7,7 @@ use std::{
 
 use russh::{
     client::{self, AuthResult, KeyboardInteractiveAuthResponse},
-    keys::{known_hosts, PrivateKeyWithHashAlg},
+    keys::{known_hosts, PrivateKeyWithHashAlg, PublicKeyOrCertificate},
     Disconnect,
 };
 use russh_sftp::{
@@ -71,11 +71,23 @@ impl client::Handler for TransferClientHandler {
 
     async fn check_server_key(
         &mut self,
-        server_public_key: &russh::keys::ssh_key::PublicKey,
+        server_public_key: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
         if !self.strict_host_key_checking {
             return Ok(true);
         }
+
+        // Trust remains based on pinned host keys. Host CA validation is not configured.
+        let PublicKeyOrCertificate::PublicKey {
+            key: server_public_key,
+            ..
+        } = server_public_key
+        else {
+            *self.rejection_reason.lock().expect("host verification mutex poisoned") = Some(
+                "SFTP host certificate verification is not supported. Configure the server to offer a trusted plain host key.".to_string(),
+            );
+            return Ok(false);
+        };
 
         let verification = if let Some(path) = self.known_hosts_path.as_ref() {
             known_hosts::check_known_hosts_path(&self.host, self.port, server_public_key, path)
@@ -790,6 +802,9 @@ fn join_remote_path(base: &str, name: &str) -> String {
 fn is_visible_remote_entry(name: &str) -> bool {
     !name.starts_with('.')
 }
+
+#[cfg(test)]
+mod protocol_tests;
 
 #[cfg(test)]
 mod tests {

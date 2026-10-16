@@ -155,7 +155,9 @@ Responsibilities:
 - delete old files when retention or total-storage limits are exceeded
 - decrypt selected `.irlog` files for preview and `.txt` export
 
-The frontend gates the first post-restart connection when recording is enabled but no runtime password is loaded.
+The frontend gates the first post-restart connection when recording is enabled but no runtime password is loaded. The verification dialog offers only **Skip Recording** and **OK**, with no cancellation, reset, close, or Escape dismissal. A themed, multiline tooltip on Skip Recording explains the scope on hover or keyboard focus, without repeating it in the dialog body; the persisted enabled setting is untouched and restart requires verification again.
+
+Password management is separate in Settings -> Session Recording. Verification loads the existing password and resumes recording for new sessions without replacing its verifier. Ordinary settings saves preserve the password. First-time setup and the single Change Password action require a new password and confirmation, with no old-password validation or separate reset flow. The backend accepts settings and an optional new password, without an old-password or reset flag parameter. An inline warning explains that changes affect new recordings only: each existing log retains its original password, and changing the password cannot recover logs whose password was forgotten.
 
 ```mermaid
 flowchart TD
@@ -163,15 +165,12 @@ flowchart TD
     B -- No --> C[Call connect_session]
     B -- Yes --> D[Open verification dialog]
     D --> E{User action}
-    E -- Verify password --> F[verify_session_recording_password]
+    E -- OK / verify password --> F[verify_session_recording_password]
     F --> G[Update recording status and show mode notice]
     G --> C
-    E -- Pause for this run --> H[pause_session_recording_for_run]
+    E -- Skip Recording for all sessions this run --> H[pause_session_recording_for_run]
     H --> I[Update status and continue without recording]
     I --> C
-    E -- Reset password --> J[update_session_recording_settings with new password]
-    J --> K[Persist new verifier and load new runtime password]
-    K --> C
 ```
 
 ### Credentials
@@ -182,6 +181,19 @@ flowchart TD
 
 `src-tauri\src\transfer.rs` uses a `russh` + `russh-sftp` client flow instead of shelling out to the system `sftp` binary.
 The transfer dialog uses Tauri's native file dialogs for local file/folder selection and a lightweight SFTP-backed remote path listing command for browsing remote files and folders. The remote browser filters out dot-prefixed hidden entries by default. Transfers and remote browsing support saved-password auth plus non-interactive SSH-key auth through standard SSH config and identity files, remote directory transfers recurse through the SFTP client, and the remote work runs asynchronously with explicit timeouts so a slow or misbehaving host does not freeze the app window.
+
+The transport uses `russh 0.64.1` with `ring`, `flate2`, and RSA support, together
+with `russh-config 0.58` and `russh-sftp 2.4`. Host trust remains based on pinned
+public keys in `known_hosts`. The new public-key-or-certificate callback verifies
+plain keys as before and explicitly rejects certificates under strict checking;
+host CA trust is not implemented. Certificate algorithms remain unadvertised by
+the default client configuration. An explicit `StrictHostKeyChecking no` still
+disables host verification. Terminal sessions continue to use system OpenSSH.
+
+In-memory protocol tests exercise the real SSH handshake, saved-password auth,
+identity-file fallback after password rejection, and SFTP initialization plus a
+canonical-path request. Separate host-key tests cover trusted, changed, missing,
+and certificate keys using temporary test files rather than the user's SSH files.
 
 ## Settings persistence
 
