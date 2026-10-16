@@ -1047,8 +1047,15 @@ mod tests {
             mode: SessionRecordingMode::Full,
             ..SessionRecordingSettings::default()
         };
+        let seed = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let old_password = format!("old-secret-{seed}");
+        let new_password = format!("new-secret-{seed}");
+
         let mut old_recorder = SessionRecorder::new(
-            logs_dir.clone(), settings.clone(), "old-secret".into(), &test_connection(),
+            logs_dir.clone(), settings.clone(), old_password.clone().into(), &test_connection(),
         ).expect("old recorder");
         old_recorder.record_output("old session\r\n").expect("old output");
         old_recorder.finish().expect("finish old recording");
@@ -1057,19 +1064,19 @@ mod tests {
 
         let manager = RecordingManager::new(
             logs_dir.clone(), settings.clone(),
-            Some(build_password_verifier("old-secret").expect("old verifier")),
+            Some(build_password_verifier(&old_password).expect("old verifier")),
         ).expect("manager");
         assert!(!manager.status().expect("initial status").password_loaded);
-        let new_verifier = build_password_verifier("new-secret").expect("new verifier");
+        let new_verifier = build_password_verifier(&new_password).expect("new verifier");
         let status = manager.update_settings(
-            settings.clone(), Some("new-secret".into()), Some(new_verifier.clone()),
+            settings.clone(), Some(new_password.clone().into()), Some(new_verifier.clone()),
         ).expect("change without old password");
         assert!(status.can_record);
-        assert!(manager.verify_password("old-secret".into(), None).is_err());
-        assert!(manager.verify_password("new-secret".into(), None).is_ok());
-        assert_eq!(manager.preview_logs(old_paths.clone(), "old-secret".into())
+        assert!(manager.verify_password(old_password.clone().into(), None).is_err());
+        assert!(manager.verify_password(new_password.clone().into(), None).is_ok());
+        assert_eq!(manager.preview_logs(old_paths.clone(), old_password.clone().into())
             .expect("old logs still open with old password").preview_text, "old session\n");
-        assert!(manager.preview_logs(old_paths.clone(), "new-secret".into()).is_err());
+        assert!(manager.preview_logs(old_paths.clone(), new_password.clone().into()).is_err());
 
         let mut connection = test_connection();
         connection.host = "new.example.com".into();
@@ -1081,14 +1088,14 @@ mod tests {
             .into_iter().map(|file| file.path.display().to_string())
             .filter(|path| !old_paths.contains(path)).collect::<Vec<_>>();
         assert_eq!(new_paths.len(), 1);
-        assert_eq!(manager.preview_logs(new_paths.clone(), "new-secret".into())
+        assert_eq!(manager.preview_logs(new_paths.clone(), new_password.clone().into())
             .expect("new logs use new password").preview_text, "new session\n");
-        assert!(manager.preview_logs(new_paths, "old-secret".into()).is_err());
+        assert!(manager.preview_logs(new_paths, old_password.clone().into()).is_err());
 
         let restarted = RecordingManager::new(logs_dir.clone(), settings, Some(new_verifier))
             .expect("restart");
-        assert!(restarted.verify_password("old-secret".into(), None).is_err());
-        assert!(restarted.verify_password("new-secret".into(), None).expect("new password after restart").can_record);
+        assert!(restarted.verify_password(old_password.into(), None).is_err());
+        assert!(restarted.verify_password(new_password.into(), None).expect("new password after restart").can_record);
         let _ = std::fs::remove_dir_all(logs_dir);
     }
 
