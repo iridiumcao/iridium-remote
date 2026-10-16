@@ -145,7 +145,7 @@ Iridium Remote 面向日常遠端維運與開發流程，重點提供：
 
 | 工作 | 命令 |
 | --- | --- |
-| 安裝相依 | `npm install` |
+| 依鎖定檔安裝相依 | `npm ci` |
 | 僅執行前端 | `npm run dev` |
 | 執行桌面開發版 | `npm run tauri -- dev` |
 | 程式碼檢查 | `npm run lint` |
@@ -153,6 +153,8 @@ Iridium Remote 面向日常遠端維運與開發流程，重點提供：
 | 建置前端資源 | `npm run build` |
 | 檢查 Rust 後端 | `cargo check --manifest-path src-tauri\Cargo.toml` |
 | 建置桌面應用程式 | `npm run tauri -- build` |
+
+更新前後端相依請參考[相依更新流程](doc/development-setup.md#updating-dependencies)。
 
 ## 發佈
 

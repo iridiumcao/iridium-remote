@@ -182,6 +182,19 @@ flowchart TD
 `src-tauri\src\transfer.rs` uses a `russh` + `russh-sftp` client flow instead of shelling out to the system `sftp` binary.
 The transfer dialog uses Tauri's native file dialogs for local file/folder selection and a lightweight SFTP-backed remote path listing command for browsing remote files and folders. The remote browser filters out dot-prefixed hidden entries by default. Transfers and remote browsing support saved-password auth plus non-interactive SSH-key auth through standard SSH config and identity files, remote directory transfers recurse through the SFTP client, and the remote work runs asynchronously with explicit timeouts so a slow or misbehaving host does not freeze the app window.
 
+The transport uses `russh 0.64.1` with `ring`, `flate2`, and RSA support, together
+with `russh-config 0.58` and `russh-sftp 2.4`. Host trust remains based on pinned
+public keys in `known_hosts`. The new public-key-or-certificate callback verifies
+plain keys as before and explicitly rejects certificates under strict checking;
+host CA trust is not implemented. Certificate algorithms remain unadvertised by
+the default client configuration. An explicit `StrictHostKeyChecking no` still
+disables host verification. Terminal sessions continue to use system OpenSSH.
+
+In-memory protocol tests exercise the real SSH handshake, saved-password auth,
+identity-file fallback after password rejection, and SFTP initialization plus a
+canonical-path request. Separate host-key tests cover trusted, changed, missing,
+and certificate keys using temporary test files rather than the user's SSH files.
+
 ## Settings persistence
 
 Persisted settings currently include:
