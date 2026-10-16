@@ -13,7 +13,11 @@ type SessionRecordingDialogProps = {
   onClose: () => void
   onOpenFolder: () => void
   onPickLogDirectory: (currentPath: string) => Promise<string | null>
-  onSave: (settings: SessionRecordingSettings, password?: string) => Promise<void>
+  onSave: (
+    settings: SessionRecordingSettings,
+    password?: string,
+  ) => Promise<void>
+  onVerify: (password: string) => Promise<void>
   settings: SessionRecordingSettings
   status: SessionRecordingStatus | null
   theme: AppTheme
@@ -37,6 +41,7 @@ export const SessionRecordingDialog = ({
   onOpenFolder,
   onPickLogDirectory,
   onSave,
+  onVerify,
   settings,
   status,
   theme,
@@ -57,6 +62,9 @@ export const SessionRecordingDialog = ({
   })
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [passwordAction, setPasswordAction] = useState<'keep' | 'set' | 'verify' | 'change'>(
+    status?.passwordConfigured ? 'keep' : 'set',
+  )
   const isDark = theme === 'dark'
 
   const inputClass = `w-full rounded-xl border px-3 py-2 outline-none transition ${
@@ -73,11 +81,33 @@ export const SessionRecordingDialog = ({
   const isPasswordConfigured = Boolean(status?.passwordConfigured)
   const isPasswordLoaded = Boolean(status?.passwordLoaded)
 
+  const selectPasswordAction = (action: typeof passwordAction) => {
+    setPasswordAction(action)
+    setFormState((current) => ({ ...current, password: '', confirmPassword: '' }))
+    setError(null)
+  }
+
+  const handleVerify = async () => {
+    if (isSaving) return
+    setIsSaving(true)
+    setError(null)
+    try {
+      await onVerify(formState.password)
+      selectPasswordAction('keep')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t.saveFailed)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleSave = async () => {
+    if (isSaving) return
     const maxFileSizeMb = Number(formState.maxFileSizeMb)
     const maxTotalStorageGb = Number(formState.maxTotalStorageGb)
     const retentionDays = Number(formState.retentionDays)
-    const password = formState.password.trim()
+    const changesPassword = formState.enabled && ['set', 'change'].includes(passwordAction)
+    const password = changesPassword ? formState.password.trim() : ''
     const confirmPassword = formState.confirmPassword.trim()
 
     if (
@@ -93,12 +123,16 @@ export const SessionRecordingDialog = ({
     }
 
     if (formState.enabled) {
-      if (password && password.length < 8) {
+      if (passwordAction === 'verify') {
+        setError(t.sessionRecordingVerifyBeforeSave)
+        return
+      }
+      if (changesPassword && password.length < 8) {
         setError(t.validationPasswordLength)
         return
       }
 
-      if (password !== confirmPassword) {
+      if (changesPassword && password !== confirmPassword) {
         setError(t.validationPasswordConfirm)
         return
       }
@@ -232,37 +266,9 @@ export const SessionRecordingDialog = ({
           ) : null}
         </fieldset>
 
-        <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled}>
+        <fieldset className={`${sectionClass} ${disabledSectionClass}`} disabled={!formState.enabled || isSaving}>
           <div className="space-y-3">
-            <label className="block text-sm">
-              <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                {t.sessionRecordingPassword}
-              </span>
-              <input
-                className={inputClass}
-                onChange={(event) => {
-                  setFormState((current) => ({ ...current, password: event.target.value }))
-                }}
-                 placeholder={isPasswordConfigured ? '********' : undefined}
-                 type="password"
-                 value={formState.password}
-               />
-            </label>
-
-            <label className="block text-sm">
-              <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                {t.confirmSessionRecordingPassword}
-              </span>
-              <input
-                className={inputClass}
-                onChange={(event) => {
-                  setFormState((current) => ({ ...current, confirmPassword: event.target.value }))
-                }}
-                type="password"
-                value={formState.confirmPassword}
-              />
-            </label>
-
+            <p className="text-sm font-medium">{t.sessionRecordingPassword}</p>
             <p className={helperClass}>
               {status?.pausedForRun
                 ? t.sessionRecordingPausedForRun
@@ -272,6 +278,63 @@ export const SessionRecordingDialog = ({
                     ? t.sessionRecordingPasswordNeedsVerification
                     : t.sessionRecordingPasswordMissing}
             </p>
+            {isPasswordConfigured ? (
+              <div className="flex flex-wrap gap-3 text-sm">
+                {!isPasswordLoaded && settings.enabled ? (
+                  <button type="button" className="underline underline-offset-4" onClick={() => selectPasswordAction('verify')}>
+                    {t.sessionRecordingVerifyPassword}
+                  </button>
+                ) : null}
+                <button type="button" className="underline underline-offset-4" onClick={() => selectPasswordAction('change')}>
+                  {t.sessionRecordingChangePassword}
+                </button>
+              </div>
+            ) : null}
+            {passwordAction !== 'keep' ? (
+              <label className="block text-sm">
+                <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                  {passwordAction === 'change' ? t.sessionRecordingNewPassword : t.sessionRecordingPassword}
+                </span>
+                <input
+                  className={inputClass}
+                  onChange={(event) => {
+                    setFormState((current) => ({ ...current, password: event.target.value }))
+                  }}
+                  autoComplete={passwordAction === 'verify' ? 'current-password' : 'new-password'}
+                  type="password"
+                  value={formState.password}
+                />
+              </label>
+            ) : null}
+            {['set', 'change'].includes(passwordAction) ? (
+              <label className="block text-sm">
+                <span className={`mb-2 block font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                  {t.confirmSessionRecordingPassword}
+                </span>
+                <input
+                  className={inputClass}
+                  onChange={(event) => {
+                    setFormState((current) => ({ ...current, confirmPassword: event.target.value }))
+                  }}
+                  type="password"
+                  autoComplete="new-password"
+                  value={formState.confirmPassword}
+                />
+              </label>
+            ) : null}
+            {passwordAction === 'change' ? (
+              <p className={`rounded-xl border px-3 py-2 text-sm ${isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                {t.sessionRecordingPasswordChangeWarning}
+              </p>
+            ) : null}
+            {passwordAction === 'verify' ? (
+              <button type="button" className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950" onClick={() => { void handleVerify() }}>
+                {t.sessionRecordingUnlockContinue}
+              </button>
+            ) : null}
+            {isPasswordConfigured && passwordAction !== 'keep' ? (
+              <button type="button" className="text-sm underline underline-offset-4" onClick={() => selectPasswordAction('keep')}>{t.cancel}</button>
+            ) : null}
           </div>
         </fieldset>
       </div>

@@ -52,6 +52,7 @@ type MockStore = {
   connections: ConnectionRecord[]
   sessions: SessionState[]
   sessionRecordingPassword: string | null
+  sessionRecordingVerificationPassword: string | null
   sessionRecordingPasswordConfigured: boolean
   sessionRecordingPausedForRun: boolean
   sessionLogs: Array<{
@@ -176,6 +177,7 @@ const mockStore: MockStore = {
   connections: [],
   sessions: [],
   sessionRecordingPassword: null,
+  sessionRecordingVerificationPassword: null,
   sessionRecordingPasswordConfigured: false,
   sessionRecordingPausedForRun: false,
   sessionLogs: [],
@@ -1124,6 +1126,7 @@ export const appClient = {
         persistMockSettings(mockStore.settings)
         mockStore.sessionRecordingPassword = null
         mockStore.sessionRecordingPasswordConfigured = false
+        mockStore.sessionRecordingVerificationPassword = null
         mockStore.sessionRecordingPausedForRun = false
         syncMockSessionRecordingState()
         settingsApplied = true
@@ -1230,6 +1233,7 @@ export const appClient = {
       persistMockSettings(mockStore.settings)
       if (normalizedPassword) {
         mockStore.sessionRecordingPassword = normalizedPassword
+        mockStore.sessionRecordingVerificationPassword = normalizedPassword
         mockStore.sessionRecordingPasswordConfigured = true
         mockStore.sessionRecordingPausedForRun = false
       } else if (!settings.enabled) {
@@ -1269,17 +1273,18 @@ export const appClient = {
 
       if (
         mockStore.sessionRecordingPasswordConfigured &&
-        mockStore.sessionRecordingPassword !== null &&
-        normalizedPassword !== mockStore.sessionRecordingPassword
+        mockStore.sessionRecordingVerificationPassword !== null &&
+        normalizedPassword !== mockStore.sessionRecordingVerificationPassword
       ) {
         throw {
           code: 'VALIDATION_ERROR',
           message:
-            'The session recording password is incorrect. Enter it again, pause recording for this run, or reset the password.',
+            'The session recording password is incorrect. Try again, skip recording for this run, or manage the password in Settings > Session Recording.',
         } satisfies AppError
       }
 
       mockStore.sessionRecordingPassword = normalizedPassword
+      mockStore.sessionRecordingVerificationPassword = normalizedPassword
       mockStore.sessionRecordingPasswordConfigured = true
       mockStore.sessionRecordingPausedForRun = false
       return buildMockRecordingStatus()
@@ -1292,6 +1297,7 @@ export const appClient = {
     if (!isTauriRuntime()) {
       mockStore.sessionRecordingPassword = null
       mockStore.sessionRecordingPausedForRun = mockStore.settings.sessionRecording.enabled
+      syncMockSessionRecordingState()
       return buildMockRecordingStatus()
     }
 

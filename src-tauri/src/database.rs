@@ -2339,6 +2339,7 @@ mod tests {
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
             collapsed_groups: vec!["home".into(), "Home".into(), "Work".into()],
+            shortcuts: Default::default(),
             connection_history_collapsed_sections: vec![
                 "hosts".into(),
                 "overview".into(),
@@ -2360,6 +2361,7 @@ mod tests {
     #[test]
     fn normalize_app_settings_keeps_session_recording_defaults() {
         let settings = AppSettings {
+            shortcuts: Default::default(),
             locale: "en".into(),
             theme: "dark".into(),
             connection_list_display_mode: ConnectionListDisplayMode::Normal,
