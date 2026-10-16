@@ -52,7 +52,7 @@ Stores the session-recording settings, updates the runtime password when supplie
 - `appSettings`
 - `status`
 
-`settings` also carries the optional custom `logDirectory` path that becomes the effective recording directory when non-empty. When recording is enabled and `password` is omitted, the backend keeps the existing verifier if one is already configured, so users can save other recording settings without re-entering and confirming a new password.
+`settings` also carries the optional custom `logDirectory` path that becomes the effective recording directory when non-empty. When recording is enabled and `password` is omitted, the backend keeps the existing verifier if one is already configured, so users can save other recording settings without re-entering and confirming a new password. Supplying a new password replaces the verifier and runtime password without requiring or verifying the old password. The command has no old-password or reset flag parameters. The settings UI uses one Change Password action, requiring a new password (minimum 8 characters) and matching confirmation, and shows an inline warning that existing logs retain their original passwords. Changing the password does not recover or re-encrypt existing logs, or replace the password held by already-active recorders; it applies to newly started recordings.
 
 ### `verify_session_recording_password(password) -> SessionRecordingStatus`
 
@@ -60,7 +60,7 @@ Validates the existing recording password for the current app run, loads it into
 
 ### `pause_session_recording_for_run() -> SessionRecordingStatus`
 
-Marks recording as paused for the current app run only, clears the runtime password, and returns the updated status.
+Implements the **Skip Recording** action: skips recording for all sessions in the current app run, clears the runtime password, stops active recorders if present, and returns the updated status. Persisted settings and the password verifier stay unchanged. The frontend closes the dialog and continues the pending connection without recording. Later connections in this run do not prompt again; restart requires verification again. Settings can explicitly clear this temporary state by verifying the existing password. The connection dialog has exactly **Skip Recording** and **OK**, with a themed, multiline tooltip on Skip Recording (shown on hover or keyboard focus, without duplicating the explanation in the dialog body), and no cancellation or reset action.
 
 ```mermaid
 flowchart TD
@@ -68,9 +68,9 @@ flowchart TD
     B -- No --> C[connect_session]
     B -- Yes --> D[Frontend shows verification dialog]
     D --> E{User action}
-    E -- Verify --> F[verify_session_recording_password]
+    E -- OK --> F[verify_session_recording_password]
     F --> C
-    E -- Pause --> G[pause_session_recording_for_run]
+    E -- Skip Recording --> G[pause_session_recording_for_run]
     G --> C
 ```
 
