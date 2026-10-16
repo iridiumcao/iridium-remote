@@ -710,12 +710,7 @@ impl SessionManager {
     }
 
     fn emit_status(&self, app: &AppHandle, payload: &SessionStatePayload) -> AppResult<()> {
-        log::debug!(
-            "Session {}: emitting session-status {:?} ({:?}).",
-            payload.session_id,
-            payload.status,
-            payload.message
-        );
+        log::debug!("Emitting session-status {:?}.", payload.status);
         app.emit("session-status", payload.clone())
             .map_err(|error| {
                 AppError::internal("Failed to emit the session event.", error.to_string())
