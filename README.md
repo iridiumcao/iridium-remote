@@ -183,7 +183,7 @@ For dependency updates, follow the [dependency update workflow](doc/development-
 ## Releases
 
 - Cross-platform release publishing is defined in `.github\workflows\release.yml`.
-- Push a version tag such as `v0.1.6` to trigger the GitHub Actions release pipeline.
+- Push a version tag such as `v0.1.7` to trigger the GitHub Actions release pipeline.
 - Published assets cover:
   - Windows: NSIS installer and MSI package
   - macOS: Apple Silicon and Intel app / DMG bundles

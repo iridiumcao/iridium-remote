@@ -794,8 +794,8 @@ describe('App', () => {
   it('auto-dismisses the update notice after a short delay and plays the exit transition', async () => {
     vi.mocked(appClient.isTauriRuntime).mockReturnValue(true)
     vi.mocked(appClient.checkForUpdates).mockResolvedValue({
-      currentVersion: '0.1.6',
-      latestVersion: '0.1.6',
+      currentVersion: '0.1.7',
+      latestVersion: '0.1.7',
       updateAvailable: false,
     })
 
@@ -815,7 +815,7 @@ describe('App', () => {
       await Promise.resolve()
     })
 
-    expect(screen.getByText('You are up to date. Current version: v0.1.6.')).toBeInTheDocument()
+    expect(screen.getByText('You are up to date. Current version: v0.1.7.')).toBeInTheDocument()
     const notice = screen.getByTestId('app-notice')
     expect(notice).toHaveClass('opacity-100')
 
