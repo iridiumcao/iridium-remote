@@ -6,7 +6,7 @@ use russh::{
     server::{self, Auth, Msg, Session},
     Channel, ChannelId,
 };
-use russh_sftp::protocol::{File, Name, StatusCode};
+use russh_sftp::protocol::{Attrs, File, Handle, Name, Status, StatusCode};
 
 use super::*;
 
@@ -165,14 +165,16 @@ impl server::Handler for TestSshServer {
         session.channel_success(channel)?;
         russh_sftp::server::run(
             self.channels.remove(&channel).unwrap().into_stream(),
-            TestSftpServer,
+            TestSftpServer { listed: false },
         )
         .await;
         Ok(())
     }
 }
 
-struct TestSftpServer;
+struct TestSftpServer {
+    listed: bool,
+}
 
 impl russh_sftp::server::Handler for TestSftpServer {
     type Error = StatusCode;
@@ -181,10 +183,76 @@ impl russh_sftp::server::Handler for TestSftpServer {
         StatusCode::OpUnsupported
     }
 
-    async fn realpath(&mut self, id: u32, _: String) -> Result<Name, Self::Error> {
+    async fn realpath(&mut self, id: u32, path: String) -> Result<Name, Self::Error> {
+        let path = match path.as_str() {
+            "." => "/test",
+            "/alias" => "/test/a.txt",
+            "/missing" => return Err(StatusCode::NoSuchFile),
+            other => other,
+        };
         Ok(Name {
             id,
-            files: vec![File::dummy("/test")],
+            files: vec![File::dummy(path)],
+        })
+    }
+
+    async fn stat(&mut self, id: u32, path: String) -> Result<Attrs, Self::Error> {
+        let mode = match path.as_str() {
+            "/test" | "/denied" => 0o040755,
+            "/test/a.txt" | "/test/.secret" | "/denied/a.txt" => 0o100644,
+            "/test/socket" => 0o140755,
+            _ => return Err(StatusCode::NoSuchFile),
+        };
+        let mut file = File::dummy(path);
+        file.attrs.permissions = Some(mode);
+        Ok(Attrs {
+            id,
+            attrs: file.attrs,
+        })
+    }
+
+    async fn opendir(&mut self, id: u32, path: String) -> Result<Handle, Self::Error> {
+        if path == "/denied" {
+            return Err(StatusCode::PermissionDenied);
+        }
+        if path != "/test" {
+            return Err(StatusCode::NoSuchFile);
+        }
+        self.listed = false;
+        Ok(Handle {
+            id,
+            handle: "test-dir".into(),
+        })
+    }
+
+    async fn readdir(&mut self, id: u32, _: String) -> Result<Name, Self::Error> {
+        if self.listed {
+            return Err(StatusCode::Eof);
+        }
+        self.listed = true;
+        let mut file = File::dummy("a.txt");
+        file.attrs.permissions = Some(0o100644);
+        let mut hidden = File::dummy(".secret");
+        hidden.attrs.permissions = Some(0o100600);
+        Ok(Name {
+            id,
+            files: vec![
+                file,
+                hidden,
+                File::dummy("z-folder"),
+                File::dummy(".hidden"),
+                File::dummy("."),
+                File::dummy(".."),
+            ],
+        })
+    }
+
+    async fn close(&mut self, id: u32, _: String) -> Result<Status, Self::Error> {
+        Ok(Status {
+            id,
+            status_code: StatusCode::Ok,
+            error_message: String::new(),
+            language_tag: String::new(),
         })
     }
 }
@@ -244,7 +312,96 @@ async fn check_authentication_and_sftp(saved_password: &str, use_identity_file: 
             .await
             .unwrap();
         assert_eq!(sftp.canonicalize(".").await.unwrap(), "/test");
-        TransferConnection { ssh, sftp }.close().await.unwrap();
+        // These use the actual SFTP protocol, including canonicalization, stat
+        // and parent listing; no inference from directory-listing errors.
+        let directory = open_remote_path(&sftp, "/test".into(), false)
+            .await
+            .unwrap();
+        assert_eq!(directory.listing.current_path, "/test");
+        assert!(directory.selected_entry.is_directory);
+        let file = open_remote_path(&sftp, "/alias".into(), false)
+            .await
+            .unwrap();
+        assert_eq!(file.listing.current_path, "/test");
+        assert_eq!(file.selected_entry.path, "/test/a.txt");
+        assert!(!file.selected_entry.is_directory);
+        let hidden = open_remote_path(&sftp, "/test/.secret".into(), false)
+            .await
+            .unwrap();
+        assert_eq!(hidden.selected_entry.path, "/test/.secret");
+        assert!(hidden
+            .listing
+            .entries
+            .iter()
+            .any(|entry| entry.name == ".secret"));
+        assert!(!hidden
+            .listing
+            .entries
+            .iter()
+            .any(|entry| entry.name == ".hidden"));
+        for path in ["/missing", "/denied", "/denied/a.txt", "/test/socket"] {
+            assert!(
+                open_remote_path(&sftp, path.into(), false).await.is_err(),
+                "{path}"
+            );
+        }
+        let record = ConnectionRecord {
+            id: "test-host".into(),
+            name: "Test".into(),
+            group_name: None,
+            host: "unused.invalid".into(),
+            port: 22,
+            username: "test-user".into(),
+            has_password: true,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+        };
+        let manager = RemoteBrowserManager::default();
+        // Seed the established in-memory transport. A reconnect would fail at unused.invalid.
+        manager.browsers.lock().unwrap().insert(
+            "panel".into(),
+            BrowserSlot {
+                connection_id: record.id.clone(),
+                updated_at: record.updated_at.clone(),
+                last_used: Instant::now(),
+                client: Arc::new(AsyncMutex::new(Some(TransferConnection { ssh, sftp }))),
+            },
+        );
+        let listing = manager
+            .list("panel".into(), &record, None, None, false)
+            .await
+            .unwrap();
+        assert_eq!(listing.current_path, "/test");
+        assert_eq!(
+            listing
+                .entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            ["z-folder", "a.txt"]
+        );
+        assert!(listing.entries[0].is_directory);
+        assert!(!listing.entries[1].is_directory);
+        let listing = manager
+            .list("panel".into(), &record, None, Some("/test".into()), true)
+            .await
+            .unwrap();
+        assert_eq!(
+            listing
+                .entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            [".hidden", "z-folder", ".secret", "a.txt"]
+        );
+        let opened = manager
+            .open("panel".into(), &record, None, "/test/a.txt".into(), false)
+            .await
+            .unwrap();
+        assert_eq!(opened.selected_entry.path, "/test/a.txt");
+        manager.close("panel").await;
+        manager.close("panel").await;
+        assert!(manager.browsers.lock().unwrap().is_empty());
         server_task.abort();
     })
     .await

@@ -11,7 +11,6 @@ import { SessionRecordingUnlockDialog } from './components/SessionRecordingUnloc
 import { SidebarTabNav, type WorkspaceTab } from './components/SidebarTabNav'
 import { TerminalWorkspace } from './components/TerminalWorkspace'
 import { ToolbarSelect } from './components/ToolbarSelect'
-import { TransferDialog } from './components/TransferDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { PROJECT_URL, REPORT_ISSUE_URL } from './lib/appInfo'
@@ -25,7 +24,6 @@ import type {
   ConnectionRecord,
   ConnectionsExportPayload,
   CreateConnectionInput,
-  FileTransferInput,
   SessionRecordingSettings,
   SessionRecordingStatus,
   SessionState,
@@ -127,7 +125,6 @@ function App() {
   const [isSessionRecordingDialogOpen, setSessionRecordingDialogOpen] = useState(false)
   const [isSettingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [isSessionRecordingUnlockOpen, setSessionRecordingUnlockOpen] = useState(false)
-  const [isTransferDialogOpen, setTransferDialogOpen] = useState(false)
   const [sessionRecordingStatus, setSessionRecordingStatus] =
     useState<SessionRecordingStatus | null>(null)
   const [sessionRecordingUnlockError, setSessionRecordingUnlockError] = useState<string | null>(null)
@@ -680,24 +677,6 @@ function App() {
     },
     [performCloseSession],
   )
-
-  const handleTransfer = async (input: Omit<FileTransferInput, 'connectionId'>) => {
-    if (!activeConnection) {
-      return
-    }
-
-    try {
-      setError(null)
-      const result = await appClient.transferFile({
-        connectionId: activeConnection.id,
-        ...input,
-      })
-      showNotice({ message: result.message })
-    } catch (cause) {
-      const normalized = appClient.normalizeError(cause)
-      throw new Error(normalized.message, { cause })
-    }
-  }
 
   const handleExportConnections = useCallback(async () => {
     try {
@@ -1311,7 +1290,6 @@ function App() {
               onCloseSessions={closeSessions}
               onConnect={selectedConnection ? () => connectToConnection(selectedConnection) : undefined}
               onDisconnect={disconnectSession}
-              onOpenTransfer={activeConnection ? () => setTransferDialogOpen(true) : undefined}
               onSelectSession={selectSession}
               selectedConnection={selectedConnection}
               sessions={sessions}
@@ -1417,18 +1395,6 @@ function App() {
           isSubmitting={isSessionRecordingUnlockPending}
           onPause={handlePauseSessionRecordingForRun}
           onVerify={handleVerifySessionRecordingPassword}
-          open
-          t={t}
-          theme={settings.theme}
-        />
-      ) : null}
-
-      {isTransferDialogOpen && activeConnection ? (
-        <TransferDialog
-          connectionId={activeConnection.id}
-          connectionName={activeConnection.name}
-          onClose={() => setTransferDialogOpen(false)}
-          onTransfer={handleTransfer}
           open
           t={t}
           theme={settings.theme}

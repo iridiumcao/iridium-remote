@@ -209,10 +209,32 @@ Runs an upload or download through the backend `russh`-based SFTP client.
 - File transfers may target either a directory path or a specific file path rename when the source is a file.
 - Directory transfers require the destination side to be a directory.
 - The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for transfers.
+- Transfers use an independent connection, not the browser's cached connection. Same-name files are replaced and directory contents are merged; the panel asks the user to confirm before invoking this command.
+- Connection setup and SFTP requests time out after 15 seconds. File streaming has a 300-second read/write stall timeout and no fixed total duration limit.
 
-### `list_remote_directory(connectionId, path?) -> RemotePathListing`
+### `list_remote_directory(connectionId, path?, browserId?, showHidden?) -> RemotePathListing`
 
-Lists remote files and folders for the lightweight SFTP-backed remote path browser used by the transfer dialog. Entries whose names start with `.` are omitted by default. The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for this lookup, and return an explicit error instead of hanging when the remote host cannot complete the listing.
+Lists a single remote directory for the lazy-loaded file tree. Blank `path` resolves to the SFTP user's initial directory. `showHidden` defaults to false; `.` and `..` are always omitted. The response remains `{ currentPath, entries: [{ name, path, isDirectory }] }`, sorted directories first, then case-insensitively by name.
+
+An optional `browserId` (the panel's terminal session ID) reuses a serialized browser connection with a 60-second idle lifetime. Without it, each call connects and closes independently. Saved connection changes invalidate the client; listing errors/timeouts discard it so the next attempt reconnects. A directory operation times out after 15 seconds, in addition to at most 15 seconds waiting for its browser lock. Saved-password and non-interactive SSH-key authentication remain supported independently of the terminal login.
+
+### `open_remote_path(connectionId, browserId, path, showHidden?) -> RemotePathOpening`
+
+Opens a directory or locates a regular file using the same pooled browser connection, authentication and timeouts as listing. The response is `{ listing: RemotePathListing, selectedEntry: RemotePathEntry }`. SFTP canonicalization and metadata determine the target type before listing. A directory returns its own listing/selection; a file returns its parent's listing and the canonical file entry. No file contents are opened or executed. The frontend resolves relative input against its committed browsing directory before calling this command; blank input resolves to the SFTP login directory.
+
+`showHidden` defaults to false. An explicitly requested hidden file is included so the UI can select it without changing that preference; other hidden entries remain filtered. Missing paths, metadata/listing permission failures, disappearing files and unsupported special objects return errors. A failed directory listing is never retried as if it were a file. The frontend commits navigation only after success and ignores stale responses from earlier navigation/visibility settings.
+
+### `close_remote_browser(browserId) -> ()`
+
+Removes and closes a cached browser connection. Safe to call repeatedly or with an unknown ID. Called when a panel becomes hidden or unmounts; it does not cancel file transfers. Closing an in-flight browser waits for its lock, bounded by 15 seconds.
+
+### `search_remote_files(input) -> RemoteSearchResult`
+
+`input` contains `connectionId`, `path`, `mode` (`name` or `content`), `query`, and optional `showHidden` (default false). The nonempty query is a case-insensitive literal substring, limited to 1024 UTF-8 bytes. The UI sends a selected directory as the recursive scope; for a selected file it sends the parent directory for name search and the file itself for content search.
+
+The response contains `matches`, `scannedEntries`, `skippedEntries` and `truncated`. Each match includes `name`, `path`, `isDirectory`, and nullable `line` (one-based) / `preview` (up to 240 characters). Content matches are reported per matching line. Search reads through an independent, read-only SFTP connection and does not execute shell commands or lock the browser connection.
+
+Search is bounded to 30 seconds of scanning, 5,000 visible entries, 256 directories, depth 32, 100 matches, and 16 MiB of content reads. Connection setup and cleanup are separately bounded to 15 seconds each. Content search accepts UTF-8 text files up to 2 MiB each; binary, oversized or unreadable files are skipped and counted. Symbolic links may match by name but are never traversed/read. Unreadable subdirectories are skipped; an unreadable starting path returns an error. Reaching a time/traversal/result/byte limit returns available matches with `truncated: true`, so callers must not present the results as complete. Closing the inline search ignores late responses; an already-started backend scan finishes within these bounds.
 
 ## Runtime events
 
@@ -249,7 +271,7 @@ Used by the frontend to remove closed tabs and clean up buffered output.
 `src\api\client.ts` also exposes a few frontend helpers around the raw Tauri commands:
 
 - `saveExportConnections(payload)` opens the native save dialog in Tauri builds, then calls `write_export_file`.
-- `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the transfer dialog.
+- `pickTransferLocalPath(direction, selectionMode, currentLocalPath, currentRemotePath)` opens the native file or folder picker used by the file panel. The single Upload icon's menu selects `file` or `directory`; the frontend passes an upload destination of the selected remote directory or selected file's parent. Download chooses the picker mode from the selected remote item's type. The backend transfer input shape is unchanged.
 - `checkForUpdates()` calls the Tauri `check_for_updates` command in desktop builds and falls back to a direct GitHub lookup only outside Tauri.
 - `listSessionLogs()` loads discovered `.irlog` metadata for the in-window `Logs` workspace, where the frontend groups sources in the sidebar and renders the selected source's files in the right panel.
 - `pickSessionLogFiles()` opens the native multi-file picker for `.irlog` files when a manual file-pick flow is still needed.

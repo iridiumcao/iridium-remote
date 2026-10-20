@@ -118,8 +118,16 @@ Iridium Remote is a desktop SSH client for users who want a lightweight cross-pl
 - Upload and download should support both files and directories.
 - File transfer should reuse saved connection metadata and credentials when available.
 - File transfer should work with saved-password auth and with non-interactive SSH-key auth when standard SSH config and identity files allow a connection without prompting.
-- The file transfer dialog should support browsing for local file paths and local directory paths with native pickers.
-- The file transfer dialog should support browsing remote files and folders through a lightweight SFTP-backed picker.
+- The active terminal's File Transfer button toggles a resizable right-side file panel while preserving a usable terminal viewport.
+- The panel uses native local file/folder pickers and a lazily loaded remote directory tree with path navigation, refresh, hidden-file visibility, and per-directory retry.
+- Parent, Home, Refresh and hidden-file actions use icon buttons with hover descriptions; hidden-file visibility has distinct pressed/unpressed states. Home resets the tree to the remote login directory and shows its canonical path in the address field.
+- Double-clicking a directory makes it the current browsing directory and updates the address field; single selection, arrow expansion and double-clicking a file do not change that directory. Refresh and hidden-file changes stay in the current directory and preserve visible selection/expanded branches where possible.
+- Open accepts directory or file paths. A directory resets the tree at its canonical path; a file resets the tree at its containing directory, updates the address to that directory and selects/scrolls to the file. Relative input resolves against the current browsing directory. Failed navigation retains the previous valid directory/tree/selection and reports the actual error.
+- Directory-tree rows support a context menu for branch refresh, full-path copying, recursive filename search and text-content search. Search results can locate items in the tree, report content line numbers, and disclose incomplete/skipped results.
+- A single Upload icon offers local file/folder choices. Uploads go into the selected remote directory or, when a file is selected, its containing directory. A Download icon handles the selected remote file/folder. Local selection and pending/running transfers disable both transfer actions; the panel confirms paths and overwrite/merge behavior before starting.
+- The footer's remote-path display has a one-click Copy path icon equivalent to the context menu. It copies the complete selected path even when visually truncated and briefly shows a check on success.
+- Each terminal tab retains its own browser state, and transfers remain bound to their originating host when tabs change.
+- Browser connections are reused per panel and released when hidden; transfers use independent connections and do not have a fixed five-minute total limit.
 - Remote browsing should work with non-interactive SSH authentication such as configured SSH keys, not only with saved passwords.
 - The remote file browser should hide hidden files and folders whose names start with `.` by default.
 - Download rules:

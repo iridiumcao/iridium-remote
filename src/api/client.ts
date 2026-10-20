@@ -22,6 +22,9 @@ import type {
   FileTransferResult,
   ImportConnectionsResult,
   RemotePathListing,
+  RemotePathOpening,
+  RemoteSearchInput,
+  RemoteSearchResult,
   SessionLogFileInfo,
   SessionLogPreview,
   SessionRecordingMode,
@@ -1462,18 +1465,67 @@ export const appClient = {
     return path
   },
 
-  async listRemoteDirectory(connectionId: string, path?: string) {
+  async closeRemoteBrowser(browserId: string) {
+    if (isTauriRuntime()) await invoke('close_remote_browser', { browserId })
+  },
+
+  async searchRemoteFiles(input: RemoteSearchInput): Promise<RemoteSearchResult> {
+    if (isTauriRuntime()) return invoke<RemoteSearchResult>('search_remote_files', { input })
+    // Browser preview follows the same scope/visibility rules using its sample tree.
+    const query = input.query.trim().toLowerCase()
+    const matches: RemoteSearchResult['matches'] = []
+    const stack = [input.path]
+    let scannedEntries = 0
+    const samples: Record<string, string> = {
+      '/README.txt': 'Iridium Remote browser preview',
+      '/home/notes.txt': 'Deployment notes\nRemember to check the logs.',
+      '/home/demo/deploy.sh': '#!/bin/sh\necho Deploy application',
+      '/var/app.log': 'Application started\nError: example failure',
+    }
+    const scanFile = (path: string, name: string) => {
+      for (const [index, line] of (samples[path] ?? '').split('\n').entries()) {
+        if (line.toLowerCase().includes(query)) matches.push({ name, path, isDirectory: false, line: index + 1, preview: line })
+      }
+    }
+    if (input.mode === 'content' && Object.hasOwn(samples, input.path)) scanFile(input.path, getRemoteFileName(input.path))
+    else while (stack.length) {
+      for (const entry of getMockRemoteEntries(stack.pop()!, input.showHidden)) {
+        scannedEntries++
+        if (input.mode === 'name' && entry.name.toLowerCase().includes(query)) matches.push(entry)
+        if (entry.isDirectory) stack.push(entry.path)
+        else if (input.mode === 'content') scanFile(entry.path, entry.name)
+      }
+    }
+    return { matches, scannedEntries, skippedEntries: 0, truncated: false }
+  },
+
+  async openRemotePath(connectionId: string, path: string, options: { browserId: string; showHidden: boolean }): Promise<RemotePathOpening> {
+    if (!isTauriRuntime()) {
+      const canonical = normalizeMockRemotePath(path)
+      const parent = canonical.replace(/\/[^/]*$/, '') || '/'
+      const entry = getMockRemoteEntries(parent, true).find(item => item.path === canonical)
+      if (canonical !== '/' && !entry) throw new Error('The remote path does not exist.')
+      const selectedEntry = entry ?? { name: canonical, path: canonical, isDirectory: true }
+      const currentPath = selectedEntry.isDirectory ? canonical : parent
+      return { listing: { currentPath, entries: getMockRemoteEntries(currentPath, true)
+        .filter(item => options.showHidden || !item.name.startsWith('.') || item.path === canonical) }, selectedEntry }
+    }
+    return invoke<RemotePathOpening>('open_remote_path', { connectionId, path, ...options })
+  },
+
+  async listRemoteDirectory(connectionId: string, path?: string, options?: { browserId?: string; showHidden?: boolean }) {
     if (!isTauriRuntime()) {
       const currentPath = normalizeMockRemotePath(path)
       return {
         currentPath,
-        entries: getMockRemoteEntries(currentPath),
+        entries: getMockRemoteEntries(currentPath, options?.showHidden),
       } satisfies RemotePathListing
     }
 
     return invoke<RemotePathListing>('list_remote_directory', {
       connectionId,
       path,
+      ...(options ?? {}),
     })
   },
 
@@ -1520,15 +1572,19 @@ export const appClient = {
 const normalizeMockRemotePath = (path?: string) => {
   const trimmed = path?.trim()
   if (!trimmed || trimmed === '.') {
-    return '/'
+    return '/home/demo'
   }
 
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  const parts: string[] = []
+  for (const part of trimmed.split('/')) {
+    if (part === '..') parts.pop()
+    else if (part && part !== '.') parts.push(part)
+  }
+  return `/${parts.join('/')}`
 }
 
-const isVisibleRemoteEntry = (entry: RemotePathListing['entries'][number]) => !entry.name.startsWith('.')
-
-const getMockRemoteEntries = (path: string): RemotePathListing['entries'] => {
+const getMockRemoteEntries = (path: string, showHidden = false): RemotePathListing['entries'] => {
+  const isVisibleRemoteEntry = (entry: RemotePathListing['entries'][number]) => showHidden || !entry.name.startsWith('.')
   const normalized = normalizeMockRemotePath(path)
 
   switch (normalized) {

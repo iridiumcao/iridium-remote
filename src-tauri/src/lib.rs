@@ -16,8 +16,9 @@ use models::{
     AppSettings, ConnectionHistoryDateRange, ConnectionHistoryHostDetails,
     ConnectionHistoryOverview, ConnectionListChangedEvent, ConnectionRecord,
     ConnectionsExportPayload, CreateConnectionInput, FileTransferInput, FileTransferResult,
-    ImportConnectionsResult, RemotePathListing, SessionLogPreview, SessionRecordingSettings,
-    SessionRecordingStatus, SessionStatePayload, UpdateCheckResult, UpdateConnectionInput,
+    ImportConnectionsResult, RemotePathListing, RemotePathOpening, RemoteSearchInput,
+    RemoteSearchResult, SessionLogPreview, SessionRecordingSettings, SessionRecordingStatus,
+    SessionStatePayload, UpdateCheckResult, UpdateConnectionInput,
     UpdateSessionRecordingSettingsResult,
 };
 use recording::{build_password_verifier, RecordingManager};
@@ -30,6 +31,7 @@ struct AppState {
     credentials: credentials::CredentialStore,
     recording: RecordingManager,
     sessions: SessionManager,
+    remote_browsers: transfer::RemoteBrowserManager,
 }
 
 #[tauri::command]
@@ -198,10 +200,72 @@ async fn list_remote_directory(
     state: State<'_, Arc<AppState>>,
     connection_id: String,
     path: Option<String>,
+    browser_id: Option<String>,
+    show_hidden: Option<bool>,
 ) -> AppResult<RemotePathListing> {
     let connection = state.database.get_connection(&connection_id)?;
     let saved_password = load_saved_password_for_connection(&state, &connection)?;
-    transfer::list_remote_directory(&connection, saved_password, path).await
+    if let Some(browser_id) = browser_id {
+        state
+            .remote_browsers
+            .list(
+                browser_id,
+                &connection,
+                saved_password,
+                path,
+                show_hidden.unwrap_or(false),
+            )
+            .await
+    } else {
+        transfer::list_remote_directory(
+            &connection,
+            saved_password,
+            path,
+            show_hidden.unwrap_or(false),
+        )
+        .await
+    }
+}
+
+#[tauri::command]
+async fn open_remote_path(
+    state: State<'_, Arc<AppState>>,
+    connection_id: String,
+    browser_id: String,
+    path: String,
+    show_hidden: Option<bool>,
+) -> AppResult<RemotePathOpening> {
+    let connection = state.database.get_connection(&connection_id)?;
+    let saved_password = load_saved_password_for_connection(&state, &connection)?;
+    state
+        .remote_browsers
+        .open(
+            browser_id,
+            &connection,
+            saved_password,
+            path,
+            show_hidden.unwrap_or(false),
+        )
+        .await
+}
+
+#[tauri::command]
+async fn search_remote_files(
+    state: State<'_, Arc<AppState>>,
+    input: RemoteSearchInput,
+) -> AppResult<RemoteSearchResult> {
+    let connection = state.database.get_connection(&input.connection_id)?;
+    let saved_password = load_saved_password_for_connection(&state, &connection)?;
+    transfer::search_remote_files(&connection, saved_password, input).await
+}
+
+#[tauri::command]
+async fn close_remote_browser(
+    state: State<'_, Arc<AppState>>,
+    browser_id: String,
+) -> AppResult<()> {
+    state.remote_browsers.close(&browser_id).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -506,6 +570,7 @@ fn build_state(app: &AppHandle) -> AppResult<Arc<AppState>> {
         credentials,
         recording,
         sessions,
+        remote_browsers: transfer::RemoteBrowserManager::default(),
     }))
 }
 
@@ -676,6 +741,9 @@ pub fn run() {
             verify_session_recording_password,
             pause_session_recording_for_run,
             list_remote_directory,
+            open_remote_path,
+            search_remote_files,
+            close_remote_browser,
             export_connections,
             write_export_file,
             import_connections,

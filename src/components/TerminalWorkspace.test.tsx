@@ -40,6 +40,9 @@ vi.mock('../api/client', () => ({
     getSessionTerminalBuffer: vi.fn().mockResolvedValue(''),
     resizeSession: vi.fn().mockResolvedValue(undefined),
     writeSessionInput: vi.fn().mockResolvedValue(undefined),
+    listRemoteDirectory: vi.fn().mockResolvedValue({ currentPath: '/home/demo', entries: [{ name: 'logs', path: '/home/demo/logs', isDirectory: true }] }),
+    closeRemoteBrowser: vi.fn().mockResolvedValue(undefined),
+    normalizeError: (cause: Error) => ({ message: cause.message }),
   },
 }))
 
@@ -147,6 +150,25 @@ afterEach(() => {
 })
 
 describe('TerminalWorkspace', () => {
+  it('toggles a per-session file panel without recreating the terminal', async () => {
+    const common = { shortcuts: {}, connections: [connection, secondConnection], sessions: [session, { ...session, sessionId: 'session-2', connectionId: secondConnection.id }], onCloseSession: vi.fn(), onSelectSession: vi.fn(), t: getTranslations('en'), theme: 'dark' as const }
+    const view = render(<TerminalWorkspace {...common} activeSession={session} activeConnection={connection} selectedConnection={connection} />)
+    await act(async () => {})
+    const terminalOpenCount = terminalMocks.terminal.open.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'File Transfer' }))
+    await screen.findByRole('complementary', { name: 'File Transfer: Test Only' })
+    expect(screen.getByRole('separator', { name: 'Resize file panel' })).toBeInTheDocument()
+    view.rerender(<TerminalWorkspace {...common} activeSession={common.sessions[1]} activeConnection={secondConnection} selectedConnection={secondConnection} />)
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    view.rerender(<TerminalWorkspace {...common} activeSession={session} activeConnection={connection} selectedConnection={connection} />)
+    expect(screen.getByRole('complementary', { name: 'File Transfer: Test Only' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close file panel' }))
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+    expect(terminalMocks.terminal.open).toHaveBeenCalledTimes(terminalOpenCount)
+    expect(terminalMocks.terminal.dispose).not.toHaveBeenCalled()
+  })
+
   it('uses the SSH target as the workspace title instead of repeating the tab label', () => {
     render(
       <TerminalWorkspace

@@ -20,14 +20,13 @@ use crate::{
     recording::{RecordingManager, SessionRecorder},
     terminal_detection::{
         append_output_with_limit, append_recent_output, contains_password_prompt,
-        contains_shell_prompt, detect_connection_error_message, normalize_visible_text,
+        contains_shell_prompt, detect_connection_error_message,
     },
 };
 
 const TERMINAL_BUFFER_LIMIT: usize = 32 * 1024;
 const MIN_SYNCHRONIZED_TERMINAL_COLS: u16 = 2;
 const MIN_SYNCHRONIZED_TERMINAL_ROWS: u16 = 2;
-const OUTPUT_LOG_PREVIEW_LIMIT: usize = 160;
 const OUTPUT_LOGGED_CHUNKS_PER_SESSION: usize = 5;
 
 struct SessionResources {
@@ -511,12 +510,12 @@ impl SessionManager {
             resources.output_chunk_count += 1;
             let output_chunk_count = resources.output_chunk_count;
             if output_chunk_count <= OUTPUT_LOGGED_CHUNKS_PER_SESSION {
+                // Terminal contents can contain secrets; log only chunk metadata.
                 log::debug!(
-                    "Session {}: received output chunk #{} ({} byte(s)): '{}'.",
+                    "Session {}: received output chunk #{} ({} byte(s)).",
                     session_id,
                     output_chunk_count,
-                    data.len(),
-                    preview_terminal_output(&data)
+                    data.len()
                 );
             }
             if let Some(recorder) = resources.recorder.as_mut() {
@@ -556,11 +555,10 @@ impl SessionManager {
                 status_to_emit = Some(session.snapshot.clone());
             } else if !resources.connected {
                 failure_message = detect_connection_error_message(&resources.recent_output);
-                if let Some(message) = failure_message.as_ref() {
+                if failure_message.is_some() {
                     log::debug!(
-                        "Session {}: detected SSH failure output before shell prompt: '{}'.",
-                        session_id,
-                        message
+                        "Session {}: detected SSH failure output before shell prompt.",
+                        session_id
                     );
                 }
             }
@@ -602,10 +600,9 @@ impl SessionManager {
         };
 
         log::debug!(
-            "Session {}: finishing after process exit with status {:?} and message '{}'.",
+            "Session {}: finishing after process exit with status {:?}.",
             session_id,
-            status,
-            message
+            status
         );
         self.finish_session(app, session_id, status, &message);
     }
@@ -644,11 +641,11 @@ impl SessionManager {
             session.snapshot.clone()
         };
 
+        // Session messages can include terminal output and must stay out of diagnostic logs.
         log::info!(
-            "Session {}: transitioned to {:?} ({:?}).",
+            "Session {}: transitioned to {:?}.",
             session_id,
-            snapshot.status,
-            snapshot.message
+            snapshot.status
         );
         let _ = self.emit_status(app, &snapshot);
     }
@@ -736,19 +733,6 @@ impl SessionManager {
             )
         })
     }
-}
-
-fn preview_terminal_output(data: &str) -> String {
-    let normalized = normalize_visible_text(data);
-    let flattened = normalized.replace('\n', "\\n");
-    let mut preview = flattened
-        .chars()
-        .take(OUTPUT_LOG_PREVIEW_LIMIT)
-        .collect::<String>();
-    if flattened.chars().count() > OUTPUT_LOG_PREVIEW_LIMIT {
-        preview.push_str("...");
-    }
-    preview
 }
 
 fn classify_exit_status(connected: bool, recent_output: &str) -> (SessionStatus, String) {

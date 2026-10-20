@@ -145,6 +145,31 @@ export type RemotePathListing = {
   entries: RemotePathEntry[]
 }
 
+export type RemotePathOpening = {
+  listing: RemotePathListing
+  selectedEntry: RemotePathEntry
+}
+
+export type RemoteSearchInput = {
+  connectionId: string
+  path: string
+  mode: 'name' | 'content'
+  query: string
+  showHidden: boolean
+}
+
+export type RemoteSearchMatch = RemotePathEntry & {
+  line?: number | null
+  preview?: string | null
+}
+
+export type RemoteSearchResult = {
+  matches: RemoteSearchMatch[]
+  scannedEntries: number
+  skippedEntries: number
+  truncated: boolean
+}
+
 export type ConnectionExportRecord = {
   name: string
   groupName: string | null

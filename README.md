@@ -97,7 +97,9 @@ Iridium Remote is designed for a practical desktop workflow:
 - Upload files or directories
 - Download files or directories
 - Choose local paths with native dialogs
-- Browse remote files and folders through the built-in SFTP picker
+- Toggle a resizable SFTP file panel beside the terminal with **File Transfer**
+- Expand remote folders on demand, navigate by path, refresh, and show hidden files
+- Keep a separate file-browser state per terminal tab and confirm paths before upload/download
 - Reuse saved connection metadata and available credentials
 
 ### Desktop UX

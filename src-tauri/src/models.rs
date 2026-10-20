@@ -198,6 +198,50 @@ pub struct RemotePathListing {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RemotePathOpening {
+    pub listing: RemotePathListing,
+    pub selected_entry: RemotePathEntry,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteSearchMode {
+    Name,
+    Content,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSearchInput {
+    pub connection_id: String,
+    pub path: String,
+    pub mode: RemoteSearchMode,
+    pub query: String,
+    #[serde(default)]
+    pub show_hidden: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSearchMatch {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+    pub line: Option<usize>,
+    pub preview: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSearchResult {
+    pub matches: Vec<RemoteSearchMatch>,
+    pub scanned_entries: usize,
+    pub skipped_entries: usize,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConnectionExportRecord {
     pub name: String,
     pub group_name: Option<String>,

@@ -1,8 +1,9 @@
 use std::{
+    collections::HashMap,
     env,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use russh::{
@@ -16,7 +17,8 @@ use russh_sftp::{
 };
 use tokio::{
     fs as async_fs,
-    io::{self, AsyncWriteExt},
+    io::{self, AsyncReadExt, AsyncWriteExt},
+    sync::Mutex as AsyncMutex,
     time::timeout,
 };
 
@@ -24,13 +26,154 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         ConnectionRecord, FileTransferDirection, FileTransferInput, FileTransferResult,
-        RemotePathEntry, RemotePathListing,
+        RemotePathEntry, RemotePathListing, RemotePathOpening,
     },
 };
 
 const REMOTE_LIST_TIMEOUT: Duration = Duration::from_secs(15);
-const TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
+const TRANSFER_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 const DEFAULT_SFTP_REQUEST_TIMEOUT_SECS: u64 = 15;
+const BROWSER_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+
+mod search;
+pub use search::search_remote_files;
+
+struct BrowserSlot {
+    connection_id: String,
+    updated_at: String,
+    last_used: Instant,
+    client: Arc<AsyncMutex<Option<TransferConnection>>>,
+}
+
+/// Browsing uses a short-lived cached connection per panel; transfers use their own connection.
+#[derive(Default)]
+pub struct RemoteBrowserManager {
+    browsers: Mutex<HashMap<String, BrowserSlot>>,
+}
+
+impl RemoteBrowserManager {
+    pub async fn list(
+        &self,
+        browser_id: String,
+        connection: &ConnectionRecord,
+        saved_password: Option<String>,
+        path: Option<String>,
+        show_hidden: bool,
+    ) -> AppResult<RemotePathListing> {
+        self.browse(
+            browser_id,
+            connection,
+            saved_password,
+            path,
+            show_hidden,
+            false,
+        )
+        .await
+        .map(|opened| opened.listing)
+    }
+
+    pub async fn open(
+        &self,
+        browser_id: String,
+        connection: &ConnectionRecord,
+        saved_password: Option<String>,
+        path: String,
+        show_hidden: bool,
+    ) -> AppResult<RemotePathOpening> {
+        self.browse(
+            browser_id,
+            connection,
+            saved_password,
+            Some(path),
+            show_hidden,
+            true,
+        )
+        .await
+    }
+
+    async fn browse(
+        &self,
+        browser_id: String,
+        connection: &ConnectionRecord,
+        saved_password: Option<String>,
+        path: Option<String>,
+        show_hidden: bool,
+        resolve_file: bool,
+    ) -> AppResult<RemotePathOpening> {
+        let client = {
+            let mut browsers = self.browsers.lock().expect("remote browser mutex poisoned");
+            browsers.retain(|_, slot| slot.last_used.elapsed() < BROWSER_IDLE_TIMEOUT);
+            let slot = browsers.entry(browser_id).or_insert_with(|| BrowserSlot {
+                connection_id: connection.id.clone(),
+                updated_at: connection.updated_at.clone(),
+                last_used: Instant::now(),
+                client: Arc::new(AsyncMutex::new(None)),
+            });
+            if slot.connection_id != connection.id || slot.updated_at != connection.updated_at {
+                slot.connection_id = connection.id.clone();
+                slot.updated_at = connection.updated_at.clone();
+                slot.client = Arc::new(AsyncMutex::new(None));
+            }
+            slot.last_used = Instant::now();
+            slot.client.clone()
+        };
+        let mut guard = timeout(REMOTE_LIST_TIMEOUT, client.lock())
+            .await
+            .map_err(|_| {
+                AppError::validation("The remote browser is busy. Retry the directory listing.")
+            })?;
+        let result = timeout(REMOTE_LIST_TIMEOUT, async {
+            if guard.is_none() {
+                *guard = Some(
+                    connect_to_remote(connection, saved_password, BROWSER_IDLE_TIMEOUT.as_secs())
+                        .await?,
+                );
+            }
+            let sftp = &guard.as_ref().unwrap().sftp;
+            if resolve_file {
+                open_remote_path(sftp, path.unwrap_or_default(), show_hidden).await
+            } else {
+                let listing = read_remote_directory(sftp, path, show_hidden).await?;
+                let selected_entry = RemotePathEntry {
+                    name: listing.current_path.clone(),
+                    path: listing.current_path.clone(),
+                    is_directory: true,
+                };
+                Ok(RemotePathOpening {
+                    listing,
+                    selected_entry,
+                })
+            }
+        })
+        .await;
+        let result = result.unwrap_or_else(|_| {
+            Err(AppError::validation(
+                "The remote directory listing timed out. Retry to reconnect.",
+            ))
+        });
+        if result.is_err() {
+            // A timed-out or failed connection must never be returned to the next request.
+            *guard = None;
+        }
+        result
+    }
+
+    pub async fn close(&self, browser_id: &str) {
+        let slot = self
+            .browsers
+            .lock()
+            .expect("remote browser mutex poisoned")
+            .remove(browser_id);
+        if let Some(slot) = slot {
+            let _ = timeout(REMOTE_LIST_TIMEOUT, async {
+                if let Some(connection) = slot.client.lock().await.take() {
+                    let _ = connection.close().await;
+                }
+            })
+            .await;
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RemotePathKind {
@@ -137,95 +280,156 @@ pub async fn transfer_file(
         ));
     }
 
-    timeout(TRANSFER_TIMEOUT, async {
-        let connection = connect_to_remote(
-            connection,
-            saved_password,
-            DEFAULT_SFTP_REQUEST_TIMEOUT_SECS,
-        )
-        .await?;
-        let message = match input.direction {
-            FileTransferDirection::Upload => {
-                upload_path(&connection.sftp, local_path, remote_path).await?
-            }
-            FileTransferDirection::Download => {
-                download_path(&connection.sftp, remote_path, local_path).await?
-            }
-        };
-        connection.close().await?;
-        Ok(message)
-    })
+    let connection = timeout(
+        REMOTE_LIST_TIMEOUT,
+        connect_to_remote(connection, saved_password, TRANSFER_IDLE_TIMEOUT.as_secs()),
+    )
     .await
-    .map_err(|_| {
-        AppError::internal(
-            "The file transfer timed out while waiting for the remote host.",
-            format!(
-                "The remote host did not complete the transfer within {} seconds.",
-                TRANSFER_TIMEOUT.as_secs()
-            ),
-        )
-    })?
-    .map(|message| FileTransferResult { message })
+    .map_err(|_| AppError::validation("The SFTP connection timed out."))??;
+    let result = match input.direction {
+        FileTransferDirection::Upload => {
+            upload_path(&connection.sftp, local_path, remote_path).await
+        }
+        FileTransferDirection::Download => {
+            download_path(&connection.sftp, remote_path, local_path).await
+        }
+    };
+    let closed = timeout(REMOTE_LIST_TIMEOUT, connection.close()).await;
+    let message = result?;
+    closed.map_err(|_| AppError::validation("Timed out closing the SFTP connection."))??;
+    Ok(FileTransferResult { message })
 }
 
 pub async fn list_remote_directory(
     connection: &ConnectionRecord,
     saved_password: Option<String>,
     path: Option<String>,
+    show_hidden: bool,
 ) -> AppResult<RemotePathListing> {
     timeout(REMOTE_LIST_TIMEOUT, async {
         let connection =
             connect_to_remote(connection, saved_password, REMOTE_LIST_TIMEOUT.as_secs()).await?;
-        let requested_path = path.unwrap_or_default();
-        let current_path = if requested_path.trim().is_empty() {
-            connection.sftp.canonicalize(".").await.map_err(|error| {
-                AppError::internal(
-                    "Failed to determine the current remote path.",
-                    error.to_string(),
-                )
-            })?
-        } else {
-            connection
-                .sftp
-                .canonicalize(requested_path.trim())
-                .await
-                .map_err(|error| {
-                    AppError::internal("Failed to list the remote path.", error.to_string())
-                })?
-        };
-
-        let mut entries = connection
-            .sftp
-            .read_dir(&current_path)
-            .await
-            .map_err(|error| {
-                AppError::internal("Failed to list the remote path.", error.to_string())
-            })?
-            .filter(|entry| is_visible_remote_entry(&entry.file_name()))
-            .map(|entry| RemotePathEntry {
-                name: entry.file_name(),
-                path: join_remote_path(&current_path, &entry.file_name()),
-                is_directory: entry.file_type().is_dir(),
-            })
-            .collect::<Vec<_>>();
-        entries.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
-
-        connection.close().await?;
-        Ok(RemotePathListing {
-            current_path,
-            entries,
-        })
+        let result = read_remote_directory(&connection.sftp, path, show_hidden).await;
+        let closed = connection.close().await;
+        let listing = result?;
+        closed?;
+        Ok(listing)
     })
     .await
     .map_err(|_| {
         AppError::internal(
             "The remote path listing timed out while waiting for the remote host.",
             format!(
-                "The remote host did not complete the directory listing within {} seconds.",
+                "The directory listing exceeded {} seconds.",
                 REMOTE_LIST_TIMEOUT.as_secs()
             ),
         )
     })?
+}
+
+// Resolve the object type before listing: permission and connection errors are never
+// treated as evidence that a requested directory was actually a file.
+async fn open_remote_path(
+    sftp: &SftpSession,
+    path: String,
+    show_hidden: bool,
+) -> AppResult<RemotePathOpening> {
+    let requested = if path.trim().is_empty() {
+        "."
+    } else {
+        path.trim()
+    };
+    let canonical = sftp.canonicalize(requested).await.map_err(|error| {
+        AppError::internal("Failed to open the remote path.", error.to_string())
+    })?;
+    let metadata = sftp.metadata(&canonical).await.map_err(|error| {
+        AppError::internal("Failed to inspect the remote path.", error.to_string())
+    })?;
+    let is_directory = metadata.file_type().is_dir();
+    if !is_directory && !metadata.file_type().is_file() {
+        return Err(AppError::validation(
+            "The remote path is not a regular file or directory.",
+        ));
+    }
+    let directory = if is_directory {
+        canonical.clone()
+    } else {
+        canonical
+            .rsplit_once('/')
+            .map(|(parent, _)| if parent.is_empty() { "/" } else { parent })
+            .unwrap_or("/")
+            .to_string()
+    };
+    // Keep an explicitly requested hidden file visible without changing the preference.
+    let mut listing = read_remote_directory(sftp, Some(directory), true).await?;
+    let selected_entry = if is_directory {
+        RemotePathEntry {
+            name: canonical.clone(),
+            path: canonical,
+            is_directory: true,
+        }
+    } else {
+        listing
+            .entries
+            .iter()
+            .find(|entry| entry.path == canonical)
+            .cloned()
+            .ok_or_else(|| {
+                AppError::validation("The remote file is no longer present in its directory.")
+            })?
+    };
+    listing.entries.retain(|entry| {
+        is_visible_remote_entry(&entry.name, show_hidden) || entry.path == selected_entry.path
+    });
+    Ok(RemotePathOpening {
+        listing,
+        selected_entry,
+    })
+}
+
+async fn read_remote_directory(
+    sftp: &SftpSession,
+    path: Option<String>,
+    show_hidden: bool,
+) -> AppResult<RemotePathListing> {
+    let requested_path = path.unwrap_or_default();
+    let current_path = if requested_path.trim().is_empty() {
+        sftp.canonicalize(".").await.map_err(|error| {
+            AppError::internal(
+                "Failed to determine the current remote path.",
+                error.to_string(),
+            )
+        })?
+    } else {
+        sftp.canonicalize(requested_path.trim())
+            .await
+            .map_err(|error| {
+                AppError::internal("Failed to list the remote path.", error.to_string())
+            })?
+    };
+
+    let mut entries = sftp
+        .read_dir(&current_path)
+        .await
+        .map_err(|error| AppError::internal("Failed to list the remote path.", error.to_string()))?
+        .filter(|entry| is_visible_remote_entry(&entry.file_name(), show_hidden))
+        .map(|entry| RemotePathEntry {
+            name: entry.file_name(),
+            path: join_remote_path(&current_path, &entry.file_name()),
+            is_directory: entry.file_type().is_dir(),
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| {
+        right
+            .is_directory
+            .cmp(&left.is_directory)
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+
+    Ok(RemotePathListing {
+        current_path,
+        entries,
+    })
 }
 
 impl TransferConnection {
@@ -302,7 +506,7 @@ async fn connect_to_remote(
         })?;
 
     let mut sftp_config = SftpConfig::default();
-    sftp_config.request_timeout_secs = request_timeout_secs;
+    sftp_config.request_timeout_secs = DEFAULT_SFTP_REQUEST_TIMEOUT_SECS;
     let sftp = SftpSession::new_with_config(channel.into_stream(), sftp_config)
         .await
         .map_err(|error| {
@@ -622,7 +826,7 @@ async fn upload_single_file(
             AppError::internal("Failed to open the remote file.", error.to_string())
         })?;
 
-    io::copy(&mut local_file, &mut remote_file)
+    copy_with_idle_timeout(&mut local_file, &mut remote_file, TRANSFER_IDLE_TIMEOUT)
         .await
         .map_err(|error| {
             AppError::internal("Failed to upload the local file.", error.to_string())
@@ -650,7 +854,7 @@ async fn download_single_file(
         AppError::internal("Failed to create the local file.", error.to_string())
     })?;
 
-    io::copy(&mut remote_file, &mut local_file)
+    copy_with_idle_timeout(&mut remote_file, &mut local_file, TRANSFER_IDLE_TIMEOUT)
         .await
         .map_err(|error| {
             AppError::internal("Failed to download the remote file.", error.to_string())
@@ -666,6 +870,37 @@ async fn download_single_file(
     })?;
 
     Ok(())
+}
+
+async fn copy_with_idle_timeout<R: io::AsyncRead + Unpin, W: io::AsyncWrite + Unpin>(
+    reader: &mut R,
+    writer: &mut W,
+    idle_timeout: Duration,
+) -> io::Result<u64> {
+    let mut buffer = vec![0; 64 * 1024];
+    let mut total = 0;
+    loop {
+        let count = timeout(idle_timeout, reader.read(&mut buffer))
+            .await
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "File transfer stalled while reading.",
+                )
+            })??;
+        if count == 0 {
+            return Ok(total);
+        }
+        timeout(idle_timeout, writer.write_all(&buffer[..count]))
+            .await
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "File transfer stalled while writing.",
+                )
+            })??;
+        total += count as u64;
+    }
 }
 
 async fn ensure_local_parent_exists(path: &Path) -> AppResult<()> {
@@ -799,8 +1034,8 @@ fn join_remote_path(base: &str, name: &str) -> String {
     }
 }
 
-fn is_visible_remote_entry(name: &str) -> bool {
-    !name.starts_with('.')
+fn is_visible_remote_entry(name: &str, show_hidden: bool) -> bool {
+    name != "." && name != ".." && (show_hidden || !name.starts_with('.'))
 }
 
 #[cfg(test)]
@@ -809,8 +1044,46 @@ mod protocol_tests;
 #[cfg(test)]
 mod tests {
     use super::{
-        default_identity_files, is_visible_remote_entry, join_remote_path, remote_path_file_name,
+        copy_with_idle_timeout, default_identity_files, is_visible_remote_entry, join_remote_path,
+        remote_path_file_name, Duration,
     };
+
+    #[tokio::test]
+    async fn streams_files_larger_than_the_copy_buffer() {
+        let source = vec![42u8; 200_000];
+        let mut reader = source.as_slice();
+        let mut destination = Vec::new();
+        assert_eq!(
+            copy_with_idle_timeout(&mut reader, &mut destination, Duration::from_secs(1))
+                .await
+                .unwrap(),
+            200_000
+        );
+        assert_eq!(destination, source);
+    }
+
+    #[tokio::test]
+    async fn times_out_a_stalled_reader() {
+        let (_sender, mut reader) = tokio::io::duplex(64);
+        let error = copy_with_idle_timeout(
+            &mut reader,
+            &mut tokio::io::sink(),
+            Duration::from_millis(10),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    }
+
+    #[tokio::test]
+    async fn times_out_a_stalled_writer() {
+        let (mut writer, _receiver) = tokio::io::duplex(1);
+        let error =
+            copy_with_idle_timeout(&mut &[1u8, 2][..], &mut writer, Duration::from_millis(10))
+                .await
+                .unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    }
 
     #[test]
     fn joins_remote_paths_from_root() {
@@ -846,8 +1119,12 @@ mod tests {
 
     #[test]
     fn hides_dot_prefixed_remote_entries() {
-        assert!(is_visible_remote_entry("notes.txt"));
-        assert!(!is_visible_remote_entry(".ssh"));
-        assert!(!is_visible_remote_entry(".env"));
+        assert!(is_visible_remote_entry("notes.txt", false));
+        assert!(!is_visible_remote_entry(".ssh", false));
+        assert!(!is_visible_remote_entry(".env", false));
+        assert!(is_visible_remote_entry(".ssh", true));
+        assert!(is_visible_remote_entry(".env", true));
+        assert!(!is_visible_remote_entry(".", true));
+        assert!(!is_visible_remote_entry("..", true));
     }
 }

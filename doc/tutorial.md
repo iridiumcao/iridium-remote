@@ -125,12 +125,17 @@ Group collapse state is also saved in app settings. That means UI state is no lo
 - Import reads a JSON file in the frontend and sends the parsed payload to the backend.
 - The backend skips duplicates, restores settings when the backup contains them, and returns counts for imported and skipped entries.
 
-### File transfer pickers
+### File transfer panel
 
-- `src\components\TransferDialog.tsx` now includes separate local file/folder browse buttons plus the remote path browser.
+- `src\components\RemoteFilePanel.tsx` provides the right-side remote directory tree and upload/download controls. `TerminalWorkspace` toggles and resizes it while keeping xterm mounted.
 - Local browse uses Tauri's native open/save dialogs through `src\api\client.ts` so uploads can choose files or folders, and downloads can choose either a destination folder or a specific save-as file path.
-- Remote browse opens a lightweight picker backed by the `list_remote_directory` command in `src-tauri\src\transfer.rs`.
-- The remote picker hides dot-prefixed hidden files and folders by default so the transfer browser stays focused on regular visible paths.
+- `FileTransferActions` combines uploads behind one tray/arrow icon with a file/folder menu; the adjacent download icon infers the source type. Uploading while a remote file is selected targets its parent directory. The footer's path-copy icon shares the context menu's copy handler and shows a short success check.
+- Expanding a directory calls `list_remote_directory`; collapsed branches stay cached. Icon buttons handle parent navigation, Home, Refresh and hidden-file visibility. Home resolves the login directory and resets both tree and address bar.
+- Double-click a directory to make it the current browsing directory and update the address. Selection/arrow expansion alone does not navigate, and double-clicking a file leaves the address unchanged. Refresh and Hidden files keep the current browsing location and preserve surviving selection/branches.
+- Type a directory and click Open to navigate, or type a file path to open its parent and select/scroll to the file. Bare filenames and other relative input resolve against the current browsing directory. Open uses `open_remote_path` with SFTP metadata and canonical paths; errors leave the last valid browser position intact. `useRemoteFileNavigation` owns this navigation state independently of the tree anchor and address draft.
+- `RemoteFileContextMenu` offers branch refresh, path copying and name/content search. `RemoteFileSearch` calls `search_remote_files`, displays bounded recursive SFTP results, and navigates selected results back into the tree. See the contracts for text encoding and scan limits.
+- Each terminal session owns its panel state. The optional browser ID reuses a backend browsing connection until it is hidden, idle, invalidated, or fails. Transfers use independent connections and retain their originating host when tabs change.
+- Native path selection is followed by an inline transfer confirmation explaining same-name file replacement and directory merging.
 - Remote browse and transfers use the backend `russh` + `russh-sftp` client, supporting saved passwords and non-interactive SSH-key auth through standard SSH config and identity files.
 - The backend applies explicit timeouts so a slow remote host does not lock up the desktop window or spin forever in the loading state, verifies host keys against known_hosts unless SSH config disables strict checking for the host, and handles directory transfers recursively through the SFTP client.
 

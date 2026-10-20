@@ -184,6 +184,12 @@ describe('appClient.saveExportConnections', () => {
     ])
   })
 
+  it('resolves a blank remote path to the login home rather than the filesystem root', async () => {
+    const { appClient } = await import('./client')
+    const listing = await appClient.listRemoteDirectory('connection-1', '')
+    expect(listing.currentPath).toBe('/home/demo')
+  })
+
   it('hides dot-prefixed remote entries in browser mode', async () => {
     const { appClient } = await import('./client')
 
@@ -194,6 +200,43 @@ describe('appClient.saveExportConnections', () => {
       { name: 'var', path: '/var', isDirectory: true },
       { name: 'README.txt', path: '/README.txt', isDirectory: false },
     ])
+  })
+
+  it('includes hidden entries when explicitly requested by the file panel', async () => {
+    const { appClient } = await import('./client')
+    const listing = await appClient.listRemoteDirectory('connection-1', '/', { showHidden: true, browserId: 'session-1' })
+    expect(listing.entries).toContainEqual({ name: '.ssh', path: '/.ssh', isDirectory: true })
+  })
+
+  it('resolves directory and file navigation in browser mode, including explicit hidden files', async () => {
+    const { appClient } = await import('./client')
+    const options = { browserId: 'session-1', showHidden: false }
+    const directory = await appClient.openRemotePath('host', '/home/demo/../demo', options)
+    expect(directory.listing.currentPath).toBe('/home/demo')
+    expect(directory.selectedEntry.isDirectory).toBe(true)
+    const file = await appClient.openRemotePath('host', '/home/demo/deploy.sh', options)
+    expect(file.listing.currentPath).toBe('/home/demo')
+    expect(file.selectedEntry).toEqual({ name: 'deploy.sh', path: '/home/demo/deploy.sh', isDirectory: false })
+    const hidden = await appClient.openRemotePath('host', '/home/demo/.env', options)
+    expect(hidden.listing.entries).toContainEqual(hidden.selectedEntry)
+    await expect(appClient.openRemotePath('host', '/missing/file', options)).rejects.toThrow('does not exist')
+  })
+
+  it('passes file-aware navigation to the native command with its browser identity and visibility', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    const { appClient } = await import('./client')
+    invokeMock.mockResolvedValueOnce({ listing: { currentPath: '/var', entries: [] }, selectedEntry: { name: 'app.log', path: '/var/app.log', isDirectory: false } })
+    const opened = await appClient.openRemotePath('host', '/var/app.log', { browserId: 'session-1', showHidden: true })
+    expect(invokeMock).toHaveBeenCalledWith('open_remote_path', { connectionId: 'host', path: '/var/app.log', browserId: 'session-1', showHidden: true })
+    expect(opened.selectedEntry.path).toBe('/var/app.log')
+  })
+
+  it('searches mock filenames recursively and file content with line numbers', async () => {
+    const { appClient } = await import('./client')
+    const names = await appClient.searchRemoteFiles({ connectionId: 'host', path: '/home', query: 'DEPLOY', mode: 'name', showHidden: false })
+    expect(names.matches).toContainEqual({ name: 'deploy.sh', path: '/home/demo/deploy.sh', isDirectory: false })
+    const content = await appClient.searchRemoteFiles({ connectionId: 'host', path: '/var/app.log', query: 'ERROR', mode: 'content', showHidden: false })
+    expect(content.matches).toEqual([{ name: 'app.log', path: '/var/app.log', isDirectory: false, line: 2, preview: 'Error: example failure' }])
   })
 
   it('stops mock recording for active sessions when recording is disabled', async () => {

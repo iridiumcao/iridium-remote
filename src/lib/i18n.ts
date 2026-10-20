@@ -76,7 +76,29 @@ type Dictionary = {
   versionLabel: string
   multiSessionDescription: string
   fileTransfer: string
+  closeFilePanel: string
+  resizeFilePanel: string
+  refreshRemotePaths: string
+  retryRemotePaths: string
+  collapseFolder: string
+  showHiddenFiles: string
+  remoteHome: string
+  copyRemotePath: string
+  remotePathCopied: string
+  findByName: string
+  findByContent: string
+  findRemoteFiles: string
+  backToFileTree: string
+  remoteSearchQuery: string
+  searchingRemoteFiles: string
+  remoteSearchResults: string
+  remoteSearchCount: (count: number) => string
+  remoteSearchLimited: string
+  remoteSearchSkipped: (count: number) => string
+  transferInProgress: string
+  transferOverwriteWarning: string
   upload: string
+  uploadToDirectory: (path: string) => string
   download: string
   localPath: string
   remotePath: string
@@ -321,7 +343,29 @@ const dictionaries: Record<Locale, Dictionary> = {
     versionLabel: 'Version',
     multiSessionDescription: 'Open and manage multiple terminal sessions with tabs.',
     fileTransfer: 'File Transfer',
+    closeFilePanel: 'Close file panel',
+    resizeFilePanel: 'Resize file panel',
+    refreshRemotePaths: 'Refresh',
+    retryRemotePaths: 'Retry',
+    collapseFolder: 'Collapse',
+    showHiddenFiles: 'Hidden files',
+    remoteHome: 'Home',
+    copyRemotePath: 'Copy path',
+    remotePathCopied: 'Path copied.',
+    findByName: 'Find by name',
+    findByContent: 'Find by content',
+    findRemoteFiles: 'Find',
+    backToFileTree: 'Back to tree',
+    remoteSearchQuery: 'Keyword (case-insensitive)',
+    searchingRemoteFiles: 'Searching…',
+    remoteSearchResults: 'Search results',
+    remoteSearchCount: count => `${count} result(s).`,
+    remoteSearchLimited: 'Search limit reached; results are incomplete. Narrow the search scope.',
+    remoteSearchSkipped: count => `${count} item(s) skipped (unreadable, binary, oversized, or symbolic links).`,
+    transferInProgress: 'Working…',
+    transferOverwriteWarning: 'Existing files with the same name will be replaced. Folders are merged. Start the transfer to continue.',
     upload: 'Upload',
+    uploadToDirectory: path => `Upload to ${path}`,
     download: 'Download',
     localPath: 'Local path',
     remotePath: 'Remote path',
@@ -339,7 +383,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     selectCurrentFolder: 'Select current folder',
     startTransfer: 'Start Transfer',
     transferDescription:
-      'Transfers use the system SFTP client. Save a password on the connection if the host requires one.',
+      'SFTP signs in separately using a saved password or an available SSH key.',
     transferSuccess: 'Transfer completed.',
     connectButtonLabel: 'Connect',
     sessionClosed: 'Session closed.',
@@ -584,7 +628,29 @@ const dictionaries: Record<Locale, Dictionary> = {
     versionLabel: '版本',
     multiSessionDescription: '使用标签页同时打开和管理多个终端会话。',
     fileTransfer: '文件传输',
+    closeFilePanel: '关闭文件面板',
+    resizeFilePanel: '调整文件面板宽度',
+    refreshRemotePaths: '刷新',
+    retryRemotePaths: '重试',
+    collapseFolder: '折叠',
+    showHiddenFiles: '隐藏文件',
+    remoteHome: '主目录',
+    copyRemotePath: '复制路径',
+    remotePathCopied: '路径已复制。',
+    findByName: '查找（按文件名）',
+    findByContent: '查找（按内容）',
+    findRemoteFiles: '查找',
+    backToFileTree: '返回目录树',
+    remoteSearchQuery: '关键词（不区分大小写）',
+    searchingRemoteFiles: '正在查找…',
+    remoteSearchResults: '查找结果',
+    remoteSearchCount: count => `${count} 个结果。`,
+    remoteSearchLimited: '已达到查找上限，结果不完整，请缩小查找范围。',
+    remoteSearchSkipped: count => `已跳过 ${count} 项（无法读取、二进制、大文件或符号链接）。`,
+    transferInProgress: '正在处理…',
+    transferOverwriteWarning: '同名文件将被覆盖，文件夹将合并。点击开始传输继续。',
     upload: '上传',
+    uploadToDirectory: path => `上传到 ${path}`,
     download: '下载',
     localPath: '本地路径',
     remotePath: '远程路径',
@@ -601,7 +667,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     useCurrentFolder: '使用当前文件夹',
     selectCurrentFolder: '选择当前文件夹',
     startTransfer: '开始传输',
-    transferDescription: '文件传输使用系统 SFTP 客户端。如果主机需要密码，请先在连接中保存密码。',
+    transferDescription: 'SFTP 使用已保存密码或可用 SSH 密钥独立登录。',
     transferSuccess: '传输完成。',
     connectButtonLabel: '连接',
     sessionClosed: '会话已关闭。',
@@ -836,7 +902,29 @@ const dictionaries: Record<Locale, Dictionary> = {
     openProjectUrl: '造訪專案首頁',
     multiSessionDescription: 'Iridium 支援多標籤頁會話，並將連線資料安全地儲存在本地 SQLite 資料庫與系統鑰匙圈中。',
     fileTransfer: '檔案傳輸',
+    closeFilePanel: '關閉檔案面板',
+    resizeFilePanel: '調整檔案面板寬度',
+    refreshRemotePaths: '重新整理',
+    retryRemotePaths: '重試',
+    collapseFolder: '摺疊',
+    showHiddenFiles: '隱藏檔案',
+    remoteHome: '主目錄',
+    copyRemotePath: '複製路徑',
+    remotePathCopied: '路徑已複製。',
+    findByName: '查找（按檔名）',
+    findByContent: '查找（按內容）',
+    findRemoteFiles: '查找',
+    backToFileTree: '返回目錄樹',
+    remoteSearchQuery: '關鍵詞（不區分大小寫）',
+    searchingRemoteFiles: '正在查找…',
+    remoteSearchResults: '查找結果',
+    remoteSearchCount: count => `${count} 個結果。`,
+    remoteSearchLimited: '已達到查找上限，結果不完整，請縮小查找範圍。',
+    remoteSearchSkipped: count => `已跳過 ${count} 項（無法讀取、二進位、大檔案或符號連結）。`,
+    transferInProgress: '正在處理…',
+    transferOverwriteWarning: '同名檔案將被覆寫，資料夾將合併。點擊開始傳輸繼續。',
     upload: '上傳',
+    uploadToDirectory: path => `上傳到 ${path}`,
     download: '下載',
     localPath: '本地路徑',
     remotePath: '遠端路徑',
@@ -853,7 +941,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     useCurrentFolder: '使用目前資料夾',
     selectCurrentFolder: '選擇目前資料夾',
     startTransfer: '開始傳輸',
-    transferDescription: '檔案傳輸使用系統 SFTP 客戶端。如果主機需要密碼，請先在連線中儲存密碼。',
+    transferDescription: 'SFTP 使用已儲存密碼或可用 SSH 金鑰獨立登入。',
     transferSuccess: '傳輸完成。',
     connectButtonLabel: '連線',
     sessionClosed: '會話已關閉。',

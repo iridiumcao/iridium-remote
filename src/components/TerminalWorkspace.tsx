@@ -7,6 +7,7 @@ import type { getTranslations } from '../lib/i18n'
 import { formatConnectionSubtitle, formatStatusLabel } from '../lib/format'
 import type { AppTheme, ConnectionRecord, SessionState } from '../lib/types'
 import { eventMatchesAction, type ShortcutAction, defaultShortcuts } from '../lib/shortcuts'
+import { RemoteFilePanel } from './RemoteFilePanel'
 
 type TerminalWorkspaceProps = {
   activeSession: SessionState | null
@@ -19,7 +20,6 @@ type TerminalWorkspaceProps = {
   onCloseSessions?: (sessionIds: string[]) => void
   onConnect?: () => void
   onDisconnect?: (sessionId: string) => void
-  onOpenTransfer?: () => void
   onSelectSession: (sessionId: string) => void
   shortcuts: Record<string, string>
   t: ReturnType<typeof getTranslations>
@@ -244,7 +244,6 @@ export const TerminalWorkspace = ({
   onCloseSessions,
   onConnect,
   onDisconnect,
-  onOpenTransfer,
   onSelectSession,
   selectedConnection,
   sessions,
@@ -252,6 +251,12 @@ export const TerminalWorkspace = ({
   t,
   theme,
 }: TerminalWorkspaceProps) => {
+  const [transferPanels, setTransferPanels] = useState<Record<string, boolean>>({})
+  const [filePanelWidth, setFilePanelWidth] = useState(360)
+  const filePanelOpen = !!activeSession && !!transferPanels[activeSession.sessionId]
+  const toggleFilePanel = () => {
+    if (activeSession) setTransferPanels(current => ({ ...current, [activeSession.sessionId]: !current[activeSession.sessionId] }))
+  }
   const terminalRef = useRef<HTMLDivElement | null>(null)
   const terminalInstance = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -866,7 +871,7 @@ export const TerminalWorkspace = ({
             </div>
           </div>
 
-          {onOpenTransfer && activeConnection ? (
+          {activeSession && activeConnection ? (
             <button
               type="button"
               className={`shrink-0 rounded-lg border px-4 py-2 text-sm transition ${
@@ -874,7 +879,8 @@ export const TerminalWorkspace = ({
                   ? 'border-white/10 text-slate-200 hover:bg-white/5'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
-              onClick={onOpenTransfer}
+              aria-expanded={filePanelOpen}
+              onClick={toggleFilePanel}
             >
               {t.fileTransfer}
             </button>
@@ -936,7 +942,8 @@ export const TerminalWorkspace = ({
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden p-4 sm:p-6">
         <div
           className={`terminal-shell h-full min-h-full overflow-hidden rounded-2xl border shadow-inner ${
             isDark
@@ -1036,6 +1043,46 @@ export const TerminalWorkspace = ({
             {activeSession.message ?? t.sessionClosed}
           </div>
         ) : null}
+      </div>
+      {filePanelOpen ? <div
+        role="separator"
+        aria-label={t.resizeFilePanel}
+        aria-orientation="vertical"
+        aria-valuenow={filePanelWidth}
+        aria-valuemin={240}
+        aria-valuemax={640}
+        tabIndex={0}
+        className="w-1.5 shrink-0 cursor-col-resize bg-cyan-400/10 hover:bg-cyan-400/40 focus:bg-cyan-400/40"
+        style={{ touchAction: 'none' }}
+        onPointerDown={event => event.currentTarget.setPointerCapture(event.pointerId)}
+        onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)}
+        onPointerMove={event => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+          const bounds = event.currentTarget.parentElement!.getBoundingClientRect()
+          setFilePanelWidth(Math.min(640, Math.max(240, Math.min(bounds.width * 0.55, bounds.right - event.clientX))))
+        }}
+        onKeyDown={event => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          setFilePanelWidth(width => Math.max(240, Math.min(640, width + (event.key === 'ArrowLeft' ? 20 : -20))))
+        }}
+      /> : null}
+      {sessions.filter(session => transferPanels[session.sessionId] !== undefined).map(session => {
+        const connection = connectionsById.get(session.connectionId)
+        if (!connection) return null
+        const visible = isVisible && activeSession?.sessionId === session.sessionId && !!transferPanels[session.sessionId]
+        return <div key={session.sessionId} hidden={!visible} className={`min-h-0 min-w-0 shrink-0 ${visible ? '' : 'hidden'}`} style={{ width: `min(${filePanelWidth}px, 55%)` }}>
+          <RemoteFilePanel
+            sessionId={session.sessionId}
+            connectionId={session.connectionId}
+            connectionName={connection.name}
+            visible={visible}
+            onClose={() => setTransferPanels(current => ({ ...current, [session.sessionId]: false }))}
+            theme={theme}
+            t={t}
+          />
+        </div>
+      })}
       </div>
     </section>
   )
