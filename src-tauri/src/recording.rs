@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        ConnectionRecord, SessionLogFileInfo, SessionLogPreview, SessionRecordingMode,
-        SessionRecordingSettings, SessionRecordingStatus,
+        ConnectionRecord, SessionLogFileInfo, SessionLogList, SessionLogPreview, SessionLogWarning,
+        SessionRecordingMode, SessionRecordingSettings, SessionRecordingStatus,
     },
     terminal_detection::normalize_visible_text,
 };
@@ -301,7 +301,7 @@ impl RecordingManager {
         })
     }
 
-    pub fn list_logs(&self) -> AppResult<Vec<SessionLogFileInfo>> {
+    pub fn list_logs(&self) -> AppResult<SessionLogList> {
         let logs_dir = self.logs_directory();
         fs::create_dir_all(&logs_dir).map_err(|error| {
             AppError::internal(
@@ -310,10 +310,47 @@ impl RecordingManager {
             )
         })?;
 
-        let mut files = existing_log_files(&logs_dir)?
-            .into_iter()
-            .map(|file| inspect_log_file(&file.path))
-            .collect::<AppResult<Vec<_>>>()?;
+        let entries = fs::read_dir(&logs_dir).map_err(|error| {
+            AppError::internal(
+                "Failed to read the session log directory.",
+                error.to_string(),
+            )
+        })?;
+        let mut files = Vec::new();
+        let mut warnings = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                AppError::internal(
+                    "Failed to read the session log directory.",
+                    error.to_string(),
+                )
+            })?;
+            let path = entry.path();
+            if path.extension().and_then(|value| value.to_str()) != Some("irlog") {
+                continue;
+            }
+            let inspected = entry
+                .metadata()
+                .map_err(|error| {
+                    AppError::internal("Failed to inspect a session log file.", error.to_string())
+                })
+                .and_then(|metadata| {
+                    if !metadata.is_file() {
+                        Ok(None)
+                    } else {
+                        inspect_log_file(&path).map(Some)
+                    }
+                });
+            match inspected {
+                Ok(Some(file)) => files.push(file),
+                Ok(None) => {}
+                Err(error) => warnings.push(SessionLogWarning {
+                    file_name: entry.file_name().to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    error,
+                }),
+            }
+        }
         files.sort_by(|left, right| {
             right
                 .created_at
@@ -323,7 +360,8 @@ impl RecordingManager {
                 .then_with(|| left.part.cmp(&right.part))
                 .then_with(|| left.file_name.cmp(&right.file_name))
         });
-        Ok(files)
+        warnings.sort_by(|left, right| left.file_name.cmp(&right.file_name));
+        Ok(SessionLogList { files, warnings })
     }
 
     pub fn export_logs(
@@ -784,6 +822,9 @@ fn inspect_log_file(path: &Path) -> AppResult<SessionLogFileInfo> {
     })?;
     let mut reader = BufReader::new(file);
     let metadata = read_log_metadata(&mut reader)?;
+    DateTime::parse_from_rfc3339(&metadata.created_at).map_err(|_| {
+        AppError::validation("The session log creation timestamp is invalid.")
+    })?;
     let file_name = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -1256,13 +1297,126 @@ mod tests {
 
         let logs = manager.list_logs().expect("list logs");
 
-        assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].host, "example.com");
-        assert_eq!(logs[0].username, "root");
-        assert_eq!(logs[0].recording_mode, SessionRecordingMode::Full);
-        assert_eq!(logs[0].part, 1);
-        assert!(logs[0].file_name.ends_with(".irlog"));
+        assert_eq!(logs.files.len(), 1);
+        assert!(logs.warnings.is_empty());
+        assert_eq!(logs.files[0].host, "example.com");
+        assert_eq!(logs.files[0].username, "root");
+        assert_eq!(logs.files[0].recording_mode, SessionRecordingMode::Full);
+        assert_eq!(logs.files[0].part, 1);
+        assert!(logs.files[0].file_name.ends_with(".irlog"));
 
+        let _ = std::fs::remove_dir_all(logs_dir);
+    }
+
+    #[test]
+    fn list_logs_isolates_invalid_files_and_does_not_change_them() {
+        let logs_dir = temp_logs_dir();
+        let manager =
+            RecordingManager::new(logs_dir.clone(), SessionRecordingSettings::default(), None)
+                .expect("manager");
+        let mut recorder = SessionRecorder::new(
+            logs_dir.clone(),
+            SessionRecordingSettings::default(),
+            "super-secret".into(),
+            &test_connection(),
+        )
+        .expect("recorder");
+        recorder.finish().expect("finish");
+        drop(recorder);
+        let valid_path = existing_log_files(&logs_dir).expect("files")[0]
+            .path
+            .clone();
+        let valid = std::fs::read(&valid_path).expect("valid log");
+        let invalid_files = [
+            ("empty.irlog", Vec::new()),
+            ("header.irlog", b"not an irlog\n{}\n".to_vec()),
+            ("metadata.irlog", b"IRLOG1\n{}\n".to_vec()),
+            ("utf8.irlog", vec![0xff]),
+        ];
+        for (name, bytes) in &invalid_files {
+            std::fs::write(logs_dir.join(name), bytes).expect("invalid file");
+        }
+        let text = String::from_utf8(valid).expect("log text");
+        let mut lines = text.lines();
+        let header = lines.next().expect("header");
+        let mut metadata: serde_json::Value =
+            serde_json::from_str(lines.next().expect("metadata")).expect("metadata json");
+        metadata["created_at"] = "invalid-date".into();
+        std::fs::write(
+            logs_dir.join("timestamp.irlog"),
+            format!("{header}\n{metadata}\n"),
+        )
+        .expect("timestamp file");
+
+        let logs = manager.list_logs().expect("partial success");
+        assert_eq!(logs.files.len(), 1);
+        assert_eq!(logs.warnings.len(), 5);
+        assert_eq!(logs.warnings[0].file_name, "empty.irlog");
+        assert!(logs
+            .warnings
+            .iter()
+            .all(|warning| !warning.error.message.is_empty()));
+        for (name, bytes) in &invalid_files {
+            assert_eq!(
+                std::fs::read(logs_dir.join(name)).expect("preserved file"),
+                *bytes
+            );
+        }
+        std::fs::remove_file(valid_path).expect("remove valid log");
+        let logs = manager
+            .list_logs()
+            .expect("all invalid still returns warnings");
+        assert!(logs.files.is_empty());
+        assert_eq!(logs.warnings.len(), 5);
+        let _ = std::fs::remove_dir_all(logs_dir);
+    }
+
+    #[test]
+    fn list_logs_distinguishes_empty_directory_from_directory_failure() {
+        let logs_dir = temp_logs_dir();
+        let manager =
+            RecordingManager::new(logs_dir.clone(), SessionRecordingSettings::default(), None)
+                .expect("manager");
+        let logs = manager.list_logs().expect("empty directory");
+        assert!(logs.files.is_empty());
+        assert!(logs.warnings.is_empty());
+        std::fs::remove_dir(&logs_dir).expect("remove directory");
+        std::fs::write(&logs_dir, b"not a directory").expect("block directory path");
+        assert!(manager.list_logs().is_err());
+        let _ = std::fs::remove_file(logs_dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn list_logs_reports_locked_file_without_losing_readable_files() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let logs_dir = temp_logs_dir();
+        let manager =
+            RecordingManager::new(logs_dir.clone(), SessionRecordingSettings::default(), None)
+                .expect("manager");
+        let mut recorder = SessionRecorder::new(
+            logs_dir.clone(),
+            SessionRecordingSettings::default(),
+            "super-secret".into(),
+            &test_connection(),
+        )
+        .expect("recorder");
+        recorder.finish().expect("finish");
+        drop(recorder);
+        let locked_path = logs_dir.join("locked.irlog");
+        let locked_file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .share_mode(0)
+            .open(&locked_path)
+            .expect("lock file");
+        let logs = manager.list_logs().expect("scan locked file");
+        assert_eq!(logs.files.len(), 1);
+        assert_eq!(logs.warnings.len(), 1);
+        assert_eq!(logs.warnings[0].file_name, "locked.irlog");
+        assert_eq!(logs.warnings[0].error.code, "INTERNAL_ERROR");
+        drop(locked_file);
         let _ = std::fs::remove_dir_all(logs_dir);
     }
 }

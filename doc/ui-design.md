@@ -151,6 +151,8 @@ The `Logs` workspace appears only when session recording is enabled and uses the
 
 Switching away from `Logs` and back should keep the selected source and files, but must clear the decryption password and decrypted preview content.
 
+Unreadable or invalid files appear in an expandable warning below the directory summary with loaded/failed counts, filenames, and error reasons; readable logs remain usable. The summary is keyboard accessible and uses theme-appropriate warning colors. A directory-level load failure displays the backend error instead of an empty-directory message. Refresh is disabled while loading. Failed refreshes retain the last successful list and selection; successful refreshes reconcile the selected source/files with the new list. Only a successful scan with no files or warnings shows the empty-directory message.
+
 ## Dialogs
 
 ### Connection dialog

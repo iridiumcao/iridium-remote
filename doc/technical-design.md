@@ -154,6 +154,9 @@ Responsibilities:
 - rotate files at the configured size
 - delete old files when retention or total-storage limits are exceeded
 - decrypt selected `.irlog` files for preview and `.txt` export
+- discover log metadata without decryption, returning readable files alongside per-file warnings; directory-level failures remain errors
+
+The listing command returns `SessionLogList { files, warnings }`. It reads each direct lowercase `.irlog` entry independently, validating the header, metadata, and creation timestamp before returning it. Individual file failures leave other files available and never rewrite the failed file. `SessionLogsWorkspace` separates load errors from decrypt/export errors, retains its last successful listing on refresh failure, and displays warnings through native expandable details. Initial loads and manual refreshes share the same selection reconciliation and stale-request cleanup.
 
 The frontend gates the first post-restart connection when recording is enabled but no runtime password is loaded. The verification dialog offers only **Skip Recording** and **OK**, with no cancellation, reset, close, or Escape dismissal. A themed, multiline tooltip on Skip Recording explains the scope on hover or keyboard focus, without repeating it in the dialog body; the persisted enabled setting is untouched and restart requires verification again.
 

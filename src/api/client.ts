@@ -25,7 +25,7 @@ import type {
   RemotePathOpening,
   RemoteSearchInput,
   RemoteSearchResult,
-  SessionLogFileInfo,
+  SessionLogList,
   SessionLogPreview,
   SessionRecordingMode,
   SessionRecordingSettings,
@@ -1349,9 +1349,9 @@ export const appClient = {
     return selection
   },
 
-  async listSessionLogs() {
+  async listSessionLogs(): Promise<SessionLogList> {
     if (!isTauriRuntime()) {
-      return [...mockStore.sessionLogs]
+      const files = [...mockStore.sessionLogs]
         .map((log) => ({
           fileName: fileNameFromPath(log.path),
           path: log.path,
@@ -1362,9 +1362,10 @@ export const appClient = {
           part: log.part,
         }))
         .sort(compareSessionLogs)
+      return { files, warnings: [] }
     }
 
-    return invoke<SessionLogFileInfo[]>('list_session_logs')
+    return invoke<SessionLogList>('list_session_logs')
   },
 
   async previewSessionLogs(paths: string[], password: string) {

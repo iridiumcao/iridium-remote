@@ -82,6 +82,26 @@ describe('appClient.saveExportConnections', () => {
     vi.restoreAllMocks()
   })
 
+  it('returns an empty log listing with warnings in browser mode', async () => {
+    const { appClient } = await import('./client')
+    await expect(appClient.listSessionLogs()).resolves.toEqual({ files: [], warnings: [] })
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves partial log results and structured errors from Tauri', async () => {
+    ;(window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
+    const result = { files: [], warnings: [{ fileName: 'empty.irlog', path: 'C:\\logs\\empty.irlog', error: {
+      code: 'VALIDATION_ERROR', message: 'Invalid header.', details: null,
+    } }] }
+    invokeMock.mockResolvedValueOnce(result)
+    const { appClient } = await import('./client')
+    await expect(appClient.listSessionLogs()).resolves.toEqual(result)
+    expect(invokeMock).toHaveBeenCalledWith('list_session_logs')
+    const error = { code: 'INTERNAL_ERROR', message: 'Cannot read directory.', details: null }
+    invokeMock.mockRejectedValueOnce(error)
+    await expect(appClient.listSessionLogs()).rejects.toEqual(error)
+  })
+
   it('downloads the export in browser mode', async () => {
     const { appClient } = await import('./client')
 

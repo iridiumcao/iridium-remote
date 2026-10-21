@@ -402,7 +402,7 @@ fn preview_session_logs(
 #[tauri::command]
 fn list_session_logs(
     state: State<'_, Arc<AppState>>,
-) -> AppResult<Vec<models::SessionLogFileInfo>> {
+) -> AppResult<models::SessionLogList> {
     state.recording.list_logs()
 }
 

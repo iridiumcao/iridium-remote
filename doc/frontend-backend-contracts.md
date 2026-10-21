@@ -178,9 +178,16 @@ Queries GitHub from the backend for the latest release and returns:
 
 ## Session log commands
 
-### `list_session_logs() -> SessionLogFileInfo[]`
+### `list_session_logs() -> SessionLogList`
 
 Returns discovered `.irlog` metadata from the configured recording directory so the `Logs` workspace can render left-side source navigation and right-side per-source file selection without opening a file picker first.
+
+- `files: SessionLogFileInfo[]` contains readable metadata, sorted by creation time descending, then host, username, part, and filename.
+- `warnings: SessionLogWarning[]` contains `{ fileName, path, error: AppError }` for each unreadable or invalid file, sorted by filename. The error includes `code`, `message`, and optional/nullable `details`. File header, metadata, and RFC 3339 creation timestamp failures affect only that file; even an all-invalid directory returns a successful result with warnings and no files.
+- Discovery reads only direct entries with the exact lowercase `.irlog` extension and skips non-file entries. Listing reads plaintext metadata without a decryption password and does not validate encrypted payloads or modify existing files.
+- Failure to initialize, open, or enumerate the directory rejects the command with `AppError` rather than returning an empty listing.
+
+The frontend displays the loaded/failed counts with expandable filename/error details, handles structured errors through `normalizeError`, and reserves the empty-directory message for a successful result with neither files nor warnings. A failed refresh preserves the last successful listing and selection. A successful refresh reconciles selection with the new files. The refresh button is disabled while loading; tab changes ignore outstanding results and continue to clear decryption secrets.
 
 ### `preview_session_logs(paths, password) -> SessionLogPreview`
 
@@ -291,6 +298,6 @@ When the app is not running inside Tauri:
 - exports fall back to the browser download flow because the Tauri native save dialog is not available
 - local transfer-path picks return mock file or folder paths
 - remote browsing returns mock remote directory entries
-- session-log preview and export use the mock in-memory log store
+- session-log listing returns `{ files, warnings: [] }` from the mock in-memory log store; preview and export use the same store
 
 This keeps `npm run dev` useful for UI development without the Rust runtime.

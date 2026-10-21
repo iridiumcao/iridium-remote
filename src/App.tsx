@@ -1316,7 +1316,7 @@ function App() {
               active={currentWorkspaceTab === 'logs'}
               locale={settings.locale}
               onExport={handleExportSessionLogs}
-              onListLogs={() => appClient.listSessionLogs()}
+              onListLogs={appClient.listSessionLogs}
               onOpenFolder={() => {
                 void handleOpenSessionLogsDirectory()
               }}

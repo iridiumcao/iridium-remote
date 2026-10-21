@@ -427,7 +427,7 @@ Example:
   "version": 1,
   "host": "192.168.1.10",
   "username": "root",
-  "recording_mode": "input-only",
+  "recording_mode": "input_only",
   "created_at": "2026-05-16T14:32:08Z"
 }
 ```
@@ -464,6 +464,8 @@ Users can:
 * Decrypt logs
 * Export logs
 * Leave and return while keeping the selected source/files but clearing the entered password and decrypted preview
+
+Discovery MUST isolate individual unreadable or invalid files so other logs remain available. The viewer MUST show the number of loaded and failed files with expandable filenames and failure reasons, including when every discovered file fails. An empty-directory message MUST only appear after a successful scan with no files and no warnings. A directory-level failure MUST show the actual error; a failed refresh MUST preserve the previous listing and selection. Discovery MUST NOT delete or rewrite invalid files and MUST NOT require a decryption password.
 
 ---
 

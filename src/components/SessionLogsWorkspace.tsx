@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
+import { appClient } from '../api/client'
 import { formatStorageBytes } from '../lib/format'
 import type { getTranslations } from '../lib/i18n'
 import type {
   AppTheme,
   Locale,
   SessionLogFileInfo,
+  SessionLogList,
   SessionLogPreview,
   SessionRecordingStatus,
 } from '../lib/types'
@@ -13,7 +15,7 @@ type SessionLogsWorkspaceProps = {
   active: boolean
   locale: Locale
   onExport: (paths: string[], password: string) => Promise<boolean>
-  onListLogs: () => Promise<SessionLogFileInfo[]>
+  onListLogs: () => Promise<SessionLogList>
   onOpenFolder: () => void
   onPreview: (paths: string[], password: string) => Promise<SessionLogPreview>
   status: SessionRecordingStatus | null
@@ -123,9 +125,14 @@ export const SessionLogsWorkspace = ({
   theme,
   topContent,
 }: SessionLogsWorkspaceProps) => {
-  const [files, setFiles] = useState<SessionLogFileInfo[]>([])
-  const [selectedSourceKey, setSelectedSourceKey] = useState<string | null>(null)
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([])
+  const [{ files, warnings }, setLogList] = useState<SessionLogList>({ files: [], warnings: [] })
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const [selection, setSelection] = useState<{ sourceKey: string | null; paths: string[] }>({
+    sourceKey: null,
+    paths: [],
+  })
+  const { sourceKey: selectedSourceKey, paths: selectedPaths } = selection
   const [uiState, dispatch] = useReducer(uiReducer, initialUiState)
   const { password, preview, error, isLoading, isWorking } = uiState
   const isDark = theme === 'dark'
@@ -188,28 +195,24 @@ export const SessionLogsWorkspace = ({
     dispatch({ type: 'setIsLoading', isLoading: true })
 
     void onListLogs()
-      .then((nextFiles) => {
+      .then((result) => {
         if (!isMounted) {
           return
         }
 
-        setFiles(nextFiles)
-        dispatch({ type: 'setError', error: null })
-        setSelectedSourceKey((currentSourceKey) => {
-          if (currentSourceKey && nextFiles.some((file) => sourceKeyOf(file) === currentSourceKey)) {
-            return currentSourceKey
+        const nextFiles = result.files
+        setLogList(result)
+        setLoadError(null)
+        setSelection((current) => {
+          const sourceKey = nextFiles.some((file) => sourceKeyOf(file) === current.sourceKey)
+            ? current.sourceKey
+            : nextFiles[0] ? sourceKeyOf(nextFiles[0]) : null
+          const sourceFiles = nextFiles.filter((file) => sourceKeyOf(file) === sourceKey)
+          const paths = current.paths.filter((path) => sourceFiles.some((file) => file.path === path))
+          return {
+            sourceKey,
+            paths: paths.length > 0 ? paths : sourceFiles[0] ? [sourceFiles[0].path] : [],
           }
-          return nextFiles[0] ? sourceKeyOf(nextFiles[0]) : null
-        })
-        setSelectedPaths((currentSelectedPaths) => {
-          const nextSelected = currentSelectedPaths.filter((path) =>
-            nextFiles.some((file) => file.path === path),
-          )
-          if (nextSelected.length > 0) {
-            return nextSelected
-          }
-
-          return nextFiles[0] ? [nextFiles[0].path] : []
         })
       })
       .catch((cause) => {
@@ -217,13 +220,8 @@ export const SessionLogsWorkspace = ({
           return
         }
 
-        setFiles([])
-        setSelectedSourceKey(null)
-        setSelectedPaths([])
-        dispatch({
-          type: 'setError',
-          error: cause instanceof Error ? cause.message : t.sessionLogsNoDiscoveredLogs,
-        })
+        const error = appClient.normalizeError(cause)
+        setLoadError(error.details ? `${error.message} ${error.details}` : error.message)
       })
       .finally(() => {
         if (isMounted) {
@@ -234,24 +232,27 @@ export const SessionLogsWorkspace = ({
     return () => {
       isMounted = false
     }
-  }, [active, onListLogs, status?.currentStorageBytes, status?.logDirectory, t.sessionLogsNoDiscoveredLogs])
+  }, [active, onListLogs, refreshVersion, status?.currentStorageBytes, status?.logDirectory])
 
   const handleSelectSource = (source: LogSource) => {
-    setSelectedSourceKey(source.key)
-    setSelectedPaths((currentSelectedPaths) => {
-      const validSelection = currentSelectedPaths.filter((path) =>
+    setSelection((current) => {
+      const validSelection = current.paths.filter((path) =>
         source.files.some((file) => file.path === path),
       )
-      return validSelection.length > 0 ? validSelection : source.files[0] ? [source.files[0].path] : []
+      return {
+        sourceKey: source.key,
+        paths: validSelection.length > 0 ? validSelection : source.files[0] ? [source.files[0].path] : [],
+      }
     })
   }
 
   const handleToggleFile = (path: string) => {
-    setSelectedPaths((currentSelectedPaths) =>
-      currentSelectedPaths.includes(path)
-        ? currentSelectedPaths.filter((currentPath) => currentPath !== path)
-        : [...currentSelectedPaths, path],
-    )
+    setSelection((current) => ({
+      ...current,
+      paths: current.paths.includes(path)
+        ? current.paths.filter((currentPath) => currentPath !== path)
+        : [...current.paths, path],
+    }))
     dispatch({ type: 'clearPreviewError' })
   }
 
@@ -282,7 +283,7 @@ export const SessionLogsWorkspace = ({
       const nextPreview = await onPreview(selectedPaths, normalizedPassword)
       dispatch({ type: 'setPreview', preview: nextPreview })
     } catch (cause) {
-      dispatch({ type: 'setError', error: cause instanceof Error ? cause.message : t.saveFailed })
+      dispatch({ type: 'setError', error: appClient.normalizeError(cause).message })
     } finally {
       dispatch({ type: 'setIsWorking', isWorking: false })
     }
@@ -301,7 +302,7 @@ export const SessionLogsWorkspace = ({
         dispatch({ type: 'setError', error: null })
       }
     } catch (cause) {
-      dispatch({ type: 'setError', error: cause instanceof Error ? cause.message : t.saveFailed })
+      dispatch({ type: 'setError', error: appClient.normalizeError(cause).message })
     } finally {
       dispatch({ type: 'setIsWorking', isWorking: false })
     }
@@ -363,23 +364,8 @@ export const SessionLogsWorkspace = ({
               <button
                 type="button"
                 className={actionButtonClass}
-                onClick={() => {
-                  dispatch({ type: 'setIsLoading', isLoading: true })
-                  void onListLogs()
-                    .then((nextFiles) => {
-                      setFiles(nextFiles)
-                      dispatch({ type: 'setError', error: null })
-                    })
-                    .catch((cause) => {
-                      dispatch({
-                        type: 'setError',
-                        error: cause instanceof Error ? cause.message : t.sessionLogsNoDiscoveredLogs,
-                      })
-                    })
-                    .finally(() => {
-                      dispatch({ type: 'setIsLoading', isLoading: false })
-                    })
-                }}
+                disabled={isLoading}
+                onClick={() => setRefreshVersion((current) => current + 1)}
               >
                 {t.sessionLogsRefresh}
               </button>
@@ -405,7 +391,7 @@ export const SessionLogsWorkspace = ({
             </div>
           ) : null}
 
-          {!isLoading && sources.length === 0 ? (
+          {!isLoading && !loadError && warnings.length === 0 && sources.length === 0 ? (
             <div
               className={`rounded-2xl border border-dashed px-4 py-6 text-center ${
                 isDark ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-50'
@@ -480,6 +466,35 @@ export const SessionLogsWorkspace = ({
               </div>
             </div>
 
+            {loadError ? (
+              <p
+                role="alert"
+                className={`rounded-xl border px-3 py-2 text-sm ${
+                  isDark ? 'border-rose-500/30 bg-rose-500/10 text-rose-100' : 'border-rose-200 bg-rose-50 text-rose-700'
+                }`}
+              >
+                {t.sessionLogsLoadFailed} {loadError}
+              </p>
+            ) : null}
+
+            {warnings.length > 0 ? (
+              <details
+                className={`rounded-xl border px-3 py-2 text-sm ${
+                  isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : 'border-amber-300 bg-amber-50 text-amber-900'
+                }`}
+              >
+                <summary className="cursor-pointer">{t.sessionLogsScanWarnings(files.length, warnings.length)}</summary>
+                <ul className="mt-2 space-y-2">
+                  {warnings.map((warning) => (
+                    <li key={warning.path} className="break-words">
+                      <span className="font-medium">{warning.fileName}</span>: {warning.error.message}
+                      {warning.error.details ? <p className="mt-1 whitespace-pre-wrap">{warning.error.details}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+
             {error ? (
               <p
                 className={`rounded-xl border px-3 py-2 text-sm ${
@@ -544,7 +559,7 @@ export const SessionLogsWorkspace = ({
                             type="button"
                             className={actionButtonClass}
                             onClick={() => {
-                              setSelectedPaths([])
+                              setSelection((current) => ({ ...current, paths: [] }))
                               dispatch({ type: 'clearPreviewError' })
                             }}
                           >
@@ -584,7 +599,10 @@ export const SessionLogsWorkspace = ({
                         type="button"
                         className={actionButtonClass}
                         onClick={() => {
-                          setSelectedPaths(visibleFiles.map((file) => file.path))
+                          setSelection((current) => ({
+                            ...current,
+                            paths: visibleFiles.map((file) => file.path),
+                          }))
                           dispatch({ type: 'clearPreviewError' })
                         }}
                       >

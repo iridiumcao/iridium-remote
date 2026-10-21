@@ -196,6 +196,8 @@ type Dictionary = {
   sessionLogsClearSelection: string
   sessionLogsSelectVisible: string
   sessionLogsNoDiscoveredLogs: string
+  sessionLogsLoadFailed: string
+  sessionLogsScanWarnings: (loaded: number, failed: number) => string
   sessionLogsNoDiscoveredLogsDescription: string
   sessionLogsNoSourceFiles: string
   noSessionLogsSelected: string
@@ -474,6 +476,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsClearSelection: 'Clear selection',
     sessionLogsSelectVisible: 'Select visible',
     sessionLogsNoDiscoveredLogs: 'No session logs have been discovered yet.',
+    sessionLogsLoadFailed: 'Failed to load session logs.',
+    sessionLogsScanWarnings: (loaded, failed) => `Loaded ${loaded} log files; ${failed} files could not be read. View details.`,
     sessionLogsNoDiscoveredLogsDescription:
       'Recorded .irlog files in the configured log directory will appear here automatically.',
     sessionLogsNoSourceFiles: 'No log files are available for the selected source.',
@@ -751,6 +755,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsClearSelection: '清空选择',
     sessionLogsSelectVisible: '全选当前列表',
     sessionLogsNoDiscoveredLogs: '还没有发现会话日志。',
+    sessionLogsLoadFailed: '加载会话日志失败。',
+    sessionLogsScanWarnings: (loaded, failed) => `已加载 ${loaded} 个日志文件，${failed} 个文件无法读取。查看详情。`,
     sessionLogsNoDiscoveredLogsDescription: '配置目录中的 .irlog 文件会自动显示在这里。',
     sessionLogsNoSourceFiles: '当前来源下没有可用的日志文件。',
     noSessionLogsSelected: '尚未选择会话日志文件。',
@@ -1025,6 +1031,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     sessionLogsClearSelection: '清除選取',
     sessionLogsSelectVisible: '全選目前清單',
     sessionLogsNoDiscoveredLogs: '還沒有發現會話日誌。',
+    sessionLogsLoadFailed: '載入會話日誌失敗。',
+    sessionLogsScanWarnings: (loaded, failed) => `已載入 ${loaded} 個日誌檔案，${failed} 個檔案無法讀取。檢視詳情。`,
     sessionLogsNoDiscoveredLogsDescription: '設定目錄中的 .irlog 檔案會自動顯示在這裡。',
     sessionLogsNoSourceFiles: '目前來源下沒有可用的日誌檔案。',
     noSessionLogsSelected: '尚未選取任何會話日誌檔案。',

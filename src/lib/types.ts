@@ -202,7 +202,7 @@ export type ConnectionFormSeed = {
 export type AppError = {
   code: string
   message: string
-  details?: string
+  details?: string | null
 }
 
 export type UpdateCheckResult = {
@@ -236,6 +236,17 @@ export type SessionLogFileInfo = {
   username: string
   recordingMode: SessionRecordingMode
   part: number
+}
+
+export type SessionLogWarning = {
+  fileName: string
+  path: string
+  error: AppError
+}
+
+export type SessionLogList = {
+  files: SessionLogFileInfo[]
+  warnings: SessionLogWarning[]
 }
 
 export type SessionLogPreview = {

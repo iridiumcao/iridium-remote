@@ -308,6 +308,21 @@ pub struct SessionLogFileInfo {
     pub part: u32,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLogWarning {
+    pub file_name: String,
+    pub path: String,
+    pub error: crate::errors::AppError,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLogList {
+    pub files: Vec<SessionLogFileInfo>,
+    pub warnings: Vec<SessionLogWarning>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionLogPreview {

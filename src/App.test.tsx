@@ -306,7 +306,7 @@ describe('App', () => {
     })
     appClientMocks.onSessionStateMock.mockResolvedValue(() => {})
     appClientMocks.onSessionRemovedMock.mockResolvedValue(() => {})
-    appClientMocks.listSessionLogsMock.mockResolvedValue([])
+    appClientMocks.listSessionLogsMock.mockResolvedValue({ files: [], warnings: [] })
     vi.mocked(appClient.updateAppSettings).mockImplementation(async (settings) => settings)
   })
 
@@ -1106,7 +1106,7 @@ describe('App', () => {
       logDirectory: 'C:\\mock\\SessionLogs',
       currentStorageBytes: 0,
     })
-    appClientMocks.listSessionLogsMock.mockResolvedValue([
+    appClientMocks.listSessionLogsMock.mockResolvedValue({ files: [
       {
         fileName: '2026-01-01_root_example.com.irlog',
         path: 'C:\\mock\\SessionLogs\\2026-01-01_root_example.com.irlog',
@@ -1116,7 +1116,7 @@ describe('App', () => {
         recordingMode: 'full',
         part: 1,
       },
-    ])
+    ], warnings: [] })
     vi.mocked(appClient.previewSessionLogs).mockResolvedValue({
       files: [
         {
