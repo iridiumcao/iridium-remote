@@ -286,18 +286,27 @@ pub async fn transfer_file(
     )
     .await
     .map_err(|_| AppError::validation("The SFTP connection timed out."))??;
-    let result = match input.direction {
-        FileTransferDirection::Upload => {
-            upload_path(&connection.sftp, local_path, remote_path).await
-        }
-        FileTransferDirection::Download => {
-            download_path(&connection.sftp, remote_path, local_path).await
-        }
-    };
-    let closed = timeout(REMOTE_LIST_TIMEOUT, connection.close()).await;
-    let message = result?;
-    closed.map_err(|_| AppError::validation("Timed out closing the SFTP connection."))??;
-    Ok(FileTransferResult { message })
+    let result = transfer_path(&connection.sftp, input.direction, local_path, remote_path).await;
+    match timeout(REMOTE_LIST_TIMEOUT, connection.close()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => log::debug!("SFTP connection cleanup failed: {error:?}"),
+        Err(_) => log::debug!("SFTP connection cleanup timed out"),
+    }
+    result.map(|message| FileTransferResult { message })
+}
+
+async fn transfer_path(
+    sftp: &SftpSession,
+    direction: FileTransferDirection,
+    local_path: &str,
+    remote_path: &str,
+) -> AppResult<String> {
+    // Give individual SFTP requests the same time to make progress as file I/O.
+    sftp.set_timeout(TRANSFER_IDLE_TIMEOUT.as_secs());
+    match direction {
+        FileTransferDirection::Upload => upload_path(sftp, local_path, remote_path).await,
+        FileTransferDirection::Download => download_path(sftp, remote_path, local_path).await,
+    }
 }
 
 pub async fn list_remote_directory(
@@ -450,7 +459,7 @@ impl TransferConnection {
 async fn connect_to_remote(
     connection: &ConnectionRecord,
     saved_password: Option<String>,
-    request_timeout_secs: u64,
+    ssh_idle_timeout_secs: u64,
 ) -> AppResult<TransferConnection> {
     let ssh_config = resolve_ssh_config(connection);
     let rejection_reason = Arc::new(Mutex::new(None));
@@ -463,7 +472,7 @@ async fn connect_to_remote(
     };
 
     let russh_config = Arc::new(client::Config {
-        inactivity_timeout: Some(Duration::from_secs(request_timeout_secs)),
+        inactivity_timeout: Some(Duration::from_secs(ssh_idle_timeout_secs)),
         ..Default::default()
     });
     let stream = ssh_config.ssh.stream().await.map_err(|error| {
@@ -850,9 +859,21 @@ async fn download_single_file(
     let mut remote_file = sftp.open(remote_path).await.map_err(|error| {
         AppError::internal("Failed to open the remote file.", error.to_string())
     })?;
-    let mut local_file = async_fs::File::create(local_path).await.map_err(|error| {
-        AppError::internal("Failed to create the local file.", error.to_string())
-    })?;
+    let parent = local_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let (file, temporary_path) = tempfile::Builder::new()
+        .prefix(".iridium-download-")
+        .tempfile_in(parent)
+        .map_err(|error| {
+            AppError::internal(
+                "Failed to create a temporary download file.",
+                error.to_string(),
+            )
+        })?
+        .into_parts();
+    let mut local_file = async_fs::File::from_std(file);
 
     copy_with_idle_timeout(&mut remote_file, &mut local_file, TRANSFER_IDLE_TIMEOUT)
         .await
@@ -862,12 +883,19 @@ async fn download_single_file(
     local_file.flush().await.map_err(|error| {
         AppError::internal("Failed to flush the local file.", error.to_string())
     })?;
-    remote_file.shutdown().await.map_err(|error| {
+    drop(local_file);
+    temporary_path.persist(local_path).map_err(|error| {
         AppError::internal(
-            "Failed to finalize the remote file download.",
-            error.to_string(),
+            "Failed to save the downloaded file.",
+            error.error.to_string(),
         )
     })?;
+    // Once EOF has been received and the file saved, closing the read handle is cleanup.
+    match timeout(REMOTE_LIST_TIMEOUT, remote_file.shutdown()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => log::debug!("SFTP download handle cleanup failed: {error}"),
+        Err(_) => log::debug!("SFTP download handle cleanup timed out"),
+    }
 
     Ok(())
 }

@@ -587,7 +587,7 @@ Internet access. Proxy-based access needs a separate manual desktop check.
 ### Larger upgrades and desktop validation
 
 The SSH transport uses `russh 0.64.1`, retaining compatible `russh-config 0.58`
-and `russh-sftp 2.4`. Run its focused regression tests with:
+and `russh-sftp 3.0.1`. Run its focused regression tests with:
 
 ```sh
 cargo test --manifest-path src-tauri/Cargo.toml --locked transfer::protocol_tests

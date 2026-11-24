@@ -217,7 +217,8 @@ Runs an upload or download through the backend `russh`-based SFTP client.
 - Directory transfers require the destination side to be a directory.
 - The desktop runtime should support both saved-password auth and non-interactive SSH-key auth for transfers.
 - Transfers use an independent connection, not the browser's cached connection. Same-name files are replaced and directory contents are merged; the panel asks the user to confirm before invoking this command.
-- Connection setup and SFTP requests time out after 15 seconds. File streaming has a 300-second read/write stall timeout and no fixed total duration limit.
+- Connection setup times out after 15 seconds. Once connected, transfer SFTP requests and file read/write stalls can wait up to 300 seconds. Transfers have no fixed total duration limit.
+- Each download is staged in its destination directory and replaces the destination only after the full file is received and flushed. A failed download removes the temporary file and preserves any existing destination file. An interrupted connection requires a new attempt.
 
 ### `list_remote_directory(connectionId, path?, browserId?, showHidden?) -> RemotePathListing`
 

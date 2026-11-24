@@ -193,7 +193,9 @@ The footer copy button and context-menu Copy path share `copyPath`. Copy feedbac
 
 `RemoteBrowserManager` caches an SSH/SFTP connection per optional browser ID, serializes directory requests on each connection, and isolates different panels. Changes to the saved connection ID or update timestamp invalidate the cached client. Idle slots expire after 60 seconds and are pruned on the next lookup; SSH inactivity also closes idle transport connections. Hiding/unmounting a panel calls `close_remote_browser`. Errors/timeouts discard the cached connection, so Retry reconnects. Legacy callers without a browser ID retain one-shot listing behavior.
 
-Directory operations have a 15-second execution timeout (with at most 15 seconds waiting for a busy browser lock). Entries are sorted directories first, then case-insensitively by name. Dot-prefixed entries are hidden unless `showHidden` is requested; `.` and `..` are always excluded. Blank paths resolve through SFTP `canonicalize(".")`, independently of the terminal shell working directory. Transfers have a 15-second connection setup timeout and SFTP request timeouts, plus a 300-second read/write stall timeout rather than a five-minute total transfer limit.
+Directory operations have a 15-second execution timeout (with at most 15 seconds waiting for a busy browser lock). Entries are sorted directories first, then case-insensitively by name. Dot-prefixed entries are hidden unless `showHidden` is requested; `.` and `..` are always excluded. Blank paths resolve through SFTP `canonicalize(".")`, independently of the terminal shell working directory.
+
+Transfers allow 15 seconds for SSH/SFTP connection setup. After setup, each SFTP request and file read/write stall has a 300-second timeout, with no limit on total transfer duration. Downloads write to unique temporary files alongside their destinations and replace each destination after EOF and a successful flush. A transfer error before replacement removes the temporary file and preserves the destination. Once the local file is saved, closing the remote read handle and transfer connection is best-effort.
 
 Transfers and remote browsing support saved-password auth plus non-interactive SSH-key auth through standard SSH config and identity files. SFTP is separate from the system OpenSSH terminal connection and cannot reuse a password typed only into that terminal. The panel's open state, width and browser cache are runtime-only; no database migration is needed.
 
@@ -206,7 +208,7 @@ Open and search-result navigation call `open_remote_path`, which canonicalizes a
 `transfer/search.rs` implements read-only SFTP search over a separate connection, preserving browser responsiveness. It uses literal case-insensitive substring matching, reports line numbers/previews for UTF-8 text, skips binary/oversized/unreadable files, and never follows symbolic links. Time, entry/depth/directory, result and byte budgets bound traversal. Partial results and skipped counts are returned explicitly (see the command contracts for exact limits). In-memory SFTP protocol tests cover recursive scope, hidden entries, literal content, permission failures, links and scan limits without a real host.
 
 The transport uses `russh 0.64.1` with `ring`, `flate2`, and RSA support, together
-with `russh-config 0.58` and `russh-sftp 2.4`. Host trust remains based on pinned
+with `russh-config 0.58` and `russh-sftp 3.0.1`. Host trust remains based on pinned
 public keys in `known_hosts`. The new public-key-or-certificate callback verifies
 plain keys as before and explicitly rejects certificates under strict checking;
 host CA trust is not implemented. Certificate algorithms remain unadvertised by

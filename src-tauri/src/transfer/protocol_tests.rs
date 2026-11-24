@@ -6,9 +6,12 @@ use russh::{
     server::{self, Auth, Msg, Session},
     Channel, ChannelId,
 };
-use russh_sftp::protocol::{Attrs, File, Handle, Name, Status, StatusCode};
+use russh_sftp::protocol::{Attrs, Data, File, FileAttributes, Handle, Name, Status, StatusCode};
+use tokio::sync::oneshot;
 
 use super::*;
+
+const DOWNLOAD_SIZE: usize = 200_000;
 
 struct TestFiles(PathBuf);
 
@@ -165,15 +168,18 @@ impl server::Handler for TestSshServer {
         session.channel_success(channel)?;
         russh_sftp::server::run(
             self.channels.remove(&channel).unwrap().into_stream(),
-            TestSftpServer { listed: false },
+            TestSftpServer::default(),
         )
         .await;
         Ok(())
     }
 }
 
+#[derive(Default)]
 struct TestSftpServer {
     listed: bool,
+    first_read_delay: Duration,
+    disconnect_after_first_read: Option<oneshot::Sender<()>>,
 }
 
 impl russh_sftp::server::Handler for TestSftpServer {
@@ -208,6 +214,50 @@ impl russh_sftp::server::Handler for TestSftpServer {
         Ok(Attrs {
             id,
             attrs: file.attrs,
+        })
+    }
+
+    async fn lstat(&mut self, id: u32, path: String) -> Result<Attrs, Self::Error> {
+        self.stat(id, path).await
+    }
+
+    async fn open(
+        &mut self,
+        id: u32,
+        path: String,
+        flags: OpenFlags,
+        _: FileAttributes,
+    ) -> Result<Handle, Self::Error> {
+        assert_eq!(path, "/test/a.txt");
+        assert_eq!(flags.bits(), OpenFlags::READ.bits());
+        Ok(Handle {
+            id,
+            handle: "test-file".into(),
+        })
+    }
+
+    async fn read(
+        &mut self,
+        id: u32,
+        handle: String,
+        offset: u64,
+        len: u32,
+    ) -> Result<Data, Self::Error> {
+        assert_eq!(handle, "test-file");
+        if offset == 0 {
+            tokio::time::sleep(self.first_read_delay).await;
+        } else if let Some(disconnect) = self.disconnect_after_first_read.take() {
+            let _ = disconnect.send(());
+            return Err(StatusCode::Failure);
+        }
+        let start = offset as usize;
+        if start >= DOWNLOAD_SIZE {
+            return Err(StatusCode::Eof);
+        }
+        let end = DOWNLOAD_SIZE.min(start + (len as usize).min(32 * 1024));
+        Ok(Data {
+            id,
+            data: download_bytes(start..end),
         })
     }
 
@@ -416,4 +466,89 @@ async fn saved_password_authentication_opens_a_compatible_sftp_channel() {
 #[tokio::test]
 async fn rejected_password_falls_back_to_identity_file_and_opens_sftp() {
     check_authentication_and_sftp("wrong-password", true).await;
+}
+
+fn download_bytes(range: std::ops::Range<usize>) -> Vec<u8> {
+    range.map(|index| (index % 251) as u8).collect()
+}
+
+async fn download_over_sftp(
+    local_path: &Path,
+    server: TestSftpServer,
+    drop_transport: oneshot::Receiver<()>,
+) -> AppResult<String> {
+    timeout(Duration::from_secs(30), async {
+        let (client_stream, mut client_relay) = tokio::io::duplex(4096);
+        let (server_stream, mut server_relay) = tokio::io::duplex(4096);
+        let relay = tokio::spawn(async move {
+            tokio::select! {
+                biased;
+                _ = drop_transport => {}
+                _ = tokio::io::copy_bidirectional(&mut client_relay, &mut server_relay) => {}
+            }
+        });
+        russh_sftp::server::run(server_stream, server).await;
+        let sftp = SftpSession::new_with_config(
+            client_stream,
+            SftpConfig {
+                request_timeout_secs: DEFAULT_SFTP_REQUEST_TIMEOUT_SECS,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let result = transfer_path(
+            &sftp,
+            FileTransferDirection::Download,
+            local_path.to_str().unwrap(),
+            "/test/a.txt",
+        )
+        .await;
+        relay.abort();
+        result
+    })
+    .await
+    .expect("SFTP download test timed out")
+}
+
+#[tokio::test]
+async fn download_survives_a_response_delayed_past_the_setup_timeout() {
+    let files = TestFiles::new();
+    let destination = files.0.join("download.txt");
+    fs::write(&destination, b"previous file").unwrap();
+    let (_disconnect, drop_transport) = oneshot::channel();
+    let server = TestSftpServer {
+        first_read_delay: Duration::from_secs(DEFAULT_SFTP_REQUEST_TIMEOUT_SECS + 1),
+        ..Default::default()
+    };
+
+    download_over_sftp(&destination, server, drop_transport)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        fs::read(destination).unwrap(),
+        download_bytes(0..DOWNLOAD_SIZE)
+    );
+    assert_eq!(fs::read_dir(&files.0).unwrap().count(), 1);
+}
+
+#[tokio::test]
+async fn interrupted_download_leaves_existing_destination_intact() {
+    let files = TestFiles::new();
+    let destination = files.0.join("download.txt");
+    fs::write(&destination, b"previous file").unwrap();
+    let (disconnect, drop_transport) = oneshot::channel();
+    let server = TestSftpServer {
+        disconnect_after_first_read: Some(disconnect),
+        ..Default::default()
+    };
+
+    let error = download_over_sftp(&destination, server, drop_transport)
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.message, "Failed to download the remote file.");
+    assert_eq!(fs::read(destination).unwrap(), b"previous file");
+    assert_eq!(fs::read_dir(&files.0).unwrap().count(), 1);
 }
